@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -O3 -DNDEBUG -shared -Wl,-soname,librwkv.so -o librwkv.so CMakeFiles/rwkv.dir/rwkv.cpp.o CMakeFiles/ggml.dir/ggml.c.o 
