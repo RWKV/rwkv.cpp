@@ -1,4 +1,0 @@
-/home/eric/Desktop/projects/rwkv.cpp/CMakeFiles/ggml.dir
-/home/eric/Desktop/projects/rwkv.cpp/CMakeFiles/rwkv.dir
-/home/eric/Desktop/projects/rwkv.cpp/CMakeFiles/edit_cache.dir
-/home/eric/Desktop/projects/rwkv.cpp/CMakeFiles/rebuild_cache.dir
