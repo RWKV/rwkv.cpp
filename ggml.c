@@ -9543,7 +9543,8 @@ void ggml_graph_compute(struct ggml_context * ctx, struct ggml_cgraph * cgraph) 
                             } else
 #endif
                             {
-                                cur = GGML_TYPE_SIZE[GGML_TYPE_F32]*(node->src0->ne[0]*node->src0->ne[1]);
+                                // Assuming that src1 is a vector
+                                cur = GGML_TYPE_SIZE[GGML_TYPE_F32] * ggml_nelements(node->src1);
                             }
                         } else {
                             GGML_ASSERT(false);
