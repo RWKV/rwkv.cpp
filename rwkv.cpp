@@ -651,8 +651,8 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
                 printf("%48s - [%5d, %5d], type = %6s ", name.data(), ne[0], ne[1], parameter_data_type_str[parameter_data_type]);
             }
 
-            // Quantize only 2D tensors
-            bool quantize = n_dims == 2;
+            // Quantize only 2D tensors, except embedding matrix -- helps to increase quality
+            bool quantize = n_dims == 2 && name != std::string("emb.weight");
 
             if (quantize) {
                 if (parameter_data_type != 0 && parameter_data_type != 1) {
