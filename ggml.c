@@ -27,7 +27,7 @@
 
 // https://gist.github.com/rygorous/2144712
 // Public domain, by Fabian "ryg" Giesen
-inline static float ggml_half_to_float_simple(uint16_t value) {
+inline static float ggml_half_to_float_reference(uint16_t value) {
     union FP32 {
         uint32_t u;
         float f;
@@ -359,9 +359,9 @@ inline static float ggml_lookup_fp16_to_fp32(ggml_fp16_t f) {
     // For some reason, lookup table does not work on my machine:
     // - Windows SDK version 10.0.19041.0
     // - CMAKE_SYSTEM_PROCESSOR: AMD64
-    // Replaced lookup with some conversion code found online.
+    // Replaced lookup with working reference code.
     // TODO This must be properly debugged and fixed
-    return ggml_half_to_float_simple(f);
+    return ggml_half_to_float_reference(f);
 }
 
 #define GGML_FP16_TO_FP32(x) ggml_lookup_fp16_to_fp32(x)
@@ -1051,8 +1051,8 @@ static void dequantize_row_q4_1(const void * restrict vx, float * restrict y, in
 
 #if defined(__AVX2__)
     for (int i = 0; i < nb; i++) {
-        const float x_d = ggml_half_to_float_simple(x[i].d);
-        const float x_m = ggml_half_to_float_simple(x[i].m);
+        const float x_d = ggml_half_to_float_reference(x[i].d);
+        const float x_m = ggml_half_to_float_reference(x[i].m);
 
         const __m256 d_v = _mm256_broadcast_ss(&x_d);
         const __m256 d_m = _mm256_broadcast_ss(&x_m);
@@ -1083,12 +1083,12 @@ static void dequantize_row_q4_1(const void * restrict vx, float * restrict y, in
         }
 
         // Restore the outlier
-        y[i * QK + x[i].outlier_index] = ggml_half_to_float_simple(x[i].outlier_value);
+        y[i * QK + x[i].outlier_index] = ggml_half_to_float_reference(x[i].outlier_value);
     }
 #elif defined(__ARM_NEON)
     for (int i = 0; i < nb; i++) {
-        const float x_d = ggml_half_to_float_simple(x[i].d);
-        const float x_m = ggml_half_to_float_simple(x[i].m);
+        const float x_d = ggml_half_to_float_reference(x[i].d);
+        const float x_m = ggml_half_to_float_reference(x[i].m);
 
         const float32x4_t vd = vdupq_n_f32(x_d);
         const float32x4_t vm = vdupq_n_f32(x_m);
@@ -1133,12 +1133,12 @@ static void dequantize_row_q4_1(const void * restrict vx, float * restrict y, in
         }
 
         // Restore the outlier
-        y[i * QK + x[i].outlier_index] = ggml_half_to_float_simple(x[i].outlier_value);
+        y[i * QK + x[i].outlier_index] = ggml_half_to_float_reference(x[i].outlier_value);
     }
 #else
     for (int i = 0; i < nb; i++) {
-        const float d = ggml_half_to_float_simple(x[i].d);
-        const float m = ggml_half_to_float_simple(x[i].m);
+        const float d = ggml_half_to_float_reference(x[i].d);
+        const float m = ggml_half_to_float_reference(x[i].m);
 
         const uint8_t * restrict pp = x[i].qs;
 
@@ -1159,7 +1159,7 @@ static void dequantize_row_q4_1(const void * restrict vx, float * restrict y, in
         }
 
         // Restore the outlier
-        y[i * QK + x[i].outlier_index] = ggml_half_to_float_simple(x[i].outlier_value);
+        y[i * QK + x[i].outlier_index] = ggml_half_to_float_reference(x[i].outlier_value);
     }
 #endif
 }
@@ -9544,6 +9544,7 @@ void ggml_graph_compute(struct ggml_context * ctx, struct ggml_cgraph * cgraph) 
 #endif
                             {
                                 // Assuming that src1 is a vector
+                                // TODO Not sure whether this is correct
                                 cur = GGML_TYPE_SIZE[GGML_TYPE_F32] * ggml_nelements(node->src1);
                             }
                         } else {
