@@ -735,70 +735,100 @@ static void quantize_row_q4_0(const float * restrict x, void * restrict vy, int 
 #endif
 }
 
+static inline void quantize_row_q4_1_reference_single_block(const float * restrict x, block_q4_1 * restrict block) {
+    // An outlier is just the absmax element in the block.
+    // We store it separately and do not quantize it.
+    int outlier_index = -1;
+    float outlier_value = 0.0F;
+
+    for (int l = 0; l < QK; l++) {
+        const float v = x[l];
+
+        if (fabsf(v) > fabsf(outlier_value)) {
+            outlier_index = l;
+            outlier_value = v;
+        }
+    }
+
+    block->outlier_index = outlier_index;
+    block->outlier_value = GGML_COMPUTE_FP32_TO_FP16(outlier_value);
+
+    float min = FLT_MAX;
+    float max = -FLT_MAX;
+
+    for (int l = 0; l < QK; l++) {
+        if (l == outlier_index) {
+            // Ignore outlier when computing range.
+            continue;
+        }
+
+        const float v = x[l];
+        if (v < min) min = v;
+        if (v > max) max = v;
+    }
+
+    const float d = (max - min) / ((1 << 4) - 1);
+    const float id = d ? 1.0f/d : 0.0f;
+
+    block->d = GGML_COMPUTE_FP32_TO_FP16(d);
+    block->m = GGML_COMPUTE_FP32_TO_FP16(min);
+
+    uint8_t pp[QK / 2];
+
+    for (int l = 0; l < QK; l += 2) {
+        float v0 = (x[l + 0] - min) * id;
+        float v1 = (x[l + 1] - min) * id;
+
+        // Write some garbage but valid index for the outlier.
+        if (l + 0 == outlier_index) v0 = 0.0;
+        if (l + 1 == outlier_index) v1 = 0.0;
+
+        const uint8_t vi0 = roundf(v0);
+        const uint8_t vi1 = roundf(v1);
+
+        assert(vi0 >= 0 && vi0 < 16);
+        assert(vi1 >= 0 && vi1 < 16);
+
+        pp[l/2] = vi0 | (vi1 << 4);
+    }
+
+    memcpy(block->qs, pp, sizeof(pp));
+}
+
+static inline void dequantize_row_q4_1_reference_single_block(block_q4_1 * restrict block, float * restrict y) {
+    const float d = ggml_half_to_float_reference(block->d);
+    const float m = ggml_half_to_float_reference(block->m);
+
+    const uint8_t * restrict pp = block->qs;
+
+    for (int l = 0; l < QK; l += 2) {
+        const uint8_t vi = pp[l / 2];
+
+        const int8_t vi0 = vi & 0xf;
+        const int8_t vi1 = vi >> 4;
+
+        const float v0 = vi0 * d + m;
+        const float v1 = vi1 * d + m;
+
+        y[l + 0] = v0;
+        y[l + 1] = v1;
+
+        assert(!isnan(y[l + 0]));
+        assert(!isnan(y[l + 1]));
+    }
+
+    // Restore the outlier
+    y[block->outlier_index] = ggml_half_to_float_reference(block->outlier_value);
+}
+
 static void quantize_row_q4_1_reference(const float * restrict x, void * restrict vy, int k) {
     assert(k % QK == 0);
     const int nb = k / QK;
 
     block_q4_1 * restrict y = vy;
 
-    uint8_t pp[QK / 2];
-
     for (int i = 0; i < nb; i++) {
-        // An outlier is just the absmax element in the block.
-        // We store it separately and do not quantize it.
-        int outlier_index = -1;
-        float outlier_value = 0.0F;
-
-        for (int l = 0; l < QK; l++) {
-            const float v = x[i * QK + l];
-
-            if (fabsf(v) > fabsf(outlier_value)) {
-                outlier_index = l;
-                outlier_value = v;
-            }
-        }
-
-        y[i].outlier_index = outlier_index;
-        y[i].outlier_value = GGML_COMPUTE_FP32_TO_FP16(outlier_value);
-
-        float min = FLT_MAX;
-        float max = -FLT_MAX;
-
-        for (int l = 0; l < QK; l++) {
-            if (l == outlier_index) {
-                // Ignore outlier when computing range.
-                continue;
-            }
-
-            const float v = x[i * QK + l];
-            if (v < min) min = v;
-            if (v > max) max = v;
-        }
-
-        const float d = (max - min) / ((1 << 4) - 1);
-        const float id = d ? 1.0f/d : 0.0f;
-
-        y[i].d = GGML_COMPUTE_FP32_TO_FP16(d);
-        y[i].m = GGML_COMPUTE_FP32_TO_FP16(min);
-
-        for (int l = 0; l < QK; l += 2) {
-            float v0 = (x[i*QK + l + 0] - min)*id;
-            float v1 = (x[i*QK + l + 1] - min)*id;
-
-            // Write some garbage but valid index for the outlier.
-            if (l + 0 == outlier_index) v0 = 0.0;
-            if (l + 1 == outlier_index) v1 = 0.0;
-
-            const uint8_t vi0 = roundf(v0);
-            const uint8_t vi1 = roundf(v1);
-
-            assert(vi0 >= 0 && vi0 < 16);
-            assert(vi1 >= 0 && vi1 < 16);
-
-            pp[l/2] = vi0 | (vi1 << 4);
-        }
-
-        memcpy(y[i].qs, pp, sizeof(pp));
+        quantize_row_q4_1_reference_single_block(x + i * QK, y + i);
     }
 }
 
@@ -1137,29 +1167,7 @@ static void dequantize_row_q4_1(const void * restrict vx, float * restrict y, in
     }
 #else
     for (int i = 0; i < nb; i++) {
-        const float d = ggml_half_to_float_reference(x[i].d);
-        const float m = ggml_half_to_float_reference(x[i].m);
-
-        const uint8_t * restrict pp = x[i].qs;
-
-        for (int l = 0; l < QK; l += 2) {
-            const uint8_t vi = pp[l/2];
-
-            const int8_t vi0 = vi & 0xf;
-            const int8_t vi1 = vi >> 4;
-
-            const float v0 = vi0*d + m;
-            const float v1 = vi1*d + m;
-
-            y[i*QK + l + 0] = v0;
-            y[i*QK + l + 1] = v1;
-
-            assert(!isnan(y[i*QK + l + 0]));
-            assert(!isnan(y[i*QK + l + 1]));
-        }
-
-        // Restore the outlier
-        y[i * QK + x[i].outlier_index] = ggml_half_to_float_reference(x[i].outlier_value);
+        dequantize_row_q4_1_reference_single_block(x + i, y + i * QK);
     }
 #endif
 }
