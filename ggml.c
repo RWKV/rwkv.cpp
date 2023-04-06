@@ -6851,12 +6851,112 @@ static void ggml_compute_forward_mul_mat_q_f32(
     const int ir0 = dr*ith;
     const int ir1 = MIN(ir0 + dr, nr);
 
+#if defined(__AVX2__)
+    float outlier_mask[QK];
+    memset(outlier_mask, 0, QK * sizeof(float));
+#endif
+
     for (int ir = ir0; ir < ir1; ++ir) {
         // src0 indices
         const int i03 = ir/(ne02*ne01);
         const int i02 = (ir - i03*ne02*ne01)/ne01;
         const int i01 = (ir - i03*ne02*ne01 - i02*ne01);
 
+#if defined(__AVX2__)
+        for (int ic = 0; ic < ne11; ++ic) {
+            // src1 indices
+            const int i13 = i03;
+            const int i12 = i02;
+            const int i11 = ic;
+
+            // dst indices
+            const int i0 = i01;
+            const int i1 = i11;
+            const int i2 = i02;
+            const int i3 = i03;
+
+            const int block_count = ne00 / QK;
+
+            const block_q4_1 * row_blocks = (block_q4_1 *) ((char *) src0->data + (i01 * nb01 + i02 * nb02 + i03 * nb03));
+
+            __m256 accum = _mm256_setzero_ps();
+
+            for (int block_index = 0; block_index < block_count; block_index++) {
+                const float block_d = ggml_half_to_float_reference(row_blocks[block_index].d);
+                const float block_m = ggml_half_to_float_reference(row_blocks[block_index].m);
+
+                // 0 .. 31
+                const uint16_t outlier_index = row_blocks[block_index].outlier_index;
+                const float outlier_value = ggml_half_to_float_reference(row_blocks[block_index].outlier_value);
+
+                const uint8_t * restrict quant_nibbles = row_blocks[block_index].qs;
+
+                // ---
+
+                // Broadcast values to 8x element float32 vectors
+                const __m256 broadcasted_d = _mm256_broadcast_ss(&block_d);
+                const __m256 broadcasted_m = _mm256_broadcast_ss(&block_m);
+                const __m256 broadcasted_outlier_value = _mm256_broadcast_ss(&outlier_value);
+
+                // Load 32x4-bit integers into 32x8-bit integers
+                const __m256i quant_bytes = bytesFromNibbles(quant_nibbles);
+
+                // Convert to 16-bit int
+                const __m256i quant_shorts_lo = _mm256_cvtepi8_epi16(_mm256_extracti128_si256(quant_bytes, 0));
+                const __m256i quant_shorts_hi = _mm256_cvtepi8_epi16(_mm256_extracti128_si256(quant_bytes, 1));
+
+                // Convert to 32-bit int and then to 32-bit float
+                const __m256 quant_floats_0 = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(_mm256_extracti128_si256(quant_shorts_lo, 0)));
+                const __m256 quant_floats_1 = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(_mm256_extracti128_si256(quant_shorts_lo, 1)));
+                const __m256 quant_floats_2 = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(_mm256_extracti128_si256(quant_shorts_hi, 0)));
+                const __m256 quant_floats_3 = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(_mm256_extracti128_si256(quant_shorts_hi, 1)));
+
+                // Dequantize to ~original weights
+                const __m256 weight_0 = _mm256_fmadd_ps(quant_floats_0, broadcasted_d, broadcasted_m);
+                const __m256 weight_1 = _mm256_fmadd_ps(quant_floats_1, broadcasted_d, broadcasted_m);
+                const __m256 weight_2 = _mm256_fmadd_ps(quant_floats_2, broadcasted_d, broadcasted_m);
+                const __m256 weight_3 = _mm256_fmadd_ps(quant_floats_3, broadcasted_d, broadcasted_m);
+
+                // Set outlier mask -- this should give 1 in the most significant bit
+                outlier_mask[outlier_index] = -1.0F;
+                // Load mask into vectors
+                const __m256 outlier_mask_0 = _mm256_load_ps(outlier_mask);
+                const __m256 outlier_mask_1 = _mm256_load_ps(outlier_mask + 8);
+                const __m256 outlier_mask_2 = _mm256_load_ps(outlier_mask + 16);
+                const __m256 outlier_mask_3 = _mm256_load_ps(outlier_mask + 24);
+                // Reset mask array to all zeroes for the next iteration
+                outlier_mask[outlier_index] = 0.0F;
+
+                // Replace the weight at the index of the outlier
+                const __m256 weight_0_with_outlier = _mm256_blendv_ps(weight_0, broadcasted_outlier_value, outlier_mask_0);
+                const __m256 weight_1_with_outlier = _mm256_blendv_ps(weight_1, broadcasted_outlier_value, outlier_mask_1);
+                const __m256 weight_2_with_outlier = _mm256_blendv_ps(weight_2, broadcasted_outlier_value, outlier_mask_2);
+                const __m256 weight_3_with_outlier = _mm256_blendv_ps(weight_3, broadcasted_outlier_value, outlier_mask_3);
+
+                // Load 32 floats of data of the second argument
+                const float * src1_data = (float *) ((char *) src1->data + (block_index * QK * nb10 + i11 * nb11 + i12 * nb12 + i13 * nb13));
+
+                const __m256 src1_0 = _mm256_load_ps(src1_data);
+                const __m256 src1_1 = _mm256_load_ps(src1_data + 8);
+                const __m256 src1_2 = _mm256_load_ps(src1_data + 16);
+                const __m256 src1_3 = _mm256_load_ps(src1_data + 24);
+
+                // Multiply weights and values of the second argument element-wise; add to accumulator
+                accum = _mm256_fmadd_ps(src1_0, weight_0_with_outlier, accum);
+                accum = _mm256_fmadd_ps(src1_1, weight_1_with_outlier, accum);
+                accum = _mm256_fmadd_ps(src1_2, weight_2_with_outlier, accum);
+                accum = _mm256_fmadd_ps(src1_3, weight_3_with_outlier, accum);
+            }
+
+            // Add elements of accumulator
+            __m128 res = _mm256_extractf128_ps(accum, 1);
+            res = _mm_add_ps(res, _mm256_castps256_ps128(accum));
+            res = _mm_add_ps(res, _mm_movehl_ps(res, res ));
+            res = _mm_add_ss(res, _mm_movehdup_ps(res));
+
+            *((float *) ((char *) dst->data + (i0 * nb0 + i1 * nb1 + i2 * nb2 + i3 * nb3))) = _mm_cvtss_f32(res);
+        }
+#else
         float * const wdata = (float *) ((char *) params->wdata + (i01 * nb01 + i02 * nb02 + i03 * nb03));
 
         dequantize_row_q((char *) src0->data + (i01 * nb01 + i02 * nb02 + i03 * nb03), wdata, ne00);
@@ -6877,8 +6977,10 @@ static void ggml_compute_forward_mul_mat_q_f32(
                     ne00,
                     (float *) ((char *) dst->data + (i0 * nb0 + i1 * nb1 + i2 * nb2 + i3 * nb3)),
                     wdata,
-                    (float *) ((char *) src1->data + (i11 * nb11 + i12 * nb12 + i13 * nb13)));
+                    (float *) ((char *) src1->data + (i11 * nb11 + i12 * nb12 + i13 * nb13))
+            );
         }
+#endif
     }
 
     //int64_t t1 = ggml_time_us();
@@ -9551,9 +9653,13 @@ void ggml_graph_compute(struct ggml_context * ctx, struct ggml_cgraph * cgraph) 
                             } else
 #endif
                             {
+#if defined(__AVX2__)
+                                cur = 0;
+#else
                                 // Assuming that src1 is a vector
                                 // TODO Not sure whether this is correct
                                 cur = GGML_TYPE_SIZE[GGML_TYPE_F32] * ggml_nelements(node->src1);
+#endif
                             }
                         } else {
                             GGML_ASSERT(false);
