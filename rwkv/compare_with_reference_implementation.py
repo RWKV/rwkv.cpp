@@ -51,7 +51,7 @@ def main() -> None:
             threshold = 4.0
         elif data_type == 3:
             # This format stores more data, so error would be lower
-            threshold = 1.2
+            threshold = 0.2
 
     model = rwkv_cpp_model.RWKVModel(rwkv_cpp_shared_library.load_rwkv_shared_library(), args.ggml_model_path)
 
