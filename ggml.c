@@ -3195,6 +3195,12 @@ bool ggml_mlock(struct ggml_context * ctx, char ** err_p) {
 }
 #endif // GGML_MLOCK_SUPPORT
 
+static volatile bool do_quantized_dot_in_FP32 = false;
+
+void ggml_set_do_quantized_dot_in_FP32(struct ggml_context * ctx, bool value) {
+    do_quantized_dot_in_FP32 = value;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ggml_tensor * ggml_new_tensor_impl(
@@ -3771,7 +3777,7 @@ struct ggml_tensor * ggml_add_impl(
         struct ggml_tensor * a,
         struct ggml_tensor * b,
         bool inplace) {
-    GGML_ASSERT(ggml_are_same_shape(a, b));
+    GGML_ASSERT(ggml_are_same_shape(a, b) || ggml_is_scalar(b));
 
     bool is_node = false;
 
@@ -5249,11 +5255,43 @@ static void ggml_compute_forward_add_f32(
         const struct ggml_tensor * src0,
         const struct ggml_tensor * src1,
         struct ggml_tensor * dst) {
-    GGML_ASSERT(ggml_are_same_shape(src0, src1) && ggml_are_same_shape(src0, dst));
-
     if (params->type == GGML_TASK_INIT || params->type == GGML_TASK_FINALIZE) {
         return;
     }
+
+    if (ggml_is_scalar(src1)) {
+        GGML_ASSERT(ggml_are_same_shape(src0, dst));
+
+        float value = ((float *) src1->data)[0];
+
+        const int ith = params->ith;
+        const int nth = params->nth;
+
+        const int n = ggml_nrows(src0);
+        const int nc = src0->ne[0];
+
+        const size_t nb00 = src0->nb[0];
+        const size_t nb01 = src0->nb[1];
+
+        const size_t nb0 = dst->nb[0];
+        const size_t nb1 = dst->nb[1];
+
+        GGML_ASSERT(nb0 == sizeof(float));
+        GGML_ASSERT(nb00 == sizeof(float));
+
+        for (int j = ith; j < n; j += nth) {
+            float * dst_ptr  = (float *) ((char *) dst->data + j * nb1);
+            float * src0_ptr = (float *) ((char *) src0->data + j * nb01);
+
+            for (int i = 0; i < nc; i++) {
+                dst_ptr[i] = src0_ptr[i] + value;
+            }
+        }
+
+        return;
+    }
+
+    GGML_ASSERT(ggml_are_same_shape(src0, src1) && ggml_are_same_shape(src0, dst));
 
     const int ith = params->ith;
     const int nth = params->nth;
@@ -6987,8 +7025,9 @@ static void ggml_compute_forward_mul_mat_q_f32(
     GGML_ASSERT(ne3  == ne13);
 
     const enum ggml_type type = src0->type;
-    quantize_row_q_t const quantize_row_q = quantize_fns[type].quantize_row_q;
-    vec_dot_q_t      const vec_dot_q      = quantize_fns[type].vec_dot_q;
+    quantize_row_q_t   const quantize_row_q   = quantize_fns[type].quantize_row_q;
+    dequantize_row_q_t const dequantize_row_q = quantize_fns[type].dequantize_row_q;
+    vec_dot_q_t        const vec_dot_q        = quantize_fns[type].vec_dot_q;
 
     // we don't support permuted src0 or src1
     GGML_ASSERT(nb00 == (int) GGML_TYPE_SIZE[type]);
@@ -7023,7 +7062,6 @@ static void ggml_compute_forward_mul_mat_q_f32(
         }
 
         float * const wdata = params->wdata;
-        dequantize_row_q_t const dequantize_row_q = quantize_fns[type].dequantize_row_q;
 
         for (int i03 = 0; i03 < ne03; i03++) {
             for (int i02 = 0; i02 < ne02; i02++) {
@@ -7054,6 +7092,61 @@ static void ggml_compute_forward_mul_mat_q_f32(
         return;
     }
 #endif
+
+    if (do_quantized_dot_in_FP32) {
+        if (params->type == GGML_TASK_INIT) {
+            return;
+        }
+
+        if (params->type == GGML_TASK_FINALIZE) {
+            return;
+        }
+
+        // parallelize by src0 rows using ggml_vec_dot_f32
+
+        // total rows in src0
+        const int nr = ne01*ne02*ne03;
+
+        // rows per thread
+        const int dr = (nr + nth - 1)/nth;
+
+        // row range for this thread
+        const int ir0 = dr*ith;
+        const int ir1 = MIN(ir0 + dr, nr);
+
+        for (int ir = ir0; ir < ir1; ++ir) {
+            // src0 indices
+            const int i03 = ir/(ne02*ne01);
+            const int i02 = (ir - i03*ne02*ne01)/ne01;
+            const int i01 = (ir - i03*ne02*ne01 - i02*ne01);
+
+            float * const wdata = (float *) ((char *) params->wdata + (i01 * nb01 + i02 * nb02 + i03 * nb03));
+
+            dequantize_row_q((char *) src0->data + (i01 * nb01 + i02 * nb02 + i03 * nb03), wdata, ne00);
+
+            for (int ic = 0; ic < ne11; ++ic) {
+                // src1 indices
+                const int i13 = i03;
+                const int i12 = i02;
+                const int i11 = ic;
+
+                // dst indices
+                const int i0 = i01;
+                const int i1 = i11;
+                const int i2 = i02;
+                const int i3 = i03;
+
+                ggml_vec_dot_f32(
+                        ne00,
+                        (float *) ((char *) dst->data + (i0 * nb0 + i1 * nb1 + i2 * nb2 + i3 * nb3)),
+                        wdata,
+                        (float *) ((char *) src1->data + (i11 * nb11 + i12 * nb12 + i13 * nb13))
+                );
+            }
+        }
+
+        return;
+    }
 
     if (params->type == GGML_TASK_INIT) {
         char * wdata = params->wdata;
@@ -10061,8 +10154,6 @@ void ggml_graph_compute(struct ggml_context * ctx, struct ggml_cgraph * cgraph) 
 #if defined(__AVX2__)
                             cur = 0;
 #else
-                            // Assuming that src1 is a vector
-                            // TODO Not sure whether this is correct
                             cur = GGML_TYPE_SIZE[GGML_TYPE_F32] * ggml_nelements(node->src1);
 #endif
                         } else if (quantize_fns[node->src0->type].vec_dot_q && node->src1->type == GGML_TYPE_F32) {
@@ -10073,7 +10164,11 @@ void ggml_graph_compute(struct ggml_context * ctx, struct ggml_cgraph * cgraph) 
                             } else
 #endif
                             {
-                                cur = GGML_TYPE_SIZE[node->src0->type]*ggml_nelements(node->src1)/GGML_BLCK_SIZE[node->src0->type];
+                                if (do_quantized_dot_in_FP32) {
+                                    cur = GGML_TYPE_SIZE[GGML_TYPE_F32] * ggml_nelements(node->src1);
+                                } else {
+                                    cur = GGML_TYPE_SIZE[node->src0->type] * ggml_nelements(node->src1) / GGML_BLCK_SIZE[node->src0->type];
+                                }
                             }
                         } else {
                             GGML_ASSERT(false);
@@ -11422,7 +11517,14 @@ int ggml_cpu_has_vsx(void) {
 
 #define GGML_TEST_ASSERT_ELEMENT_F32(tensor, i, expected_value) do {\
         float actual = *(float *) ((char *) tensor->data + 4 * i);\
-        GGML_TEST_ASSERT(fabsf(actual - expected_value) <= 0.0001F, "At %s[%d]: expected %f, actual %f", #tensor, i, expected_value, actual);\
+        GGML_TEST_ASSERT(\
+            fabsf(actual - expected_value) <= 0.0001F || fabsf(expected_value - actual) <= 0.0001F,\
+            "At %s[%d]: expected %f, actual %f",\
+            #tensor,\
+            i,\
+            expected_value,\
+            actual\
+        );\
     } while (0)
 
 // Copied from https://github.com/ggerganov/llama.cpp/blob/6e7801d08d81c931a5427bae46f00763e993f54a/tests/test-quantize.c
@@ -11587,6 +11689,22 @@ void ggml_run_test_suite(void) {
     GGML_TEST_ASSERT_ELEMENT_F32(max_a_b, 3, 0.5156F);
     GGML_TEST_ASSERT_ELEMENT_F32(max_a_b, 4, 1.7310F);
     GGML_TEST_ASSERT_ELEMENT_F32(max_a_b, 5, -0.0446F);
+
+    // Test scalar add
+    struct ggml_tensor * scalar = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, 1);
+    GGML_TEST_SET_ELEMENT_F32(scalar, 0, 10.0F);
+    struct ggml_tensor * a_plus_scalar = ggml_add(ctx, a, scalar);
+
+    graph = ggml_build_forward(a_plus_scalar);
+    graph.n_threads = 2;
+    ggml_graph_compute(ctx, &graph);
+
+    GGML_TEST_ASSERT_ELEMENT_F32(a_plus_scalar, 0, 10.0F + 1.0051F);
+    GGML_TEST_ASSERT_ELEMENT_F32(a_plus_scalar, 1, 10.0F + 1.0484F);
+    GGML_TEST_ASSERT_ELEMENT_F32(a_plus_scalar, 2, 10.0F + -0.4361F);
+    GGML_TEST_ASSERT_ELEMENT_F32(a_plus_scalar, 3, 10.0F + -0.6984F);
+    GGML_TEST_ASSERT_ELEMENT_F32(a_plus_scalar, 4, 10.0F + 1.7310F);
+    GGML_TEST_ASSERT_ELEMENT_F32(a_plus_scalar, 5, 10.0F + -0.0446F);
 
     ggml_free(ctx);
 }

@@ -14,14 +14,6 @@ def parse_args():
 def main() -> None:
     args = parse_args()
 
-    if args.data_type == 2 or args.data_type == 3:
-        print()
-        print('WARNING!')
-        print('You are using Q4_0 or Q4_1 quantization; it will heavily degrade RWKV quality.')
-        print('For best quality preservation, it is recommended to use Q4_1_O.')
-        print('More info at https://github.com/saharNooby/rwkv.cpp/issues/12')
-        print()
-
     library = rwkv_cpp_shared_library.load_rwkv_shared_library()
 
     library.rwkv_quantize_model_file(

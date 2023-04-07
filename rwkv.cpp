@@ -63,10 +63,30 @@ struct rwkv_layer {
     struct ggml_tensor * att_time_mix_r;
     struct ggml_tensor * att_time_first;
     struct ggml_tensor * att_time_decay;
+
     struct ggml_tensor * att_key;
+    // May be NULL.
+    struct ggml_tensor * att_key_min_by_column;
+    // May be NULL.
+    struct ggml_tensor * att_key_max_by_column;
+
     struct ggml_tensor * att_value;
+    // May be NULL.
+    struct ggml_tensor * att_value_min_by_column;
+    // May be NULL.
+    struct ggml_tensor * att_value_max_by_column;
+
     struct ggml_tensor * att_receptance;
+    // May be NULL.
+    struct ggml_tensor * att_receptance_min_by_column;
+    // May be NULL.
+    struct ggml_tensor * att_receptance_max_by_column;
+
     struct ggml_tensor * att_output;
+    // May be NULL.
+    struct ggml_tensor * att_output_min_by_column;
+    // May be NULL.
+    struct ggml_tensor * att_output_max_by_column;
 
     struct ggml_tensor * ln2_weight;
     struct ggml_tensor * ln2_bias;
@@ -74,9 +94,24 @@ struct rwkv_layer {
     // FFN.
     struct ggml_tensor * ffn_time_mix_k;
     struct ggml_tensor * ffn_time_mix_r;
+
     struct ggml_tensor * ffn_key;
+    // May be NULL.
+    struct ggml_tensor * ffn_key_min_by_column;
+    // May be NULL.
+    struct ggml_tensor * ffn_key_max_by_column;
+
     struct ggml_tensor * ffn_value;
+    // May be NULL.
+    struct ggml_tensor * ffn_value_min_by_column;
+    // May be NULL.
+    struct ggml_tensor * ffn_value_max_by_column;
+
     struct ggml_tensor * ffn_receptance;
+    // May be NULL.
+    struct ggml_tensor * ffn_receptance_min_by_column;
+    // May be NULL.
+    struct ggml_tensor * ffn_receptance_max_by_column;
 };
 
 struct rwkv_model {
@@ -97,6 +132,10 @@ struct rwkv_model {
     struct ggml_tensor * ln_out_bias;
 
     struct ggml_tensor * head;
+    // May be NULL.
+    struct ggml_tensor * head_min_by_column;
+    // May be NULL.
+    struct ggml_tensor * head_max_by_column;
 };
 
 // Finds model parameter by key and sets it into dest.
@@ -139,6 +178,25 @@ struct rwkv_context {
     struct ggml_cgraph * graph;
     bool freed;
 };
+
+static struct ggml_tensor * mul_mat_with_column_scale(
+        struct ggml_context * ctx,
+        struct ggml_tensor * weight,
+        struct ggml_tensor * x,
+        struct ggml_tensor * min_by_column,
+        struct ggml_tensor * max_by_column
+) {
+    if (min_by_column != NULL && max_by_column != NULL) {
+        ggml_set_do_quantized_dot_in_FP32(true);
+
+        struct ggml_tensor * x_mul_max = ggml_mul(ctx, x, max_by_column);
+        struct ggml_tensor * x_dot_min = ggml_mul_mat(ctx, x, min_by_column);
+        struct ggml_tensor * result = ggml_mul_mat(ctx, weight, x_mul_max);
+        return ggml_add(ctx, result, x_dot_min);
+    }
+
+    return ggml_mul_mat(ctx, weight, x);
+}
 
 struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_threads) {
     FILE * file = fopen(file_path, "rb");
@@ -299,6 +357,40 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
 
     set_parameter(&parameters, "head.weight", &(model->head));
 
+    if (parameters.find(std::string("blocks.0.att.key.weight.min_by_column")) != parameters.end()) {
+        for (int i = 0; i < model->n_layer; i++) {
+            rwkv_layer layer = model->layers[i];
+
+            set_block_parameter(&parameters, i, "att.key.weight.min_by_column", &(layer.att_key_min_by_column));
+            set_block_parameter(&parameters, i, "att.key.weight.max_by_column", &(layer.att_key_max_by_column));
+
+            set_block_parameter(&parameters, i, "att.value.weight.min_by_column", &(layer.att_value_min_by_column));
+            set_block_parameter(&parameters, i, "att.value.weight.max_by_column", &(layer.att_value_max_by_column));
+
+            set_block_parameter(&parameters, i, "att.receptance.weight.min_by_column", &(layer.att_receptance_min_by_column));
+            set_block_parameter(&parameters, i, "att.receptance.weight.max_by_column", &(layer.att_receptance_max_by_column));
+
+            set_block_parameter(&parameters, i, "att.output.weight.min_by_column", &(layer.att_output_min_by_column));
+            set_block_parameter(&parameters, i, "att.output.weight.max_by_column", &(layer.att_output_max_by_column));
+
+            set_block_parameter(&parameters, i, "ffn.key.weight.min_by_column", &(layer.ffn_key_min_by_column));
+            set_block_parameter(&parameters, i, "ffn.key.weight.max_by_column", &(layer.ffn_key_max_by_column));
+
+            set_block_parameter(&parameters, i, "ffn.value.weight.min_by_column", &(layer.ffn_value_min_by_column));
+            set_block_parameter(&parameters, i, "ffn.value.weight.max_by_column", &(layer.ffn_value_max_by_column));
+
+            set_block_parameter(&parameters, i, "ffn.receptance.weight.min_by_column", &(layer.ffn_receptance_min_by_column));
+            set_block_parameter(&parameters, i, "ffn.receptance.weight.max_by_column", &(layer.ffn_receptance_max_by_column));
+
+            model->layers[i] = layer;
+        }
+    }
+
+    if (parameters.find(std::string("head.weight.min_by_column")) != parameters.end()) {
+        set_parameter(&parameters, "head.weight.min_by_column", &(model->head_min_by_column));
+        set_parameter(&parameters, "head.weight.max_by_column", &(model->head_max_by_column));
+    }
+
     // Verify order of dimensions
     struct ggml_tensor * emb = model->emb;
     RWKV_ASSERT_NULL(emb->n_dims == 2, "Unexpected dimension count of embedding matrix %d", emb->n_dims);
@@ -354,12 +446,12 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
             // r = torch.sigmoid(rw @ xr)
             struct ggml_tensor * r = ggml_sigmoid(
                 ctx,
-                ggml_mul_mat(ctx, layer.att_receptance, xr)
+                mul_mat_with_column_scale(ctx, layer.att_receptance, xr, layer.att_receptance_min_by_column, layer.att_receptance_max_by_column)
             );
             // k = kw @ xk
-            struct ggml_tensor * k = ggml_mul_mat(ctx, layer.att_key, xk);
+            struct ggml_tensor * k = mul_mat_with_column_scale(ctx, layer.att_key, xk, layer.att_key_min_by_column, layer.att_key_max_by_column);
             // v = vw @ xv
-            struct ggml_tensor * v = ggml_mul_mat(ctx, layer.att_value, xv);
+            struct ggml_tensor * v = mul_mat_with_column_scale(ctx, layer.att_value, xv, layer.att_value_min_by_column, layer.att_value_max_by_column);
 
             // aa = state[5 * i + 2]
             // bb = state[5 * i + 3]
@@ -416,10 +508,12 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
             x = ggml_add(
                 ctx,
                 x,
-                ggml_mul_mat(
+                mul_mat_with_column_scale(
                     ctx,
                     layer.att_output,
-                    ggml_mul(ctx, r, wkv)
+                    ggml_mul(ctx, r, wkv),
+                    layer.att_output_min_by_column,
+                    layer.att_output_max_by_column
                 )
             );
         }
@@ -448,12 +542,12 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
             // r = torch.sigmoid(rw @ xr)
             struct ggml_tensor * r = ggml_sigmoid(
                 ctx,
-                ggml_mul_mat(ctx, layer.ffn_receptance, xr)
+                mul_mat_with_column_scale(ctx, layer.ffn_receptance, xr, layer.ffn_receptance_min_by_column, layer.ffn_receptance_max_by_column)
             );
             // k = torch.square(torch.relu(kw @ xk))
             struct ggml_tensor * k = ggml_sqr(ctx, ggml_relu(
                 ctx,
-                ggml_mul_mat(ctx, layer.ffn_key, xk)
+                mul_mat_with_column_scale(ctx, layer.ffn_key, xk, layer.ffn_key_min_by_column, layer.ffn_key_max_by_column)
             ));
             // r * (vw @ k)
             x = ggml_add(
@@ -462,7 +556,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
                 ggml_mul(
                     ctx,
                     r,
-                    ggml_mul_mat(ctx, layer.ffn_value, k)
+                    mul_mat_with_column_scale(ctx, layer.ffn_value, k, layer.ffn_value_min_by_column, layer.ffn_value_max_by_column)
                 )
             );
         }
@@ -472,7 +566,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
     x = rwkv_layer_norm(ctx, x, model->ln_out_weight, model->ln_out_bias);
 
     // x = (self.w.head.weight @ x).float()
-    struct ggml_tensor * logits = ggml_mul_mat(ctx, model->head, x);
+    struct ggml_tensor * logits = mul_mat_with_column_scale(ctx, model->head, x, model->head_min_by_column, model->head_max_by_column);
 
     struct ggml_cgraph * graph = (struct ggml_cgraph *) calloc(1, sizeof(struct ggml_cgraph));
 

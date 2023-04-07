@@ -390,6 +390,8 @@ size_t ggml_set_scratch(struct ggml_context * ctx, struct ggml_scratch scratch);
 bool ggml_mlock_supported(void);
 bool ggml_mlock(struct ggml_context * ctx, char ** err_p);
 
+void ggml_set_do_quantized_dot_in_FP32(bool value);
+
 struct ggml_tensor * ggml_new_tensor(
         struct ggml_context * ctx,
         enum   ggml_type type,
