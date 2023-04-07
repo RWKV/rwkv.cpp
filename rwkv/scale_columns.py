@@ -41,10 +41,9 @@ def test_scale(max_by_column: np.ndarray, min_by_column: np.ndarray, normalized_
     actual_result: np.ndarray = (normalized_parameter @ in_by_max) + min_dot_in
     expected_result: np.ndarray = parameter @ random_input
 
-    diff_0: float = np.sum(actual_result - expected_result) / len(random_input)
-    diff_1: float = np.sum(expected_result - actual_result) / len(random_input)
+    diff: float = np.sum(actual_result - expected_result) / len(random_input)
 
-    assert diff_0 < 0.000001 or diff_1 < 0.000001, f'{diff_0}, {diff_1}'
+    assert abs(diff) < 0.000001, f'Difference {diff} is too big'
 
 def main() -> None:
     args = parse_args()
@@ -112,11 +111,18 @@ def main() -> None:
 
                 if dim_count == 2 and key != 'emb.weight' and key != 'head.weight':
                     # Scale
+                    # Do all computation in float32 for better precision
+                    dtype = parameter.dtype
+                    parameter = np.float32(parameter)
+
                     min_by_column: np.ndarray = np.amin(parameter, axis=0)
                     normalized_parameter: np.ndarray = parameter - min_by_column
                     max_by_column: np.ndarray = np.amax(normalized_parameter, axis=0)
-                    normalized_parameter: np.ndarray = normalized_parameter / max_by_column
-                    normalized_parameter.tofile(out_file)
+                    normalized_parameter: np.ndarray = normalized_parameter / max_by_column * 2 - 1
+                    normalized_parameter.astype(dtype).tofile(out_file)
+
+                    min_by_column += max_by_column / 2
+                    max_by_column /= 2
 
                     test_scale(max_by_column, min_by_column, normalized_parameter, parameter)
 

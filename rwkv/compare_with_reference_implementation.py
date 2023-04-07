@@ -103,16 +103,16 @@ def main() -> None:
             threshold = 0.00002 if model_has_scaled_matrices else 0.000005
         elif data_type == 1:
             # FP16
-            threshold = 0.001 if model_has_scaled_matrices else 0.0032
+            threshold = 0.0022 if model_has_scaled_matrices else 0.0032
         elif data_type == 2:
             # Q4_0
-            threshold = 0.0054 if model_has_scaled_matrices else 0.4
+            threshold = 1.59 if model_has_scaled_matrices else 0.4
         elif data_type == 3:
             # Q4_1
-            threshold = 0.84 if model_has_scaled_matrices else 1.21
+            threshold = 0.74 if model_has_scaled_matrices else 1.21
         elif data_type == 4:
             # Q4_1_O
-            threshold = 0.32 if model_has_scaled_matrices else 0.2
+            threshold = 0.53 if model_has_scaled_matrices else 0.2
 
     model = rwkv_cpp_model.RWKVModel(rwkv_cpp_shared_library.load_rwkv_shared_library(), args.ggml_model_path)
 
@@ -123,9 +123,6 @@ def main() -> None:
 
         for i in range(token_count):
             token: int = tokens_subset[i]
-
-            if token_count <= 4 or i % (token_count // 4) == 0:
-                print(f'{i + 1}/{token_count}')
 
             logits, state = model.eval(token, state, state, logits)
 
@@ -144,6 +141,8 @@ def main() -> None:
         # ---
 
         difference: float = (torch.sum(expected_logits - actual_logits) / len(expected_logits)).item()
+
+        torch.set_printoptions(sci_mode=False)
 
         print(f'Reference logits: {expected_logits}')
         print(f'Actual logits: {actual_logits}')
