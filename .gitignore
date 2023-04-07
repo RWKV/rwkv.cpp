@@ -1,4 +1,5 @@
 *.o
+*.so
 *.a
 .cache/
 .vs/

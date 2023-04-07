@@ -216,14 +216,24 @@ $(info I CC:       $(CCV))
 $(info I CXX:      $(CXXV))
 $(info )
 
-default: rwkv.o
+.PHONY: default clean
+
+default: librwkv.so
+
+clean:
+	rm ggml.o rwkv.o librwkv.so
 
 #
 # Build library
 #
 
+CLANG_FLAGS += -flto -mtune=native -march=native -O3
+
+librwkv.so: ggml.o rwkv.o
+	clang++ $(CLANG_FLAGS) -shared -o $@ $^
+
 ggml.o: ggml.c ggml.h
-	$(CC)  $(CFLAGS)   -c ggml.c -o ggml.o
+	clang   $(CLANG_FLAGS) -c ggml.c -o ggml.o
 
 rwkv.o: rwkv.cpp rwkv.h
-	$(CXX) $(CXXFLAGS) -c rwkv.cpp -o rwkv.o
+	clang++ $(CLANG_FLAGS) -c rwkv.cpp -o rwkv.o
