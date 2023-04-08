@@ -10,9 +10,10 @@ This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrap
 
 **TODO (contributions welcome!)**:
 
-1. Measure latency and perplexity of different model sizes (169M to 14B) and data types (FP32, FP16, Q4_0, Q4_1, Q4_1_O)
-2. Test on Linux (including Colab) and MacOS
-3. Make required memory calculation more robust (see #4)
+1. Optimize AVX2 implementation of `Q4_1_O` matmul — currently, it is as slow as `FP32`
+2. Measure latency and perplexity of different model sizes (169M to 14B) and data types (`FP32`, `FP16`, `Q4_0`, `Q4_1`, `Q4_1_O`)
+3. Test on Linux (including Colab) and MacOS
+4. Make required memory calculation more robust (see [#4](https://github.com/saharNooby/rwkv.cpp/issues/4))
 
 ## How to use
 
@@ -88,9 +89,9 @@ python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-
 
 Formats available:
 
-- `4`: `Q4_1_O`, preserves outliers, best quality, very slow (as FP32).
-- `3`: `Q4_1`, preserves range, poor quality, very fast (as FP16).
-- `2`: `Q4_0`, worst quality, moderately fast (between FP16 and FP32).
+- `4`: `Q4_1_O`, best quality, very slow (as `FP32`).
+- `3`: `Q4_1`, poor quality, very fast (as `FP16`).
+- `2`: `Q4_0`, worst quality, breaks larger models, moderately fast (between `FP16` and `FP32`).
 
 ### 4. Run the model
 
