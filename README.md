@@ -30,11 +30,11 @@ cd rwkv.cpp
 
 #### Option 2.1. Download a pre-compiled library
 
-##### Windows
+##### Windows / Linux / MacOS
 
-Check out [Releases](https://github.com/saharNooby/rwkv.cpp/releases), download appropriate ZIP for your CPU, extract `rwkv.dll` file into `bin\Release\` directory inside the repository directory.
+Check out [Releases](https://github.com/saharNooby/rwkv.cpp/releases), download appropriate ZIP for your OS and CPU, extract `rwkv` library file into the repository directory.
 
-To check whether your CPU supports AVX2 or AVX-512, [use CPU-Z](https://www.cpuid.com/softwares/cpu-z.html).
+On Windows: to check whether your CPU supports AVX2 or AVX-512, [use CPU-Z](https://www.cpuid.com/softwares/cpu-z.html).
 
 #### Option 2.2. Build the library yourself
 
