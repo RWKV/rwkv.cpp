@@ -49,7 +49,7 @@ jobs:
         id: depends
         run: |
           sudo apt-get update
-          sudo apt-get install build-essential
+          sudo apt-get install build-essential zip
 
       - name: Build
         id: cmake_build
@@ -58,6 +58,24 @@ jobs:
           cd build
           cmake -DBUILD_SHARED_LIBS=ON ..
           cmake --build . --config Release
+
+      - name: Get commit hash
+        id: commit
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        uses: pr-mpt/actions-commit-hash@v2
+
+      - name: Pack artifacts
+        id: pack_artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        run: |
+          zip rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-linux.zip ./build/librwkv.so
+
+      - name: Upload artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        uses: actions/upload-artifact@v3
+        with:
+          path: |
+            rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-linux.zip
 
   macOS-latest-make:
     runs-on: macos-latest
@@ -89,6 +107,7 @@ jobs:
         id: depends
         run: |
           brew update
+          brew install zip
 
       - name: Build
         id: cmake_build
@@ -97,6 +116,24 @@ jobs:
           cd build
           cmake -DBUILD_SHARED_LIBS=ON -DRWKV_AVX2=OFF ..
           cmake --build . --config Release
+
+      - name: Get commit hash
+        id: commit
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        uses: pr-mpt/actions-commit-hash@v2
+
+      - name: Pack artifacts
+        id: pack_artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        run: |
+          zip rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-macos.zip ./build/librwkv.dylib
+
+      - name: Upload artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        uses: actions/upload-artifact@v3
+        with:
+          path: |
+            rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-macos.zip
 
   windows-latest-cmake:
     runs-on: windows-latest
