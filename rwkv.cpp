@@ -43,6 +43,14 @@ bool read_int32(FILE * file, int32_t * dest) {
     return true;
 }
 
+static const ggml_type FORMAT_TYPE_TO_GGML_TYPE[5] = {
+    GGML_TYPE_F32,
+    GGML_TYPE_F16,
+    GGML_TYPE_Q4_0,
+    GGML_TYPE_Q4_1,
+    GGML_TYPE_Q4_1_O
+};
+
 // --- Model definition and loading utilities ---
 
 struct rwkv_layer {
@@ -160,7 +168,8 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
         model->data_type == 0 ||
             model->data_type == 1 ||
             model->data_type == 2 ||
-            model->data_type == 3,
+            model->data_type == 3 ||
+            model->data_type == 4,
         "Unsupported model data type %d",
         model->data_type
     );
@@ -216,20 +225,13 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
             data_type == 0 ||
                 data_type == 1 ||
                 data_type == 2 ||
-                data_type == 3,
+                data_type == 3 ||
+                data_type == 4,
             "Unsupported parameter data type %d",
             data_type
         );
 
-        ggml_type ggml_data_type;
-
-        switch (data_type) {
-            case 0: ggml_data_type = GGML_TYPE_F32; break;
-            case 1: ggml_data_type = GGML_TYPE_F16; break;
-            case 2: ggml_data_type = GGML_TYPE_Q4_0; break;
-            case 3: ggml_data_type = GGML_TYPE_Q4_1; break;
-            default: return NULL;
-        }
+        ggml_type ggml_data_type = FORMAT_TYPE_TO_GGML_TYPE[data_type];
 
         struct ggml_tensor * tensor;
 
@@ -553,17 +555,9 @@ void rwkv_free(struct rwkv_context * ctx) {
 }
 
 bool rwkv_quantize_model_file(const char * model_file_path_in, const char * model_file_path_out, uint32_t q_type) {
-    RWKV_ASSERT_FALSE(q_type == 2 || q_type == 3, "Unsupported quantization type %d", q_type);
+    RWKV_ASSERT_FALSE(q_type == 2 || q_type == 3 || q_type == 4, "Unsupported quantization type %d", q_type);
 
-    ggml_type type;
-
-    switch (q_type) {
-        case 2: type = GGML_TYPE_Q4_0; break;
-        case 3: type = GGML_TYPE_Q4_1; break;
-        default: return false;
-    };
-
-    RWKV_ASSERT_FALSE(type == GGML_TYPE_Q4_0 || type == GGML_TYPE_Q4_1, "Unsupported data type %d", type);
+    ggml_type type = FORMAT_TYPE_TO_GGML_TYPE[q_type];
 
     printf("Loading model from '%s'\n", model_file_path_in);
 
@@ -643,22 +637,30 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
 
             {
                 static const char * parameter_data_type_str[] = {
-                    "f32",
-                    "f16",
-                    "q4_0",
-                    "q4_1"
+                    "F32",
+                    "F16",
+                    "Q4_0",
+                    "Q4_1",
+                    "Q4_1_O"
                 };
                 printf("%48s - [%5d, %5d], type = %6s ", name.data(), ne[0], ne[1], parameter_data_type_str[parameter_data_type]);
+
+                total_size_orig += (size_t) (nelements * ggml_type_sizef(FORMAT_TYPE_TO_GGML_TYPE[parameter_data_type]));
             }
 
-            // Quantize only 2D tensors
-            bool quantize = n_dims == 2;
+            // Quantize only 2D tensors, except embedding and head matrices.
+            // Embedding and head take not too much space, especially in bigger models;
+            // but they significantly increase perplexity when quantized.
+            bool quantize = n_dims == 2 &&
+                    name != std::string("emb.weight") &&
+                    name != std::string("head.weight");
 
             if (quantize) {
-                if (parameter_data_type != 0 && parameter_data_type != 1) {
-                    fprintf(stderr, "unsupported data type %d for integer quantization\n", parameter_data_type);
-                    return false;
-                }
+                RWKV_ASSERT_FALSE(
+                    parameter_data_type == 0 || parameter_data_type == 1,
+                    "Unsupported parameter data type %d, only FP32 and FP16 can be quantized",
+                    parameter_data_type
+                );
 
                 if (parameter_data_type == 1) {
                     data_f16.resize(nelements);
@@ -706,6 +708,10 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
                         {
                             cur_size = ggml_quantize_q4_1(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
                         } break;
+                    case GGML_TYPE_Q4_1_O:
+                        {
+                            cur_size = ggml_quantize_q4_1_o(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
+                        } break;
                     default:
                         {
                             fprintf(stderr, "unsupported quantization type %d\n", type);
@@ -732,12 +738,11 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
                 fout.write(reinterpret_cast<char *>(data_u8.data()), data_u8.size());
                 total_size_new += data_u8.size();
             }
-
-            total_size_orig += nelements * sizeof(float);
         }
 
-        printf("model size = %8.2f MB\n", total_size_orig / 1024.0 / 1024.0);
-        printf("quant size = %8.2f MB\n", total_size_new / 1024.0 / 1024.0);
+        printf("original size     = %8.2f MB\n", total_size_orig / 1024.0 / 1024.0);
+        printf("quantized size    = %8.2f MB\n", total_size_new / 1024.0 / 1024.0);
+        printf("compression ratio = %8.2f%\n", 1.0 * total_size_orig / total_size_new);
 
         {
             int64_t sum_all = 0;

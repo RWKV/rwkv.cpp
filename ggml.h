@@ -186,7 +186,8 @@
 //   - to `ggml_compute_forward` and call the forward dispatch function here.
 //   - to `ggml_compute_backward` and add `GGML_ASSERT(false)` here.
 //   - to `ggml_graph_compute` and add `node->n_tasks = 1` here.
-// 6. Fix all assertions that check value of `GGML_OP_COUNT`: you've added 1 operator, so increment asserted value by one.
+// 6. Add operator label to `GGML_OP_LABEL` array and operator symbol to `GGML_OP_SYMBOL` array.
+// 7. Fix all assertions that check value of `GGML_OP_COUNT`: you've added 1 operator, so increment asserted value by one.
 //
 // When in doubt, consult the code of existing operators similar to that you're implementing.
 // Resulting operator would work for the forward pass, but will lack backward implementation and multi-threading support.
@@ -225,7 +226,11 @@ struct ggml_context;
 
 enum ggml_type {
     GGML_TYPE_Q4_0,
+    // Stores min and delta per block, does quantized matmul.
     GGML_TYPE_Q4_1,
+    // Same as Q4_1, but stores outliers separately, and matmul is done in FP32.
+    // An outlier is the single absmax element in the quantized block.
+    GGML_TYPE_Q4_1_O,
     GGML_TYPE_I8,
     GGML_TYPE_I16,
     GGML_TYPE_I32,
@@ -806,6 +811,7 @@ enum ggml_opt_result ggml_opt(
 
 size_t ggml_quantize_q4_0(const float * src, void * dst, int n, int k, int64_t * hist);
 size_t ggml_quantize_q4_1(const float * src, void * dst, int n, int k, int64_t * hist);
+size_t ggml_quantize_q4_1_o(const float * src, void * dst, int n, int k, int64_t * hist);
 
 //
 // system info

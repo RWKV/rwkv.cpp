@@ -192,13 +192,17 @@ def load_rwkv_shared_library() -> RWKVSharedLibrary:
     else:
         file_name = 'librwkv.so'
 
+    repo_root_dir: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent.parent
+
     paths = [
         # If we are in "rwkv" directory
         f'../bin/Release/{file_name}',
         # If we are in repo root directory
         f'bin/Release/{file_name}',
+        # Search relative to this file
+        str(repo_root_dir / 'bin' / 'Release' / file_name),
         # Fallback
-        pathlib.Path(os.path.abspath(__file__)).parent.parent / file_name
+        str(repo_root_dir / file_name)
     ]
 
     for path in paths:
