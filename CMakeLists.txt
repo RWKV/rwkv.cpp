@@ -246,7 +246,7 @@ if (BUILD_SHARED_LIBS)
     target_compile_definitions(rwkv PRIVATE RWKV_SHARED RWKV_BUILD)
 endif()
 
-if(SKBUILD)
+if (SKBUILD)
     if (UNIX)
         add_custom_command(
             OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/librwkv.so
