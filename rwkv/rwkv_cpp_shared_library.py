@@ -201,6 +201,8 @@ def load_rwkv_shared_library() -> RWKVSharedLibrary:
         f'bin/Release/{file_name}',
         # Search relative to this file
         str(repo_root_dir / 'bin' / 'Release' / file_name),
+        # Search in python package
+        str(repo_root_dir / 'rwkv' / file_name),
         # Fallback
         str(repo_root_dir / file_name)
     ]
