@@ -8,7 +8,6 @@ setup(
     author="",
     author_email="",
     license="MIT",
-    package_dir={"rwkv_cpp": "rwkv"},
     packages=["rwkv_cpp"],
     install_requires=[
         "numpy>=1.24.1",

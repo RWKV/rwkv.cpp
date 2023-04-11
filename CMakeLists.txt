@@ -259,14 +259,14 @@ if (SKBUILD)
         )
         install(
             FILES ${CMAKE_CURRENT_SOURCE_DIR}/librwkv.so
-            DESTINATION rwkv
+            DESTINATION rwkv_cpp
         )
     else()
         set(BUILD_SHARED_LIBS "On")
         install(
             TARGETS rwkv 
-            LIBRARY DESTINATION rwkv
-            RUNTIME DESTINATION rwkv
+            LIBRARY DESTINATION rwkv_cpp
+            RUNTIME DESTINATION rwkv_cpp
         )
     endif(UNIX)
 endif(SKBUILD)
