@@ -2,7 +2,7 @@ from skbuild import setup
 
 setup(
     name="rwkv_cpp",
-    description="A Python wrapper for rwkv.cpp",
+    description="Python wrapper for rwkv.cpp",
     long_description_content_type="text/markdown",
     version="0.0.1",
     author="",
