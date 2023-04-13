@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <vector>
 
 #ifdef RWKV_SHARED
 #    if defined(_WIN32) && !defined(__MINGW32__)
@@ -27,40 +28,95 @@
 extern "C" {
 #endif
 
-    struct rwkv_context;
+struct rwkv_layer {
+    struct ggml_tensor * ln1_weight;
+    struct ggml_tensor * ln1_bias;
 
-    // Loads the model from a file and prepares it for inference.
-    // Returns NULL on any error. Error messages would be printed to stderr.
-    // - model_file_path: path to model file in ggml format.
-    // - n_threads: count of threads to use, must be positive.
-    RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, uint32_t n_threads);
+    // RWKV, also called "attention" by the author.
+    struct ggml_tensor * att_time_mix_k;
+    struct ggml_tensor * att_time_mix_v;
+    struct ggml_tensor * att_time_mix_r;
+    struct ggml_tensor * att_time_first;
+    struct ggml_tensor * att_time_decay;
+    struct ggml_tensor * att_key;
+    struct ggml_tensor * att_value;
+    struct ggml_tensor * att_receptance;
+    struct ggml_tensor * att_output;
 
-    // Evaluates the model for a single token.
-    // Returns false on any error. Error messages would be printed to stderr.
-    // - token: next token index, in range 0 <= token < n_vocab.
-    // - state_in: FP32 buffer of size rwkv_get_state_buffer_element_count; or NULL, if this is a first pass.
-    // - state_out: FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to.
-    // - logits_out: FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to.
-    RWKV_API bool rwkv_eval(struct rwkv_context * ctx, int32_t token, float * state_in, float * state_out, float * logits_out);
+    struct ggml_tensor * ln2_weight;
+    struct ggml_tensor * ln2_bias;
 
-    // Returns count of FP32 elements in state buffer.
-    RWKV_API uint32_t rwkv_get_state_buffer_element_count(struct rwkv_context * ctx);
+    // FFN.
+    struct ggml_tensor * ffn_time_mix_k;
+    struct ggml_tensor * ffn_time_mix_r;
+    struct ggml_tensor * ffn_key;
+    struct ggml_tensor * ffn_value;
+    struct ggml_tensor * ffn_receptance;
+};
 
-    // Returns count of FP32 elements in logits buffer.
-    RWKV_API uint32_t rwkv_get_logits_buffer_element_count(struct rwkv_context * ctx);
+struct rwkv_model {
+    int32_t n_vocab;
+    int32_t n_layer;
+    int32_t n_embed;
+    // 0 for float32, 1 for float16.
+    int32_t data_type;
 
-    // Frees all allocated memory and the context.
-    RWKV_API void rwkv_free(struct rwkv_context * ctx);
+    struct ggml_tensor * emb;
 
-    // Quantizes FP32 or FP16 model to one of INT4 formats.
-    // Returns false on any error. Error messages would be printed to stderr.
-    // - model_file_path_in: path to model file in ggml format, must be either FP32 or FP16.
-    // - model_file_path_out: quantized model will be written here.
-    // - q_type: set to 2 for GGML_TYPE_Q4_0, set to 3 for GGML_TYPE_Q4_1.
-    RWKV_API bool rwkv_quantize_model_file(const char * model_file_path_in, const char * model_file_path_out, uint32_t q_type);
+    struct ggml_tensor * ln0_weight;
+    struct ggml_tensor * ln0_bias;
 
-    // Returns system information string.
-    RWKV_API const char * rwkv_get_system_info_string(void);
+    std::vector<rwkv_layer> layers;
+
+    struct ggml_tensor * ln_out_weight;
+    struct ggml_tensor * ln_out_bias;
+
+    struct ggml_tensor * head;
+};
+
+struct rwkv_context {
+    struct rwkv_model * model;
+    struct ggml_tensor * token_index;
+    struct ggml_tensor * state;
+    struct ggml_tensor ** state_parts;
+    struct ggml_tensor * logits;
+    struct ggml_context * ctx;
+    struct ggml_cgraph * graph;
+    bool freed;
+};
+
+// Loads the model from a file and prepares it for inference.
+// Returns NULL on any error. Error messages would be printed to stderr.
+// - model_file_path: path to model file in ggml format.
+// - n_threads: count of threads to use, must be positive.
+RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, uint32_t n_threads);
+
+// Evaluates the model for a single token.
+// Returns false on any error. Error messages would be printed to stderr.
+// - token: next token index, in range 0 <= token < n_vocab.
+// - state_in: FP32 buffer of size rwkv_get_state_buffer_element_count; or NULL, if this is a first pass.
+// - state_out: FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to.
+// - logits_out: FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to.
+RWKV_API bool rwkv_eval(struct rwkv_context * ctx, int32_t token, float * state_in, float * state_out, float * logits_out);
+
+// Returns count of FP32 elements in state buffer.
+RWKV_API uint32_t rwkv_get_state_buffer_element_count(struct rwkv_context * ctx);
+
+// Returns count of FP32 elements in logits buffer.
+RWKV_API uint32_t rwkv_get_logits_buffer_element_count(struct rwkv_context * ctx);
+
+// Frees all allocated memory and the context.
+RWKV_API void rwkv_free(struct rwkv_context * ctx);
+
+// Quantizes FP32 or FP16 model to one of INT4 formats.
+// Returns false on any error. Error messages would be printed to stderr.
+// - model_file_path_in: path to model file in ggml format, must be either FP32 or FP16.
+// - model_file_path_out: quantized model will be written here.
+// - q_type: set to 2 for GGML_TYPE_Q4_0, set to 3 for GGML_TYPE_Q4_1.
+RWKV_API bool rwkv_quantize_model_file(const char * model_file_path_in, const char * model_file_path_out, uint32_t q_type);
+
+// Returns system information string.
+RWKV_API const char * rwkv_get_system_info_string(void);
 
 #ifdef __cplusplus
 }

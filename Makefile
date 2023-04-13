@@ -230,10 +230,13 @@ clean:
 CLANG_FLAGS += -flto -mtune=native -march=native -O3
 
 librwkv.so: ggml.o rwkv.o
-	clang++ $(CLANG_FLAGS) -shared -o $@ $^
+	clang++ $(CLANG_FLAGS) -lfmt -shared -o $@ $^
 
 ggml.o: ggml.c ggml.h
 	clang   $(CLANG_FLAGS) -c ggml.c -o ggml.o
 
 rwkv.o: rwkv.cpp rwkv.h
 	clang++ $(CLANG_FLAGS) -c rwkv.cpp -o rwkv.o
+
+dump: ggml.o rwkv.o dump.cpp
+	clang++ $(CLANG_FLAGS) -lfmt -o $@ $^
