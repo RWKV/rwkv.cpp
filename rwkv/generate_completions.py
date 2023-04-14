@@ -1,14 +1,31 @@
 # Generates completions from RWKV model based on a prompt.
 
-import argparse
-import os
-import pathlib
-import time
-import sampling
+import os, sys, pathlib, time, argparse
+
 import tokenizers
 from tqdm import tqdm
-import cpp_model
-import cpp_shared_library
+
+sys.path.insert(0, "rwkv.cpp")
+
+from rwkv.sampling import sample_logits
+from rwkv.cpp_model import RWKVModel
+from rwkv.cpp_shared_library import load_rwkv_shared_library
+
+# =================================================================================================
+
+parser = argparse.ArgumentParser(description='Generate completions from RWKV model based on a prompt')
+parser.add_argument('model_path', help='Path to RWKV model in ggml format')
+args = parser.parse_args()
+
+print('Loading 20B tokenizer')
+tokenizer_path = pathlib.Path(os.path.abspath(__file__)).parent / '20B_tokenizer.json'
+tokenizer = tokenizers.Tokenizer.from_file(str(tokenizer_path))
+
+library = load_rwkv_shared_library()
+print(f'System info: {library.rwkv_get_system_info_string()}')
+
+print('Loading RWKV model')
+model = RWKVModel(library, args.model_path)
 
 # ======================================== Script settings ========================================
 
@@ -27,26 +44,12 @@ tokens_per_generation: int = 100
 temperature: float = 0.8
 top_p: float = 0.5
 
-# =================================================================================================
+# =========================================== Run Model ===========================================
 
-parser = argparse.ArgumentParser(description='Generate completions from RWKV model based on a prompt')
-parser.add_argument('model_path', help='Path to RWKV model in ggml format')
-args = parser.parse_args()
-
-assert prompt != '', 'Prompt must not be empty'
-
-print('Loading 20B tokenizer')
-tokenizer_path = pathlib.Path(os.path.abspath(__file__)).parent / '20B_tokenizer.json'
-tokenizer = tokenizers.Tokenizer.from_file(str(tokenizer_path))
-
-library = cpp_shared_library.load_rwkv_shared_library()
-print(f'System info: {library.rwkv_get_system_info_string()}')
-
-print('Loading RWKV model')
-model = cpp_model.RWKVModel(library, args.model_path)
 
 prompt_tokens = tokenizer.encode(prompt).ids
 prompt_token_count = len(prompt_tokens)
+assert prompt_token_count != 0, 'Prompt must not be empty'
 print(f'{prompt_token_count} tokens in prompt')
 
 init_logits, init_state = None, None
@@ -62,7 +65,7 @@ for GENERATION in range(generation_count):
     logits, state = init_logits.clone(), init_state.clone()
 
     for i in range(tokens_per_generation):
-        token = sampling.sample_logits(logits, temperature, top_p)
+        token = sample_logits(logits, temperature, top_p)
 
         print(tokenizer.decode([token]), end='')
 
