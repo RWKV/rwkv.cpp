@@ -23,6 +23,7 @@ models/*
 /result
 /perplexity
 /embedding
+/dump
 
 arm_neon.h
 compile_commands.json
