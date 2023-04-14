@@ -6,7 +6,7 @@ Besides the usual **FP32**, it supports **FP16** and **quantized INT4** inferenc
 
 RWKV is a novel large language model architecture, [with the largest model in the family having 14B parameters](https://huggingface.co/BlinkDL/rwkv-4-pile-14b). In contrast to Transformer with `O(n^2)` attention, RWKV requires only state from previous step to calculate logits. This makes RWKV very CPU-friendly on large context lenghts.
 
-This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrapper](rwkv%2Frwkv_cpp_model.py) for it.
+This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrapper](rwkv%2Fcpp_model.py) for it.
 
 **TODO (contributions welcome!)**:
 
@@ -126,15 +126,15 @@ Edit [generate_completions.py](rwkv%2Fgenerate_completions.py) or [chat_with_bot
 Example of using `rwkv.cpp` in your custom Python script:
 
 ```python
-import rwkv_cpp_model
-import rwkv_cpp_shared_library
+import cpp_model
+import cpp_shared_library
 
 # Change to model paths used above (quantized or full weights) 
 model_path = r'C:\rwkv.cpp-169M.bin'
 
 
-model = rwkv_cpp_model.RWKVModel(
-    rwkv_cpp_shared_library.load_rwkv_shared_library(),
+model = cpp_model.RWKVModel(
+    cpp_shared_library.load_rwkv_shared_library(),
     model_path
 )
 

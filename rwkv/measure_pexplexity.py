@@ -8,8 +8,8 @@ import pathlib
 import argparse
 import tokenizers
 import torch
-import rwkv_cpp_model
-import rwkv_cpp_shared_library
+import cpp_model
+import cpp_shared_library
 from typing import List
 
 def parse_args():
@@ -45,8 +45,8 @@ def format_loss_with_perplexity(loss: torch.Tensor) -> str:
 
 # ---
 
-model: rwkv_cpp_model.RWKVModel = rwkv_cpp_model.RWKVModel(
-    rwkv_cpp_shared_library.load_rwkv_shared_library(),
+model: cpp_model.RWKVModel = cpp_model.RWKVModel(
+    cpp_shared_library.load_rwkv_shared_library(),
     args.model_path
 )
 

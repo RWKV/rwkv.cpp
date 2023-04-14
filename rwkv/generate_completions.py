@@ -7,8 +7,8 @@ import time
 import sampling
 import tokenizers
 from tqdm import tqdm
-import rwkv_cpp_model
-import rwkv_cpp_shared_library
+import cpp_model
+import cpp_shared_library
 
 # ======================================== Script settings ========================================
 
@@ -39,11 +39,11 @@ print('Loading 20B tokenizer')
 tokenizer_path = pathlib.Path(os.path.abspath(__file__)).parent / '20B_tokenizer.json'
 tokenizer = tokenizers.Tokenizer.from_file(str(tokenizer_path))
 
-library = rwkv_cpp_shared_library.load_rwkv_shared_library()
+library = cpp_shared_library.load_rwkv_shared_library()
 print(f'System info: {library.rwkv_get_system_info_string()}')
 
 print('Loading RWKV model')
-model = rwkv_cpp_model.RWKVModel(library, args.model_path)
+model = cpp_model.RWKVModel(library, args.model_path)
 
 prompt_tokens = tokenizer.encode(prompt).ids
 prompt_token_count = len(prompt_tokens)
