@@ -6,9 +6,9 @@ import pathlib
 import time
 import sampling
 import tokenizers
+from tqdm import tqdm
 import rwkv_cpp_model
 import rwkv_cpp_shared_library
-
 
 # ======================================== Script settings ========================================
 
@@ -51,11 +51,11 @@ print(f'{prompt_token_count} tokens in prompt')
 
 init_logits, init_state = None, None
 
-for token in prompt_tokens:
+for token in tqdm(prompt_tokens, desc="feeding prompt"):
     init_logits, init_state = model.eval(token, init_state, init_state, init_logits)
 
 for GENERATION in range(generation_count):
-    print(f'\n--- Generation {GENERATION} ---\n')
+    print(f'\n--- Generation {GENERATION} n_token={tokens_per_generation} ---\n')
     print(prompt, end='[')
     start = time.time()
 
