@@ -12,7 +12,7 @@
 #   int32 n_vocab;
 #   int32 n_embed;
 #   int32 n_layer;
-#   // 0 if float32, 1 if float16.
+#   // 0 if float32, 1 if float16, 2 if Q4_0, 3 if Q4_1, 4 if Q4_1_O.
 #   int32 data_type;
 #   // Read until EOF.
 #   Parameter[] parameters;
@@ -21,14 +21,18 @@
 # Parameter {
 #   int32 dim_count;
 #   int32 key_length;
-#   // 0 if float32, 1 if float16.
+#   // 0 if float32, 1 if float16, 2 if Q4_0, 3 if Q4_1, 4 if Q4_1_O.
 #   int32 data_type;
-#   // Same values and order as in PyTorch's tensor.shape
+#   // Compared to PyTorch's tensor.shape, dimension order is reversed here!
 #   int32[dim_count] shape;
 #   // Keys are like "emb.weight", "block.0.ln1.weight".
 #   uint8[key_length] key_utf8;
-#   // Can be either float32 or float16.
-#   float[product(shape)] data;
+#  // float32: 4 * element_count bytes.
+#  // float16: 2 * element_count bytes.
+#  // Q4_0: element_count / 32 * 20 bytes.
+#  // Q4_1: element_count / 32 * 24 bytes.
+#  // Q4_1_O: element_count / 32 * 24 bytes.
+#  byte[] data;
 # }
 
 import os
