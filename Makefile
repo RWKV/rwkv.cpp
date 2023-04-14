@@ -221,7 +221,7 @@ $(info )
 default: librwkv.so
 
 clean:
-	rm ggml.o rwkv.o librwkv.so
+	rm ggml.o rwkv.o librwkv.so dump
 
 #
 # Build library

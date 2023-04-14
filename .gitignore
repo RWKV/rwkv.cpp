@@ -34,3 +34,5 @@ compile_commands.json
 .venv
 __pycache__
 .swiftpm
+
+rwkv/prompt.txt
