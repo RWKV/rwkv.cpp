@@ -10,9 +10,10 @@ This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrap
 
 **TODO (contributions welcome!)**:
 
-1. Measure latency and perplexity of different model sizes (169M to 14B) and data types (FP32, FP16, Q4_0, Q4_1)
-2. Test on Linux (including Colab) and MacOS
-3. Make required memory calculation more robust (see #4)
+1. Optimize AVX2 implementation of `Q4_1_O` matmul — currently, it is as slow as `FP32`
+2. Measure latency and perplexity of different model sizes (169M to 14B) and data types (`FP32`, `FP16`, `Q4_0`, `Q4_1`, `Q4_1_O`)
+3. Test on Linux (including Colab) and MacOS
+4. Make required memory calculation more robust (see [#4](https://github.com/saharNooby/rwkv.cpp/issues/4))
 
 ## How to use
 
@@ -29,11 +30,11 @@ cd rwkv.cpp
 
 #### Option 2.1. Download a pre-compiled library
 
-##### Windows
+##### Windows / Linux / MacOS
 
-Check out [Releases](https://github.com/saharNooby/rwkv.cpp/releases), download appropriate ZIP for your CPU, extract `rwkv.dll` file into `bin\Release\` directory inside the repository directory.
+Check out [Releases](https://github.com/saharNooby/rwkv.cpp/releases), download appropriate ZIP for your OS and CPU, extract `rwkv` library file into the repository directory.
 
-To check whether your CPU supports AVX2 or AVX-512, [use CPU-Z](https://www.cpuid.com/softwares/cpu-z.html).
+On Windows: to check whether your CPU supports AVX2 or AVX-512, [use CPU-Z](https://www.cpuid.com/softwares/cpu-z.html).
 
 #### Option 2.2. Build the library yourself
 
@@ -59,7 +60,7 @@ cmake --build . --config Release
 
 **Anaconda & M1 users**: please verify that `CMAKE_SYSTEM_PROCESSOR: arm64` after running `cmake -DBUILD_SHARED_LIBS=ON .` — if it detects `x86_64`, edit the `CMakeLists.txt` file under the `# Compile flags` to add `set(CMAKE_SYSTEM_PROCESSOR "arm64")`.
 
-If everything went OK, `librwkv.so` (Linux) or `rwkv.o` (MacOS) file should appear in the base repo folder.
+If everything went OK, `librwkv.so` (Linux) or `librwkv.dylib` (MacOS) file should appear in the base repo folder.
 
 
 ### 3. Download an RWKV model from [Hugging Face](https://huggingface.co/BlinkDL) like [this one](https://huggingface.co/BlinkDL/rwkv-4-pile-169m/blob/main/RWKV-4-Pile-169M-20220807-8023.pth) and convert it into `ggml` format
@@ -68,7 +69,7 @@ If everything went OK, `librwkv.so` (Linux) or `rwkv.o` (MacOS) file should appe
 
 ```commandline
 # Windows
-python rwkv\convert_rwkv_to_ggml.py C:\RWKV-4-Pile-169M-20220807-8023.pth C:\rwkv.cpp-169M.bin float16
+python rwkv\convert_pytorch_to_ggml.py C:\RWKV-4-Pile-169M-20220807-8023.pth C:\rwkv.cpp-169M.bin float16
 
 # Linux / MacOS
 python rwkv/convert_pytorch_to_ggml.py ~/Downloads/RWKV-4-Pile-169M-20220807-8023.pth ~/Downloads/rwkv.cpp-169M.bin float16
@@ -80,13 +81,17 @@ To convert the model into INT4 quantized format, run:
 
 ```commandline
 # Windows
-python rwkv\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q4_1.bin 3
+python rwkv\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q4_1_O.bin 4
 
 # Linux / MacOS
-python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q4_1.bin 3
+python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q4_1_O.bin 4
 ```
 
-Pass `2` for `Q4_0` format (smaller size, lower quality), `3` for `Q4_1` format (larger size, higher quality).
+Formats available:
+
+- `4`: `Q4_1_O`, best quality, very slow (as `FP32`).
+- `3`: `Q4_1`, poor quality, very fast (as `FP16`).
+- `2`: `Q4_0`, worst quality, breaks larger models, moderately fast (between `FP16` and `FP32`).
 
 ### 4. Run the model
 
@@ -98,20 +103,20 @@ To generate some text, run:
 
 ```commandline
 # Windows
-python rwkv\generate_completions.py C:\rwkv.cpp-169M-Q4_1.bin
+python rwkv\generate_completions.py C:\rwkv.cpp-169M-Q4_1_O.bin
 
 # Linux / MacOS
-python rwkv/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q4_1.bin
+python rwkv/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q4_1_O.bin
 ```
 
 To chat with a bot, run:
 
 ```commandline
 # Windows
-python rwkv\chat_with_bot.py C:\rwkv.cpp-169M-Q4_1.bin
+python rwkv\chat_with_bot.py C:\rwkv.cpp-169M-Q4_1_O.bin
 
 # Linux / MacOS
-python rwkv/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q4_1.bin
+python rwkv/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q4_1_O.bin
 ```
 
 Edit [generate_completions.py](rwkv%2Fgenerate_completions.py) or [chat_with_bot.py](rwkv%2Fchat_with_bot.py) to change prompts and sampling settings.
