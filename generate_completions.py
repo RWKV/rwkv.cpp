@@ -5,8 +5,6 @@ import os, sys, pathlib, time, argparse
 import tokenizers
 from tqdm import tqdm
 
-sys.path.insert(0, "rwkv.cpp")
-
 from rwkv.sampling import sample_logits
 from rwkv.cpp_model import RWKVModel
 from rwkv.cpp_shared_library import load_rwkv_shared_library
@@ -18,7 +16,7 @@ parser.add_argument('model_path', help='Path to RWKV model in ggml format')
 args = parser.parse_args()
 
 print('Loading 20B tokenizer')
-tokenizer_path = pathlib.Path(os.path.abspath(__file__)).parent / '20B_tokenizer.json'
+tokenizer_path = pathlib.Path(__file__).parent / 'rwkv/20B_tokenizer.json'
 tokenizer = tokenizers.Tokenizer.from_file(str(tokenizer_path))
 
 library = load_rwkv_shared_library()
@@ -62,7 +60,7 @@ for GENERATION in range(generation_count):
     print(prompt, end='[')
     start = time.time()
 
-    logits, state = init_logits.clone(), init_state.clone()
+    logits, state = init_logits, init_state
 
     for i in range(tokens_per_generation):
         token = sample_logits(logits, temperature, top_p)
