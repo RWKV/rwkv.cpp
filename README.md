@@ -8,6 +8,8 @@ RWKV is a novel large language model architecture, [with the largest model in th
 
 This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrapper](rwkv%2Frwkv_cpp_model.py) for it.
 
+Loading LoRA checkpoints in [Blealtan's format](https://github.com/Blealtan/RWKV-LM-LoRA) is supported through [merge_lora_into_ggml.py script](rwkv%2Fmerge_lora_into_ggml.py).
+
 **TODO (contributions welcome!)**:
 
 1. Optimize AVX2 implementation of `Q4_1_O` matmul — currently, it is as slow as `FP32`
