@@ -48,8 +48,7 @@ static const ggml_type FORMAT_TYPE_TO_GGML_TYPE[5] = {
     GGML_TYPE_F16,
     GGML_TYPE_Q4_0,
     GGML_TYPE_Q4_1,
-    // TODO Restore
-    //GGML_TYPE_Q4_1_O
+    GGML_TYPE_Q4_1_O
 };
 
 // --- Model definition and loading utilities ---
@@ -756,11 +755,10 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
                         {
                             cur_size = ggml_quantize_q4_1(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
                         } break;
-                    // TODO Restore
-                    /*case GGML_TYPE_Q4_1_O:
+                    case GGML_TYPE_Q4_1_O:
                         {
                             cur_size = ggml_quantize_q4_1_o(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
-                        } break;*/
+                        } break;
                     default:
                         {
                             fprintf(stderr, "unsupported quantization type %d\n", type);
