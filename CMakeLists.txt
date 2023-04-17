@@ -222,13 +222,12 @@ endif()
 # Build libraries
 #
 
-add_library(ggml OBJECT
-            ggml.c
-            ggml.h)
+if (MSVC)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+endif()
 
-target_include_directories(ggml PUBLIC .)
-target_compile_features(ggml PUBLIC c_std_11) # don't bump
-target_link_libraries(ggml PRIVATE Threads::Threads ${RWKV_EXTRA_LIBS})
+add_subdirectory(ggml)
+
 if (BUILD_SHARED_LIBS)
     set_target_properties(ggml PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
