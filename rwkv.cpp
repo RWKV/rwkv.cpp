@@ -11,6 +11,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <fmt/core.h>
 #include <unordered_map>
 
 // --- Utilities ---
@@ -51,68 +52,22 @@ static const ggml_type FORMAT_TYPE_TO_GGML_TYPE[5] = {
     GGML_TYPE_Q4_1_O
 };
 
-// --- Model definition and loading utilities ---
-
-struct rwkv_layer {
-    struct ggml_tensor * ln1_weight;
-    struct ggml_tensor * ln1_bias;
-
-    // RWKV, also called "attention" by the author.
-    struct ggml_tensor * att_time_mix_k;
-    struct ggml_tensor * att_time_mix_v;
-    struct ggml_tensor * att_time_mix_r;
-    struct ggml_tensor * att_time_first;
-    struct ggml_tensor * att_time_decay;
-    struct ggml_tensor * att_key;
-    struct ggml_tensor * att_value;
-    struct ggml_tensor * att_receptance;
-    struct ggml_tensor * att_output;
-
-    struct ggml_tensor * ln2_weight;
-    struct ggml_tensor * ln2_bias;
-
-    // FFN.
-    struct ggml_tensor * ffn_time_mix_k;
-    struct ggml_tensor * ffn_time_mix_r;
-    struct ggml_tensor * ffn_key;
-    struct ggml_tensor * ffn_value;
-    struct ggml_tensor * ffn_receptance;
-};
-
-struct rwkv_model {
-    int32_t n_vocab;
-    int32_t n_layer;
-    int32_t n_embed;
-    // 0 for float32, 1 for float16.
-    int32_t data_type;
-
-    struct ggml_tensor * emb;
-
-    struct ggml_tensor * ln0_weight;
-    struct ggml_tensor * ln0_bias;
-
-    std::vector<rwkv_layer> layers;
-
-    struct ggml_tensor * ln_out_weight;
-    struct ggml_tensor * ln_out_bias;
-
-    struct ggml_tensor * head;
-};
+// --- loading utilities ---
 
 // Finds model parameter by key and sets it into dest.
 // If the parameter was not found, returns false.
-bool set_parameter(std::unordered_map<std::string, struct ggml_tensor *> * parameters, char * key, struct ggml_tensor ** dest) {
+bool set_parameter(std::unordered_map<std::string, struct ggml_tensor *> * parameters, const std::string& key, struct ggml_tensor ** dest) {
     struct ggml_tensor * parameter = (*parameters)[key];
-    RWKV_ASSERT_FALSE(parameter != NULL, "Parameter %s not found in model file", key);
+    RWKV_ASSERT_FALSE(parameter != NULL, "Parameter %s not found in model file", key.c_str());
     *dest = parameter;
     return true;
 }
 
 // Finds block parameter by block index and key and sets it into dest.
 // If the parameter was not found, returns false.
-bool set_block_parameter(std::unordered_map<std::string, struct ggml_tensor *> * parameters, int32_t block_index, char * key, struct ggml_tensor ** dest) {
+bool set_block_parameter(std::unordered_map<std::string, struct ggml_tensor *> * parameters, int32_t block_index, const std::string& key, struct ggml_tensor ** dest) {
     char full_key[128];
-    sprintf(full_key, "blocks.%d.%s", block_index, key);
+    sprintf(full_key, "blocks.%d.%s", block_index, key.c_str());
     return set_parameter(parameters, full_key, dest);
 }
 
@@ -168,17 +123,6 @@ struct ggml_tensor * rwkv_layer_norm(ggml_context * ctx, struct ggml_tensor * x,
 }
 
 // --- Implementation ---
-
-struct rwkv_context {
-    struct rwkv_model * model;
-    struct ggml_tensor * token_index;
-    struct ggml_tensor * state;
-    struct ggml_tensor ** state_parts;
-    struct ggml_tensor * logits;
-    struct ggml_context * ctx;
-    struct ggml_cgraph * graph;
-    bool freed;
-};
 
 struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_threads) {
     FILE * file = fopen(file_path, "rb");
@@ -294,6 +238,16 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
 
         RWKV_ASSERT_NULL(fread(tensor->data, 1, ggml_nbytes(tensor), file) == ggml_nbytes(tensor), "Failed to read parameter data");
 
+        std::string data_type_str;
+
+        switch (data_type) {
+            case 0: data_type_str = "F32"; break;
+            case 1: data_type_str = "F16"; break;
+            case 2: data_type_str = "Q4_0"; break;
+            case 3: data_type_str = "Q4_1"; break;
+        }
+
+        std::cout << fmt::format("{}\t{}\t{}\t{}", key, x, y, data_type_str) << std::endl;
         parameters[key] = tensor;
     }
 
@@ -789,7 +743,7 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
 
         printf("original size     = %8.2f MB\n", total_size_orig / 1024.0 / 1024.0);
         printf("quantized size    = %8.2f MB\n", total_size_new / 1024.0 / 1024.0);
-        printf("compression ratio = %8.2f%%\n", 1.0 * total_size_orig / total_size_new);
+        printf("compression ratio = %8.2f\n", 1.0 * total_size_orig / total_size_new);
 
         {
             int64_t sum_all = 0;

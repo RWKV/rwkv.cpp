@@ -1,4 +1,5 @@
 *.o
+*.so
 *.a
 .cache/
 .vs/
@@ -22,6 +23,7 @@ models/*
 /result
 /perplexity
 /embedding
+/dump
 
 arm_neon.h
 compile_commands.json
@@ -32,3 +34,5 @@ compile_commands.json
 .venv
 __pycache__
 .swiftpm
+
+rwkv/prompt.txt

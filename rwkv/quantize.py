@@ -2,7 +2,7 @@
 # Usage: python quantize.py bin\Release\rwkv.dll C:\rwkv.cpp-169M-float32.bin C:\rwkv.cpp-169M-q4_1_o.bin 4
 
 import argparse
-import rwkv_cpp_shared_library
+import cpp_shared_library
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Quantize rwkv.cpp model file from FP32 or FP16 to Q4_0 or Q4_1')
@@ -22,7 +22,7 @@ def main() -> None:
         print('More info at https://github.com/saharNooby/rwkv.cpp/issues/12')
         print()
 
-    library = rwkv_cpp_shared_library.load_rwkv_shared_library()
+    library = cpp_shared_library.load_rwkv_shared_library()
 
     library.rwkv_quantize_model_file(
         args.src_path,

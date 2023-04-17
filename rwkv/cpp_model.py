@@ -1,7 +1,7 @@
 import os
 import torch
 import multiprocessing
-import rwkv_cpp_shared_library
+from .cpp_shared_library import RWKVSharedLibrary
 from typing import Tuple, Optional
 
 class RWKVModel:
@@ -11,7 +11,7 @@ class RWKVModel:
 
     def __init__(
             self,
-            shared_library: rwkv_cpp_shared_library.RWKVSharedLibrary,
+            shared_library: RWKVSharedLibrary,
             model_path: str,
             thread_count: int = max(1, multiprocessing.cpu_count() // 2)
     ):
