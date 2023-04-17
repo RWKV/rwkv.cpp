@@ -9,34 +9,15 @@ on:
         required: true
         type: boolean
   push:
-    paths: ['.github/workflows/**', '**/CMakeLists.txt', '**/Makefile', '**/*.h', '**/*.c', '**/*.cpp']
+    paths: ['.github/workflows/**', '**/CMakeLists.txt', '**/*.h', '**/*.c', '**/*.cpp']
   pull_request:
     types: [opened, synchronize, edited, reopened, review_requested, ready_for_review]
-    paths: ['**/CMakeLists.txt', '**/Makefile', '**/*.h', '**/*.c', '**/*.cpp']
+    paths: ['**/CMakeLists.txt', '**/*.h', '**/*.c', '**/*.cpp']
 
 env:
  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
 jobs:
-  ubuntu-latest-make:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone
-        id: checkout
-        uses: actions/checkout@v1
-
-      - name: Dependencies
-        id: depends
-        run: |
-          sudo apt-get update
-          sudo apt-get install build-essential
-
-      - name: Build
-        id: make_build
-        run: |
-          make
-
   ubuntu-latest-cmake:
     runs-on: ubuntu-latest
 
@@ -84,24 +65,6 @@ jobs:
         with:
           path: |
             rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip
-
-  macOS-latest-make:
-    runs-on: macos-latest
-
-    steps:
-      - name: Clone
-        id: checkout
-        uses: actions/checkout@v1
-
-      - name: Dependencies
-        id: depends
-        run: |
-          brew update
-
-      - name: Build
-        id: make_build
-        run: |
-          make
 
   macOS-latest-cmake:
     runs-on: macOS-latest
@@ -222,9 +185,7 @@ jobs:
     runs-on: ubuntu-latest
 
     needs:
-      - ubuntu-latest-make
       - ubuntu-latest-cmake
-      - macOS-latest-make
       - macOS-latest-cmake
       - windows-latest-cmake
 
