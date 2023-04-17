@@ -222,6 +222,10 @@ endif()
 # Build libraries
 #
 
+if (MSVC)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+endif()
+
 add_subdirectory(ggml)
 
 if (BUILD_SHARED_LIBS)
