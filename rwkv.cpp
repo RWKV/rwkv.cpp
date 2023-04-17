@@ -128,6 +128,13 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
     FILE * file = fopen(file_path, "rb");
     RWKV_ASSERT_NULL(file != NULL, "Failed to open file %s", file_path);
 
+    // Parameter tensors would take at least this amount in memory.
+    size_t file_size;
+    RWKV_ASSERT_NULL(fseek(file, 0, SEEK_END) == 0, "Failed to seek file");
+    long maybe_file_size = ftell(file);
+    RWKV_ASSERT_NULL(maybe_file_size >= 0, "Failed to file size");
+    RWKV_ASSERT_NULL(fseek(file, 0, SEEK_SET) == 0, "Failed to seek file");
+
     int32_t magic;
     read_int32(file, &magic);
     RWKV_ASSERT_NULL(magic == RWKV_FILE_MAGIC, "Unexpected magic value %d", magic);
@@ -157,17 +164,6 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
         "Unsupported model data type %d",
         model->data_type
     );
-
-    // Parameter tensors would take at least this amount in memory.
-    size_t file_size;
-
-    {
-        auto fin = std::ifstream(file_path, std::ios::binary);
-        RWKV_ASSERT_NULL(fin, "Failed to open file %s", file_path);
-        fin.seekg(0, fin.end);
-        file_size = fin.tellg();
-        fin.close();
-    }
 
     size_t memory_required = file_size +
         // Intermediary vectors for calculation; there are around 100 calls to ggml
