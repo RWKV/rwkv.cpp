@@ -25,35 +25,6 @@
 #define static_assert(cond, msg) struct global_scope_noop_trick
 #endif
 
-// https://gist.github.com/rygorous/2144712
-// Public domain, by Fabian "ryg" Giesen
-inline static float ggml_half_to_float_reference(uint16_t value) {
-    union FP32 {
-        uint32_t u;
-        float f;
-    };
-
-    const union FP32 magic = { (254UL - 15UL) << 23 };
-    const union FP32 was_inf_nan = { (127UL + 16UL) << 23 };
-
-    union FP32 out;
-
-    // Exponent/mantissa bits
-    out.u = (value & 0x7FFFU) << 13;
-    // Exponent adjust
-    out.f *= magic.f;
-
-    // Make sure Inf/NaN survive
-    if (out.f >= was_inf_nan.f) {
-        out.u |= 255UL << 23;
-    }
-
-    // Sign bit
-    out.u |= (value & 0x8000UL) << 16;
-
-    return out.f;
-}
-
 #if defined _MSC_VER || defined(__MINGW32__)
 
 #if !defined(__MINGW32__)
@@ -355,13 +326,10 @@ static float table_f32_f16[1 << 16];
 // This is also true for POWER9.
 #if !defined(GGML_FP16_TO_FP32) || !defined(GGML_FP32_TO_FP16)
 
-
-
 inline static float ggml_lookup_fp16_to_fp32(ggml_fp16_t f) {
-    // For some reason, lookup table does not work on my machine.
-    // Replaced lookup with working reference code.
-    // TODO This must be properly debugged and fixed
-    return ggml_half_to_float_reference(f);
+    uint16_t s;
+    memcpy(&s, &f, sizeof(uint16_t));
+    return table_f32_f16[s];
 }
 
 #define GGML_FP16_TO_FP32(x) ggml_lookup_fp16_to_fp32(x)
@@ -1194,8 +1162,8 @@ static inline void quantize_row_q4_1_o_reference_single_block(const float * rest
 }
 
 static inline void dequantize_row_q4_1_o_reference_single_block(block_q4_1_o * restrict block, float * restrict y) {
-    const float d = ggml_half_to_float_reference(block->d);
-    const float m = ggml_half_to_float_reference(block->m);
+    const float d = GGML_FP16_TO_FP32(block->d);
+    const float m = GGML_FP16_TO_FP32(block->m);
 
     const uint8_t * restrict pp = block->qs;
 
@@ -1216,7 +1184,7 @@ static inline void dequantize_row_q4_1_o_reference_single_block(block_q4_1_o * r
     }
 
     // Restore the outlier
-    y[block->outlier_index] = ggml_half_to_float_reference(block->outlier_value);
+    y[block->outlier_index] = GGML_FP16_TO_FP32(block->outlier_value);
 }
 
 static void quantize_row_q4_1_o_reference(const float * restrict x, void * restrict vy, int k) {
@@ -1242,8 +1210,8 @@ static void dequantize_row_q4_1_o(const void * restrict vx, float * restrict y, 
 
 #if defined(__AVX2__)
     for (int i = 0; i < nb; i++) {
-        const float x_d = ggml_half_to_float_reference(x[i].d);
-        const float x_m = ggml_half_to_float_reference(x[i].m);
+        const float x_d = GGML_FP16_TO_FP32(x[i].d);
+        const float x_m = GGML_FP16_TO_FP32(x[i].m);
 
         const __m256 d_v = _mm256_broadcast_ss(&x_d);
         const __m256 d_m = _mm256_broadcast_ss(&x_m);
@@ -1274,12 +1242,12 @@ static void dequantize_row_q4_1_o(const void * restrict vx, float * restrict y, 
         }
 
         // Restore the outlier
-        y[i * QK + x[i].outlier_index] = ggml_half_to_float_reference(x[i].outlier_value);
+        y[i * QK + x[i].outlier_index] = GGML_FP16_TO_FP32(x[i].outlier_value);
     }
 #elif defined(__ARM_NEON)
     for (int i = 0; i < nb; i++) {
-        const float x_d = ggml_half_to_float_reference(x[i].d);
-        const float x_m = ggml_half_to_float_reference(x[i].m);
+        const float x_d = GGML_FP16_TO_FP32(x[i].d);
+        const float x_m = GGML_FP16_TO_FP32(x[i].m);
 
         const float32x4_t vd = vdupq_n_f32(x_d);
         const float32x4_t vm = vdupq_n_f32(x_m);
@@ -1324,7 +1292,7 @@ static void dequantize_row_q4_1_o(const void * restrict vx, float * restrict y, 
         }
 
         // Restore the outlier
-        y[i * QK + x[i].outlier_index] = ggml_half_to_float_reference(x[i].outlier_value);
+        y[i * QK + x[i].outlier_index] = GGML_FP16_TO_FP32(x[i].outlier_value);
     }
 #else
     for (int i = 0; i < nb; i++) {
@@ -7292,12 +7260,12 @@ static void ggml_compute_forward_mul_mat_q4_1_o_f32(
 
             // Here we do fused dequantization and dot product.
             for (int block_index = 0; block_index < block_count; block_index++) {
-                const float block_d = ggml_half_to_float_reference(row_blocks[block_index].d);
-                const float block_m = ggml_half_to_float_reference(row_blocks[block_index].m);
+                const float block_d = GGML_FP16_TO_FP32(row_blocks[block_index].d);
+                const float block_m = GGML_FP16_TO_FP32(row_blocks[block_index].m);
 
                 // 0 .. 31
                 const uint16_t outlier_index = row_blocks[block_index].outlier_index;
-                const float outlier_value = ggml_half_to_float_reference(row_blocks[block_index].outlier_value);
+                const float outlier_value = GGML_FP16_TO_FP32(row_blocks[block_index].outlier_value);
 
                 const uint8_t * restrict quant_nibbles = row_blocks[block_index].qs;
 
@@ -11473,11 +11441,11 @@ void ggml_test_quantization_q4_1_o(void) {
     size_t size = ggml_quantize_q4_1_o(src, dst, QK, QK, hist);
     GGML_TEST_ASSERT(size == 24, "%zd", size);
 
-    float delta_result = ggml_half_to_float_reference(((block_q4_1_o *) dst)->d);
+    float delta_result = GGML_FP16_TO_FP32(((block_q4_1_o *) dst)->d);
     float delta_expected = (src[30] - src[0]) / ((1 << 4) - 1);
     GGML_TEST_ASSERT(delta_result == delta_expected, "%f, %f", delta_result, delta_expected);
 
-    float min_result = ggml_half_to_float_reference(((block_q4_1_o *) dst)->m);
+    float min_result = GGML_FP16_TO_FP32(((block_q4_1_o *) dst)->m);
     float min_expected = src[0];
     GGML_TEST_ASSERT(min_result == min_expected, "%f, %f", min_result, min_expected);
 
@@ -11485,7 +11453,7 @@ void ggml_test_quantization_q4_1_o(void) {
     uint16_t outlier_index_expected = 31;
     GGML_TEST_ASSERT(outlier_index == outlier_index_expected, "%d, %d", outlier_index, outlier_index_expected);
 
-    float outlier_value_result = ggml_half_to_float_reference(((block_q4_1_o *) dst)->outlier_value);
+    float outlier_value_result = GGML_FP16_TO_FP32(((block_q4_1_o *) dst)->outlier_value);
     float outlier_value_expected = src[31];
     GGML_TEST_ASSERT(outlier_value_result == outlier_value_expected, "%f, %f", outlier_value_result, outlier_value_expected);
 

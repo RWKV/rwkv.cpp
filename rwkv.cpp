@@ -557,6 +557,13 @@ void rwkv_free(struct rwkv_context * ctx) {
 bool rwkv_quantize_model_file(const char * model_file_path_in, const char * model_file_path_out, uint32_t q_type) {
     RWKV_ASSERT_FALSE(q_type == 2 || q_type == 3 || q_type == 4, "Unsupported quantization type %d", q_type);
 
+    // Needed to initialize FP16 lookup table
+    {
+        struct ggml_init_params params = { 0, NULL };
+        struct ggml_context * ctx = ggml_init(params);
+        ggml_free(ctx);
+    }
+
     ggml_type type = FORMAT_TYPE_TO_GGML_TYPE[q_type];
 
     printf("Loading model from '%s'\n", model_file_path_in);
