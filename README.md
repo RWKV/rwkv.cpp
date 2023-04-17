@@ -24,7 +24,7 @@ Loading LoRA checkpoints in [Blealtan's format](https://github.com/Blealtan/RWKV
 **Requirements**: [git](https://gitforwindows.org/).
 
 ```commandline
-git clone https://github.com/saharNooby/rwkv.cpp.git
+git clone --recursive https://github.com/saharNooby/rwkv.cpp.git
 cd rwkv.cpp
 ```
 
