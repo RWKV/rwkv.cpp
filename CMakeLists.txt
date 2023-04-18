@@ -232,15 +232,21 @@ if (BUILD_SHARED_LIBS)
     set_target_properties(ggml PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
+find_library(fmt "fmt")
+
 add_library(rwkv
             rwkv.cpp
             rwkv.h)
 
 target_include_directories(rwkv PUBLIC .)
 target_compile_features(rwkv PUBLIC cxx_std_11) # don't bump
-target_link_libraries(rwkv PRIVATE ggml ${RWKV_EXTRA_LIBS})
+target_link_libraries(rwkv PRIVATE ggml fmt ${RWKV_EXTRA_LIBS})
 
 if (BUILD_SHARED_LIBS)
     set_target_properties(rwkv PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(rwkv PRIVATE RWKV_SHARED RWKV_BUILD)
 endif()
+
+add_executable(dump dump.cpp)
+target_link_libraries(dump PRIVATE rwkv ggml ${RWKV_EXTRA_LIBS})
+target_include_directories(dump PRIVATE .)

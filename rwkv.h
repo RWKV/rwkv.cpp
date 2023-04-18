@@ -85,11 +85,19 @@ struct rwkv_context {
     bool freed;
 };
 
+struct rwkv_init_opts {
+    uint32_t n_threads;
+    /** print weights name, shape, dtype */
+    bool print_weights_info;
+};
+
 // Loads the model from a file and prepares it for inference.
 // Returns NULL on any error. Error messages would be printed to stderr.
 // - model_file_path: path to model file in ggml format.
 // - n_threads: count of threads to use, must be positive.
 RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, uint32_t n_threads);
+
+RWKV_API struct rwkv_context * rwkv_init_from_file_ex(const char * model_file_path, struct rwkv_init_opts opts);
 
 // Evaluates the model for a single token.
 // Returns false on any error. Error messages would be printed to stderr.

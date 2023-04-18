@@ -125,6 +125,9 @@ struct ggml_tensor * rwkv_layer_norm(ggml_context * ctx, struct ggml_tensor * x,
 // --- Implementation ---
 
 struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_threads) {
+    return rwkv_init_from_file_ex(file_path, {n_threads, false});
+}
+struct rwkv_context * rwkv_init_from_file_ex(const char * file_path, struct rwkv_init_opts opts) {
     FILE * file = fopen(file_path, "rb");
     RWKV_ASSERT_NULL(file != NULL, "Failed to open file %s", file_path);
 
@@ -134,6 +137,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
     long maybe_file_size = ftell(file);
     RWKV_ASSERT_NULL(maybe_file_size >= 0, "Failed to file size");
     RWKV_ASSERT_NULL(fseek(file, 0, SEEK_SET) == 0, "Failed to seek file");
+    file_size = maybe_file_size;
 
     int32_t magic;
     read_int32(file, &magic);
@@ -188,6 +192,9 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
         int32_t dim_count;
         size_t elements_read = fread(&dim_count, 4, 1, file);
 
+        int err = ferror(file);
+        RWKV_ASSERT_NULL(err == 0, "Failed to read dimension count %d", err);
+        
         if (feof(file)) {
             break;
         }
@@ -234,16 +241,18 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
 
         RWKV_ASSERT_NULL(fread(tensor->data, 1, ggml_nbytes(tensor), file) == ggml_nbytes(tensor), "Failed to read parameter data");
 
-        std::string data_type_str;
+        if (opts.print_weights_info) {
+            std::string data_type_str;
 
-        switch (data_type) {
-            case 0: data_type_str = "F32"; break;
-            case 1: data_type_str = "F16"; break;
-            case 2: data_type_str = "Q4_0"; break;
-            case 3: data_type_str = "Q4_1"; break;
+            switch (data_type) {
+                case 0: data_type_str = "F32"; break;
+                case 1: data_type_str = "F16"; break;
+                case 2: data_type_str = "Q4_0"; break;
+                case 3: data_type_str = "Q4_1"; break;
+            }
+            std::cout << fmt::format("{}\t{}\t{}\t{}", key, x, y, data_type_str) << std::endl;
         }
 
-        std::cout << fmt::format("{}\t{}\t{}\t{}", key, x, y, data_type_str) << std::endl;
         parameters[key] = tensor;
     }
 
@@ -472,7 +481,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
        ggml_build_forward_expand(graph, state_parts[i]);
     }
 
-    graph->n_threads = n_threads;
+    graph->n_threads = opts.n_threads;
 
     struct rwkv_context * rwkv_ctx = (struct rwkv_context *) calloc(1, sizeof(struct rwkv_context));
     rwkv_ctx->model = model;
