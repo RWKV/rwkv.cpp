@@ -181,9 +181,7 @@ struct rwkv_context * rwkv_init_from_file_ex(const char * file_path, struct rwkv
         size_t(256) * 1024 * 1024;
 
     // Initialize ggml
-    struct ggml_init_params params;
-    params.mem_size = memory_required;
-    params.mem_buffer = NULL;
+    struct ggml_init_params params = {.mem_size = memory_required, .mem_buffer = NULL, .no_alloc = false };
     struct ggml_context * ctx = ggml_init(params);
 
     std::unordered_map<std::string, struct ggml_tensor *> parameters;
