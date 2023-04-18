@@ -158,12 +158,6 @@ jobs:
           cmake .. -DBUILD_SHARED_LIBS=ON ${{ matrix.defines }}
           cmake --build . --config Release
 
-      - name: Test
-        id: cmake_test
-        run: |
-          cd build
-          ctest --verbose
-
       - name: Check AVX512F support
         id: check_avx512f
         if: ${{ matrix.build == 'avx512' }}
@@ -179,8 +173,6 @@ jobs:
 
       - name: Test
         id: cmake_test
-        # Test AVX-512 only when possible
-        if: ${{ matrix.build != 'avx512' || env.HAS_AVX512F == '1' }}
         run: |
           cd build
           ctest -C Release --verbose
