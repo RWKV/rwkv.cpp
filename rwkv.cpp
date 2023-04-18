@@ -301,8 +301,8 @@ struct rwkv_context * rwkv_init_from_file_ex(const char * file_path, struct rwkv
     // Verify order of dimensions
     struct ggml_tensor * emb = model->emb;
     RWKV_ASSERT_NULL(emb->n_dims == 2, "Unexpected dimension count of embedding matrix %d", emb->n_dims);
-    RWKV_ASSERT_NULL(emb->ne[0] == model->n_embed, "Unexpected dimension of embedding matrix %lld", emb->ne[0]);
-    RWKV_ASSERT_NULL(emb->ne[1] == model->n_vocab, "Unexpected dimension of embedding matrix %lld", emb->ne[1]);
+    RWKV_ASSERT_NULL(emb->ne[0] == model->n_embed, "Unexpected dimension of embedding matrix %ld", emb->ne[0]);
+    RWKV_ASSERT_NULL(emb->ne[1] == model->n_vocab, "Unexpected dimension of embedding matrix %ld", emb->ne[1]);
 
     int32_t n_embed = model->n_embed;
     int32_t n_layer = model->n_layer;
@@ -558,7 +558,7 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
 
     // Needed to initialize FP16 lookup table
     {
-        struct ggml_init_params params = { 0, NULL };
+        struct ggml_init_params params = { 0, NULL, false };
         struct ggml_context * ctx = ggml_init(params);
         ggml_free(ctx);
     }
