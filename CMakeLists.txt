@@ -244,3 +244,6 @@ if (BUILD_SHARED_LIBS)
     set_target_properties(rwkv PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(rwkv PRIVATE RWKV_SHARED RWKV_BUILD)
 endif()
+
+enable_testing()
+add_subdirectory(tests)
