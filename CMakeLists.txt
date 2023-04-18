@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12) # Don't bump this version for no reason
 project("rwkv.cpp" C CXX)
-set (CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 20)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -234,6 +234,7 @@ if (BUILD_SHARED_LIBS)
 endif()
 
 find_library(fmt "fmt")
+
 
 add_library(rwkv
             rwkv.cpp
