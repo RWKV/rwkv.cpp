@@ -42,6 +42,12 @@ jobs:
           cmake -DBUILD_SHARED_LIBS=ON ..
           cmake --build . --config Release
 
+      - name: Test
+        id: cmake_test
+        run: |
+          cd build
+          ctest --verbose
+
       - name: Get commit hash
         id: commit
         if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
@@ -91,6 +97,12 @@ jobs:
           cd build
           cmake -DBUILD_SHARED_LIBS=ON -DRWKV_AVX2=OFF ..
           cmake --build . --config Release
+
+      - name: Test
+        id: cmake_test
+        run: |
+          cd build
+          ctest --verbose
 
       - name: Get commit hash
         id: commit
@@ -145,6 +157,12 @@ jobs:
           cd build
           cmake .. -DBUILD_SHARED_LIBS=ON ${{ matrix.defines }}
           cmake --build . --config Release
+
+      - name: Test
+        id: cmake_test
+        run: |
+          cd build
+          ctest --verbose
 
       - name: Check AVX512F support
         id: check_avx512f
