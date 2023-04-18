@@ -235,10 +235,18 @@ endif()
 
 find_library(fmt "fmt")
 
-
-add_library(rwkv
+if (RWKV_STATIC)
+add_library(rwkv STATIC
             rwkv.cpp
             rwkv.h)
+else()
+add_library(rwkv SHARED
+            rwkv.cpp
+            rwkv.h)
+endif()
+
+set_target_properties(rwkv PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(ggml PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(rwkv PUBLIC .)
 target_compile_features(rwkv PUBLIC cxx_std_11) # don't bump
