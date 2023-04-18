@@ -12,10 +12,9 @@ Loading LoRA checkpoints in [Blealtan's format](https://github.com/Blealtan/RWKV
 
 **TODO (contributions welcome!)**:
 
-1. Optimize AVX2 implementation of `Q4_1_O` matmul — currently, it is 40% slower than `Q4_1`
-2. Measure latency and perplexity of different model sizes (169M to 14B) and data types (`FP32`, `FP16`, `Q4_0`, `Q4_1`, `Q4_1_O`)
-3. Test on Linux (including Colab) and MacOS
-4. Make required memory calculation more robust (see [#4](https://github.com/saharNooby/rwkv.cpp/issues/4))
+1. Measure latency and perplexity of different model sizes (169M to 14B) and data types (`FP32`, `FP16`, `Q4_0`, `Q4_1`, `Q4_1_O`)
+2. Test on Linux (including Colab) and MacOS
+3. Make required memory calculation more robust (see [#4](https://github.com/saharNooby/rwkv.cpp/issues/4))
 
 ## How to use
 
@@ -91,9 +90,9 @@ python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-
 
 Formats available:
 
-- `4`: `Q4_1_O`, best quality, slow (30% slower than `FP16`).
-- `3`: `Q4_1`, poor quality, fast (comparable to `FP16`).
-- `2`: `Q4_0`, worst quality, breaks larger models, very fast.
+- `4`: `Q4_1_O`, OK quality, fast (comparable to `FP16`).
+- `3`: `Q4_1`, worst quality, fast (comparable to `FP16`).
+- `2`: `Q4_0`, poor quality, very fast.
 
 ### 4. Run the model
 
