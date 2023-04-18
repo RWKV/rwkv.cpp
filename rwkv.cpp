@@ -101,18 +101,18 @@ struct rwkv_model {
 
 // Finds model parameter by key and sets it into dest.
 // If the parameter was not found, returns false.
-bool set_parameter(std::unordered_map<std::string, struct ggml_tensor *> * parameters, char * key, struct ggml_tensor ** dest) {
+bool set_parameter(std::unordered_map<std::string, struct ggml_tensor *> * parameters, std::string key, struct ggml_tensor ** dest) {
     struct ggml_tensor * parameter = (*parameters)[key];
-    RWKV_ASSERT_FALSE(parameter != NULL, "Parameter %s not found in model file", key);
+    RWKV_ASSERT_FALSE(parameter != NULL, "Parameter %s not found in model file", key.c_str());
     *dest = parameter;
     return true;
 }
 
 // Finds block parameter by block index and key and sets it into dest.
 // If the parameter was not found, returns false.
-bool set_block_parameter(std::unordered_map<std::string, struct ggml_tensor *> * parameters, int32_t block_index, char * key, struct ggml_tensor ** dest) {
+bool set_block_parameter(std::unordered_map<std::string, struct ggml_tensor *> * parameters, int32_t block_index, std::string key, struct ggml_tensor ** dest) {
     char full_key[128];
-    sprintf(full_key, "blocks.%d.%s", block_index, key);
+    sprintf(full_key, "blocks.%d.%s", block_index, key.c_str());
     return set_parameter(parameters, full_key, dest);
 }
 
@@ -197,7 +197,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
         size_t(256) * 1024 * 1024;
 
     // Initialize ggml
-    struct ggml_init_params params = {.mem_size = memory_required, .mem_buffer = NULL, .no_alloc = false };
+    struct ggml_init_params params = { .mem_size = memory_required, .mem_buffer = NULL };
     struct ggml_context * ctx = ggml_init(params);
 
     std::unordered_map<std::string, struct ggml_tensor *> parameters;
@@ -740,7 +740,7 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
 
         printf("original size     = %8.2f MB\n", total_size_orig / 1024.0 / 1024.0);
         printf("quantized size    = %8.2f MB\n", total_size_new / 1024.0 / 1024.0);
-        printf("compression ratio = %8.2f%\n", 1.0 * total_size_orig / total_size_new);
+        printf("compression ratio = %8.2f\n", 1.0 * total_size_orig / total_size_new);
 
         {
             int64_t sum_all = 0;
