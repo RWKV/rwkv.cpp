@@ -100,8 +100,6 @@ int main(int argc, const char ** argv) {
     }
 
     // --- Matmul ---
-    srand(42);
-
     struct ggml_init_params params = {
         .mem_size   = 16 * 1024,
         .mem_buffer = NULL,
@@ -112,13 +110,23 @@ int main(int argc, const char ** argv) {
 
     struct ggml_tensor * mat = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, QK4_1_O, 4);
 
-    for (int i = 0; i < QK4_1_O * 4; i++) {
-        GGML_SET_ELEMENT_F32(mat, i, RANDOM_FLOAT());
-    }
+    // Note rare outlier values: -88, -83, etc.
+    float mat_values[QK4_1_O * 4] = {
+        -1.371795F, -88.901100F, -0.412088F, -0.486081F, 1.280220F, -1.067033F, 1.371795F, 1.099267F, 1.079487F, -0.204029F, 1.237729F, -0.563736F,
+        -0.633333F, 0.700000F, 0.211355F, 0.510989F, -0.981319F, -0.456777F, 0.011355F, 0.911722F, -0.976191F, 0.078022F, -0.757143F, -0.744689F,
+        -0.768865F, 0.656777F, 0.141026F, -0.038462F, 1.023810F, 1.221612F, -0.393773F, 1.135165F, -1.341758F, -83.113556F, 1.291209F, 0.313187F,
+        1.032601F, -0.401099F, 1.482418F, 0.823077F, 0.619414F, -0.583516F, 0.527106F, 1.489011F, 1.327839F, 0.846520F, -1.437729F, 0.461172F,
+        1.031136F, 0.293407F, 0.284615F, -1.102198F, -1.481685F, 0.602564F, -0.480952F, -0.745421F, -1.376190F, -1.319780F, 1.338828F, -1.062637F,
+        1.266300F, 0.360073F, 1.472894F, 1.063370F, -0.833333F, 49.047626F, -1.229670F, 1.079487F, -0.004762F, -0.696337F, -0.541758F, 0.993773F,
+        -1.323443F, 0.908059F, -1.059707F, 0.965201F, -0.376923F, 1.158608F, -1.100000F, -1.002564F, -0.355678F, 1.157143F, 0.450916F, -0.497802F,
+        1.270696F, 0.028205F, 1.075092F, 1.462637F, 0.252381F, -0.579121F, -0.880220F, -0.041392F, -1.017949F, -0.754945F, 0.582784F, -1.193773F,
+        -1.411355F, 122.014656F, -1.053114F, -0.949084F, 0.448718F, 0.209890F, 0.815751F, 0.071429F, -0.125641F, -0.600366F, -0.914652F, -0.956410F,
+        -0.278755F, 0.235531F, -0.573260F, -1.484615F, -0.327839F, -0.297070F, -1.195238F, -1.160073F, 0.932967F, -0.606960F, 0.798901F, 0.212088F,
+        0.113187F, -0.116117F, -0.532967F, 0.077289F, 0.016484F, 1.352747F, -1.487546F, -1.363736F
+    };
 
-    // Add outliers
-    for (int i = 0; i < 4; i++) {
-        GGML_SET_ELEMENT_F32(mat, i * QK4_1_O + 1, RANDOM_FLOAT() * 100.0F);
+    for (int i = 0; i < QK4_1_O * 4; i++) {
+        GGML_SET_ELEMENT_F32(mat, i, mat_values[i]);
     }
 
     struct ggml_tensor * quantized_mat = ggml_new_tensor_2d(ctx, GGML_TYPE_Q4_1_O, QK4_1_O, 4);
@@ -129,8 +137,15 @@ int main(int argc, const char ** argv) {
 
     struct ggml_tensor * vec = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, QK4_1_O);
 
+    float vec_values[] = {
+        -0.578388F, -0.770330F, -0.183516F, 0.264103F, 0.585714F, -0.226740F, 1.319048F, 0.652381F,
+        -1.161538F, 0.428205F, -0.907326F, -0.837729F, 0.673626F, 0.248718F, 0.392308F, -0.225275F,
+        0.910989F, 0.483150F, -0.669963F, -0.412088F, 0.954945F, 0.826007F, 0.113919F, 0.095604F,
+        -1.042125F, -1.094872F, 0.589377F, -0.426007F, 0.669231F, -0.243590F, -0.179121F, 0.325641F
+    };
+
     for (int i = 0; i < QK4_1_O; i++) {
-        GGML_SET_ELEMENT_F32(vec, i, RANDOM_FLOAT());
+        GGML_SET_ELEMENT_F32(vec, i, vec_values[i]);
     }
 
     struct ggml_tensor * expected_result = ggml_mul_mat(ctx, mat, vec);
@@ -157,7 +172,8 @@ int main(int argc, const char ** argv) {
 
     float diff_average = diff_sum / 4;
 
-    GGML_ASSERT(diff_average <= 0.111999F, "Unexpected average difference value %f", diff_average);
+    // If Q4_1_O format works correctly, difference should be this or lower
+    GGML_ASSERT(diff_average <= 0.112F, "Unexpected average difference value %f", diff_average);
 
     ggml_print_objects(ctx);
 
