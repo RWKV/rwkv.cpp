@@ -591,7 +591,7 @@ void rwkv_free(struct rwkv_context * ctx) {
     ggml_free(ctx->ctx);
 
     free(ctx->model);
-    delete ctx->state_parts;
+    delete[] ctx->state_parts;
     free(ctx->graph);
     free(ctx);
 }
