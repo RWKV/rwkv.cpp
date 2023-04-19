@@ -590,9 +590,10 @@ bool rwkv_eval(struct rwkv_context * ctx, int32_t token, float * state_in, float
 void rwkv_free(struct rwkv_context * ctx) {
     ggml_free(ctx->ctx);
 
-    delete ctx->model;
+    free(ctx->model);
     delete ctx->state_parts;
-    delete ctx;
+    free(ctx->graph);
+    free(ctx);
 }
 
 bool rwkv_quantize_model_file(const char * model_file_path_in, const char * model_file_path_out, uint32_t q_type) {
