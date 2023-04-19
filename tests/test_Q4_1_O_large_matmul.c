@@ -31,7 +31,7 @@ int main(int argc, const char ** argv) {
     srand(42);
 
     struct ggml_init_params params = {
-        .mem_size   = 8 * 1024 * 1024,
+        .mem_size   = 16 * 1024 * 1024,
         .mem_buffer = NULL,
         .no_alloc   = false,
     };
