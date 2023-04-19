@@ -588,10 +588,10 @@ bool rwkv_eval(struct rwkv_context * ctx, int32_t token, float * state_in, float
 }
 
 void rwkv_free(struct rwkv_context * ctx) {
-    ggml_free(ctx->ctx);
-
+    ctx->model->layers.~vector();
     free(ctx->model);
     delete[] ctx->state_parts;
+    ggml_free(ctx->ctx);
     free(ctx->graph);
     free(ctx);
 }
