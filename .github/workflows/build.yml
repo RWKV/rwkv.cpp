@@ -25,13 +25,9 @@ jobs:
 
     strategy:
       matrix:
-        # TODO Restore
-        #sanitizer: [ADDRESS, THREAD, UNDEFINED]
-        #build_type: [Debug, Release]
-        #accelerate: [ON, OFF]
-        sanitizer: [UNDEFINED]
-        build_type: [Release]
-        accelerate: [OFF]
+        sanitizer: [ADDRESS, THREAD, UNDEFINED]
+        build_type: [Debug, Release]
+        accelerate: [ON, OFF]
 
     steps:
       - name: Clone
