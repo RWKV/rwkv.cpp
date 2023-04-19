@@ -218,6 +218,8 @@ jobs:
 
       - name: Test
         id: cmake_test
+        # Test AVX-512 only when possible
+        if: ${{ matrix.build != 'avx512' || env.HAS_AVX512F == '1' }}
         run: |
           cd build
           ctest -C Release --verbose
