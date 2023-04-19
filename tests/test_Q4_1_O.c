@@ -45,7 +45,7 @@ int main(int argc, const char ** argv) {
 
     // Needed to initialize FP16 lookup table
     {
-        struct ggml_init_params params = { 0, NULL };
+        struct ggml_init_params params = { 0, NULL, false };
         struct ggml_context * ctx = ggml_init(params);
         ggml_free(ctx);
     }
