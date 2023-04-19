@@ -20,16 +20,9 @@
         }\
     }
 
-#define GGML_ASSERT_ELEMENT_F32(tensor, i, expected_value) {\
-        float actual = GGML_GET_ELEMENT_F32(tensor, i);\
-        GGML_ASSERT(fabsf(actual - expected_value) <= 0.0000001F, "At %s[%d]: expected %f, actual %f", #tensor, i, expected_value, actual);\
-    }
-
-#define RANDOM_FLOAT() (((rand() & 0xFFF) / ((float) 0xFFF) - 0.5F) * 3.0F)
-
 // ---
 
-#define QK4_1_O 32
+#define QK 32
 
 // Copied from ggml.c
 typedef struct {
@@ -37,11 +30,11 @@ typedef struct {
     ggml_fp16_t m;
     uint16_t outlier_index;
     ggml_fp16_t outlier_value;
-    uint8_t qs[QK4_1_O / 2];
+    uint8_t qs[QK / 2];
 } block_q4_1_o;
 
 int main(int argc, const char ** argv) {
-    GGML_ASSERT(sizeof(block_q4_1_o) == 8 + QK4_1_O / 2, "Wrong q4_1_o block size/padding");
+    GGML_ASSERT(sizeof(block_q4_1_o) == 8 + QK / 2, "Wrong q4_1_o block size/padding");
 
     // Needed to initialize FP16 lookup table
     {
@@ -54,16 +47,16 @@ int main(int argc, const char ** argv) {
 
     quantize_fns_t quantize_fns = ggml_internal_get_quantize_fn(GGML_TYPE_Q4_1_O);
 
-    float src[QK4_1_O];
+    float src[QK];
     uint8_t dest[24];
 
     // 1..32
-    for (int i = 0; i < QK4_1_O; i++) {
+    for (int i = 0; i < QK; i++) {
         src[i] = (float) (i + 1);
     }
 
     // --- Quantization ---
-    (quantize_fns.quantize_row_q)(src, dest, QK4_1_O);
+    (quantize_fns.quantize_row_q)(src, dest, QK);
 
     float delta_result = ggml_fp16_to_fp32(((block_q4_1_o *) dest)->d);
     float delta_expected = (src[30] - src[0]) / ((1 << 4) - 1);
@@ -81,17 +74,17 @@ int main(int argc, const char ** argv) {
     float outlier_value_expected = src[31];
     GGML_ASSERT(outlier_value_result == outlier_value_expected, "%f, %f", outlier_value_result, outlier_value_expected);
 
-    for (int i = 0; i < QK4_1_O - 1; i++) {
+    for (int i = 0; i < QK - 1; i++) {
         uint8_t q4_result = (i % 2) ? (dest[sizeof(float) * 2 + i / 2] >> 4) : (dest[sizeof(float) * 2 + i / 2] & 0xF);
         uint8_t q4_expected = roundf((src[i] - min_expected) / delta_expected);
         GGML_ASSERT(q4_result == q4_expected, "%d: %d, %d", i, q4_result, q4_expected);
     }
 
     // --- Dequantization ---
-    float dequantized[QK4_1_O];
-    (quantize_fns.dequantize_row_q)(dest, dequantized, QK4_1_O);
+    float dequantized[QK];
+    (quantize_fns.dequantize_row_q)(dest, dequantized, QK);
 
-    for (int i = 0; i < QK4_1_O; i++) {
+    for (int i = 0; i < QK; i++) {
         float actual = dequantized[i];
         float expected = src[i];
         float diff = fabsf(actual - expected);
@@ -108,10 +101,10 @@ int main(int argc, const char ** argv) {
 
     struct ggml_context * ctx = ggml_init(params);
 
-    struct ggml_tensor * mat = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, QK4_1_O, 4);
+    struct ggml_tensor * mat = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, QK, 4);
 
     // Note rare outlier values: -88, -83, etc.
-    float mat_values[QK4_1_O * 4] = {
+    float mat_values[QK * 4] = {
         -1.371795F, -88.901100F, -0.412088F, -0.486081F, 1.280220F, -1.067033F, 1.371795F, 1.099267F, 1.079487F, -0.204029F, 1.237729F, -0.563736F,
         -0.633333F, 0.700000F, 0.211355F, 0.510989F, -0.981319F, -0.456777F, 0.011355F, 0.911722F, -0.976191F, 0.078022F, -0.757143F, -0.744689F,
         -0.768865F, 0.656777F, 0.141026F, -0.038462F, 1.023810F, 1.221612F, -0.393773F, 1.135165F, -1.341758F, -83.113556F, 1.291209F, 0.313187F,
@@ -125,17 +118,17 @@ int main(int argc, const char ** argv) {
         0.113187F, -0.116117F, -0.532967F, 0.077289F, 0.016484F, 1.352747F, -1.487546F, -1.363736F
     };
 
-    for (int i = 0; i < QK4_1_O * 4; i++) {
+    for (int i = 0; i < QK * 4; i++) {
         GGML_SET_ELEMENT_F32(mat, i, mat_values[i]);
     }
 
-    struct ggml_tensor * quantized_mat = ggml_new_tensor_2d(ctx, GGML_TYPE_Q4_1_O, QK4_1_O, 4);
+    struct ggml_tensor * quantized_mat = ggml_new_tensor_2d(ctx, GGML_TYPE_Q4_1_O, QK, 4);
 
     int64_t histogram[16];
 
-    ggml_quantize_q4_1_o(mat->data, quantized_mat->data, QK4_1_O * 4, QK4_1_O, histogram);
+    ggml_quantize_q4_1_o(mat->data, quantized_mat->data, QK * 4, QK, histogram);
 
-    struct ggml_tensor * vec = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, QK4_1_O);
+    struct ggml_tensor * vec = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, QK);
 
     float vec_values[] = {
         -0.578388F, -0.770330F, -0.183516F, 0.264103F, 0.585714F, -0.226740F, 1.319048F, 0.652381F,
@@ -144,7 +137,7 @@ int main(int argc, const char ** argv) {
         -1.042125F, -1.094872F, 0.589377F, -0.426007F, 0.669231F, -0.243590F, -0.179121F, 0.325641F
     };
 
-    for (int i = 0; i < QK4_1_O; i++) {
+    for (int i = 0; i < QK; i++) {
         GGML_SET_ELEMENT_F32(vec, i, vec_values[i]);
     }
 
@@ -174,8 +167,6 @@ int main(int argc, const char ** argv) {
 
     // If Q4_1_O format works correctly, difference should be this or lower
     GGML_ASSERT(diff_average <= 0.112F, "Unexpected average difference value %f", diff_average);
-
-    ggml_print_objects(ctx);
 
     ggml_free(ctx);
 

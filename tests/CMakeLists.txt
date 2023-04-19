@@ -1,13 +1,10 @@
-# ---
+function(rwkv_add_test source)
+    get_filename_component(TEST_TARGET ${source} NAME_WE)
+    add_executable(${TEST_TARGET} ${source})
+    target_link_libraries(${TEST_TARGET} PRIVATE ggml rwkv)
+    add_test(NAME ${TEST_TARGET} COMMAND $<TARGET_FILE:${TEST_TARGET}> ${ARGN})
+endfunction()
 
-set(TEST_TARGET test_ggml_basics)
-add_executable(${TEST_TARGET} ${TEST_TARGET}.c)
-target_link_libraries(${TEST_TARGET} PRIVATE ggml)
-add_test(NAME ${TEST_TARGET} COMMAND $<TARGET_FILE:${TEST_TARGET}>)
-
-# ---
-
-set(TEST_TARGET test_Q4_1_O)
-add_executable(${TEST_TARGET} ${TEST_TARGET}.c)
-target_link_libraries(${TEST_TARGET} PRIVATE ggml rwkv)
-add_test(NAME ${TEST_TARGET} COMMAND $<TARGET_FILE:${TEST_TARGET}>)
+rwkv_add_test(test_ggml_basics.c)
+rwkv_add_test(test_Q4_1_O.c)
+rwkv_add_test(test_Q4_1_O_large_matmul.c)
