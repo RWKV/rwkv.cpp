@@ -47,7 +47,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DRWKV_SANITIZE_${{ matrix.sanitizer }}=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DRWKV_ACCELERATE=${{ matrix.accelerate }}
+          cmake .. -DRWKV_SANITIZE_${{ matrix.sanitizer }}=ON -GGML_SANITIZE_${{ matrix.sanitizer }}=ON -DRWKV_ACCELERATE=${{ matrix.accelerate }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           cmake --build . --config ${{ matrix.build_type }}
 
       - name: Test
