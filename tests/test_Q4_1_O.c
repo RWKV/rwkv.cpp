@@ -40,9 +40,9 @@ typedef struct {
     uint8_t qs[QK4_1_O / 2];
 } block_q4_1_o;
 
-static_assert(sizeof(block_q4_1_o) == 8 + QK4_1_O / 2, "Wrong q4_1_o block size/padding");
-
 int main(int argc, const char ** argv) {
+    GGML_ASSERT(sizeof(block_q4_1_o) == 8 + QK4_1_O / 2, "Wrong q4_1_o block size/padding");
+
     // Needed to initialize FP16 lookup table
     {
         struct ggml_init_params params = { 0, NULL };
@@ -116,6 +116,11 @@ int main(int argc, const char ** argv) {
         GGML_SET_ELEMENT_F32(mat, i, RANDOM_FLOAT());
     }
 
+    // Add outliers
+    for (int i = 0; i < 4; i++) {
+        GGML_SET_ELEMENT_F32(mat, i * QK4_1_O + 1, RANDOM_FLOAT() * 100.0F);
+    }
+
     struct ggml_tensor * quantized_mat = ggml_new_tensor_2d(ctx, GGML_TYPE_Q4_1_O, QK4_1_O, 4);
 
     int64_t histogram[16];
@@ -152,7 +157,7 @@ int main(int argc, const char ** argv) {
 
     float diff_average = diff_sum / 4;
 
-    GGML_ASSERT(diff_average <= 0.086357F, "Unexpected average difference value %f", diff_average);
+    GGML_ASSERT(diff_average <= 0.111999F, "Unexpected average difference value %f", diff_average);
 
     ggml_print_objects(ctx);
 
