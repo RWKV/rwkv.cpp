@@ -7,11 +7,11 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define GGML_GET_ELEMENT_F32(tensor, i) (((float *) tensor->data)[i])
+#define GET_ELEMENT_F32(tensor, i) (((float *) tensor->data)[i])
 
-#define GGML_SET_ELEMENT_F32(tensor, i, value) ((float *) tensor->data)[i] = value
+#define SET_ELEMENT_F32(tensor, i, value) ((float *) tensor->data)[i] = value
 
-#define GGML_ASSERT(x, ...) {\
+#define ASSERT(x, ...) {\
         if (!(x)) {\
             fprintf(stderr, "*** Assertion failed ***\n");\
             fprintf(stderr, __VA_ARGS__);\
@@ -34,7 +34,7 @@ typedef struct {
 } block_q4_1_o;
 
 int main(int argc, const char ** argv) {
-    GGML_ASSERT(sizeof(block_q4_1_o) == 8 + QK / 2, "Wrong q4_1_o block size/padding");
+    ASSERT(sizeof(block_q4_1_o) == 8 + QK / 2, "Wrong q4_1_o block size/padding");
 
     // Needed to initialize FP16 lookup table
     {
@@ -60,24 +60,24 @@ int main(int argc, const char ** argv) {
 
     float delta_result = ggml_fp16_to_fp32(((block_q4_1_o *) dest)->d);
     float delta_expected = (src[30] - src[0]) / ((1 << 4) - 1);
-    GGML_ASSERT(delta_result == delta_expected, "%f, %f", delta_result, delta_expected);
+    ASSERT(delta_result == delta_expected, "%f, %f", delta_result, delta_expected);
 
     float min_result = ggml_fp16_to_fp32(((block_q4_1_o *) dest)->m);
     float min_expected = src[0];
-    GGML_ASSERT(min_result == min_expected, "%f, %f", min_result, min_expected);
+    ASSERT(min_result == min_expected, "%f, %f", min_result, min_expected);
 
     uint16_t outlier_index = ((block_q4_1_o *) dest)->outlier_index;
     uint16_t outlier_index_expected = 31;
-    GGML_ASSERT(outlier_index == outlier_index_expected, "%d, %d", outlier_index, outlier_index_expected);
+    ASSERT(outlier_index == outlier_index_expected, "%d, %d", outlier_index, outlier_index_expected);
 
     float outlier_value_result = ggml_fp16_to_fp32(((block_q4_1_o *) dest)->outlier_value);
     float outlier_value_expected = src[31];
-    GGML_ASSERT(outlier_value_result == outlier_value_expected, "%f, %f", outlier_value_result, outlier_value_expected);
+    ASSERT(outlier_value_result == outlier_value_expected, "%f, %f", outlier_value_result, outlier_value_expected);
 
     for (int i = 0; i < QK - 1; i++) {
         uint8_t q4_result = (i % 2) ? (dest[sizeof(float) * 2 + i / 2] >> 4) : (dest[sizeof(float) * 2 + i / 2] & 0xF);
         uint8_t q4_expected = roundf((src[i] - min_expected) / delta_expected);
-        GGML_ASSERT(q4_result == q4_expected, "%d: %d, %d", i, q4_result, q4_expected);
+        ASSERT(q4_result == q4_expected, "%d: %d, %d", i, q4_result, q4_expected);
     }
 
     // --- Dequantization ---
@@ -89,7 +89,7 @@ int main(int argc, const char ** argv) {
         float expected = src[i];
         float diff = fabsf(actual - expected);
         // Difference looks huge, but the range is 0..31 -- compared to the range, it is not that huge
-        GGML_ASSERT(diff <= 1.0F, "%d: %f, %f", i, actual, expected);
+        ASSERT(diff <= 1.0F, "%d: %f, %f", i, actual, expected);
     }
 
     // --- Matmul ---
@@ -119,7 +119,7 @@ int main(int argc, const char ** argv) {
     };
 
     for (int i = 0; i < QK * 4; i++) {
-        GGML_SET_ELEMENT_F32(mat, i, mat_values[i]);
+        SET_ELEMENT_F32(mat, i, mat_values[i]);
     }
 
     struct ggml_tensor * quantized_mat = ggml_new_tensor_2d(ctx, GGML_TYPE_Q4_1_O, QK, 4);
@@ -138,7 +138,7 @@ int main(int argc, const char ** argv) {
     };
 
     for (int i = 0; i < QK; i++) {
-        GGML_SET_ELEMENT_F32(vec, i, vec_values[i]);
+        SET_ELEMENT_F32(vec, i, vec_values[i]);
     }
 
     struct ggml_tensor * expected_result = ggml_mul_mat(ctx, mat, vec);
@@ -156,17 +156,17 @@ int main(int argc, const char ** argv) {
             stderr,
             "[%d] expected %f, actual %f\n",
             i,
-            GGML_GET_ELEMENT_F32(expected_result, i),
-            GGML_GET_ELEMENT_F32(quantized_result, i)
+            GET_ELEMENT_F32(expected_result, i),
+            GET_ELEMENT_F32(quantized_result, i)
         );
 
-        diff_sum += fabsf(GGML_GET_ELEMENT_F32(expected_result, i) - GGML_GET_ELEMENT_F32(quantized_result, i));
+        diff_sum += fabsf(GET_ELEMENT_F32(expected_result, i) - GET_ELEMENT_F32(quantized_result, i));
     }
 
     float diff_average = diff_sum / 4;
 
     // If Q4_1_O format works correctly, difference should be this or lower
-    GGML_ASSERT(diff_average <= 0.112F, "Unexpected average difference value %f", diff_average);
+    ASSERT(diff_average <= 0.112F, "Unexpected average difference value %f", diff_average);
 
     ggml_free(ctx);
 

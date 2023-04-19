@@ -7,11 +7,11 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define GGML_GET_ELEMENT_F32(tensor, i) (((float *) tensor->data)[i])
+#define GET_ELEMENT_F32(tensor, i) (((float *) tensor->data)[i])
 
-#define GGML_SET_ELEMENT_F32(tensor, i, value) ((float *) tensor->data)[i] = value
+#define SET_ELEMENT_F32(tensor, i, value) ((float *) tensor->data)[i] = value
 
-#define GGML_ASSERT(x, ...) {\
+#define ASSERT(x, ...) {\
         if (!(x)) {\
             fprintf(stderr, "*** Assertion failed ***\n");\
             fprintf(stderr, __VA_ARGS__);\
@@ -41,12 +41,12 @@ int main(int argc, const char ** argv) {
     struct ggml_tensor * mat = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, MATRIX_SIZE, MATRIX_SIZE);
 
     for (int i = 0; i < MATRIX_SIZE * MATRIX_SIZE; i++) {
-        GGML_SET_ELEMENT_F32(mat, i, RANDOM_FLOAT());
+        SET_ELEMENT_F32(mat, i, RANDOM_FLOAT());
     }
 
     // Add some outliers
     for (int i = 0; i < MATRIX_SIZE; i++) {
-        GGML_SET_ELEMENT_F32(mat, i * MATRIX_SIZE + 1, RANDOM_FLOAT() * 100.0F);
+        SET_ELEMENT_F32(mat, i * MATRIX_SIZE + 1, RANDOM_FLOAT() * 100.0F);
     }
 
     struct ggml_tensor * quantized_mat = ggml_new_tensor_2d(ctx, GGML_TYPE_Q4_1_O, MATRIX_SIZE, MATRIX_SIZE);
@@ -58,7 +58,7 @@ int main(int argc, const char ** argv) {
     struct ggml_tensor * vec = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, MATRIX_SIZE);
 
     for (int i = 0; i < MATRIX_SIZE; i++) {
-        GGML_SET_ELEMENT_F32(vec, i, RANDOM_FLOAT());
+        SET_ELEMENT_F32(vec, i, RANDOM_FLOAT());
     }
 
     struct ggml_tensor * expected_result = ggml_mul_mat(ctx, mat, vec);
@@ -72,13 +72,13 @@ int main(int argc, const char ** argv) {
     float diff_sum = 0.0F;
 
     for (int i = 0; i < MATRIX_SIZE; i++) {
-        diff_sum += fabsf(GGML_GET_ELEMENT_F32(expected_result, i) - GGML_GET_ELEMENT_F32(quantized_result, i));
+        diff_sum += fabsf(GET_ELEMENT_F32(expected_result, i) - GET_ELEMENT_F32(quantized_result, i));
     }
 
     float diff_average = diff_sum / MATRIX_SIZE;
 
     // More strict test is in test_Q4_1_O.c, here we just do sanity check
-    GGML_ASSERT(diff_average <= 2.0F, "Unexpected average difference value %f", diff_average);
+    ASSERT(diff_average <= 2.0F, "Unexpected average difference value %f", diff_average);
 
     ggml_free(ctx);
 

@@ -240,6 +240,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
     struct ggml_init_params params;
     params.mem_size = memory_required;
     params.mem_buffer = NULL;
+    params.no_alloc = false;
     struct ggml_context * ctx = ggml_init(params);
 
     std::unordered_map<std::string, struct ggml_tensor *> parameters;
@@ -599,7 +600,7 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
 
     // Needed to initialize FP16 lookup table
     {
-        struct ggml_init_params params = { 0, NULL };
+        struct ggml_init_params params = { 0, NULL, false };
         struct ggml_context * ctx = ggml_init(params);
         ggml_free(ctx);
     }
@@ -789,7 +790,7 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
 
         printf("original size     = %8.2f MB\n", total_size_orig / 1024.0 / 1024.0);
         printf("quantized size    = %8.2f MB\n", total_size_new / 1024.0 / 1024.0);
-        printf("compression ratio = %8.2f%%\n", 1.0 * total_size_orig / total_size_new);
+        printf("compression ratio = %8.2f\n", 1.0 * total_size_orig / total_size_new);
 
         {
             int64_t sum_all = 0;
