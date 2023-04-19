@@ -25,7 +25,7 @@
 // ---
 
 #define QK 32
-#define MATRIX_SIZE 1024
+#define MATRIX_SIZE 64
 
 int main(int argc, const char ** argv) {
     srand(42);
