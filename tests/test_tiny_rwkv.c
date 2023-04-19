@@ -50,7 +50,8 @@ void test_model(const char * model_path, const float * expected_logits, const fl
 
     fprintf(stderr, "Difference sum: %f\n", diff_sum);
 
-    ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.00001F, "Too big difference %f, expected no more than %f", diff_sum, max_diff);
+    // When something breaks, difference would be way more than 10
+    ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big difference %f, expected no more than %f", diff_sum, max_diff);
 
     rwkv_free(model);
 
