@@ -100,7 +100,8 @@ top_p: float = 0.5
 
 parser = argparse.ArgumentParser(description='Provide terminal-based chat interface for RWKV model')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
-args = parser.parse_args()
+# args = parser.parse_args()
+args = parser.parse_args(['./rwkv.cpp-3B.bin'])
 
 assert init_prompt != '', 'Prompt must not be empty'
 
@@ -139,13 +140,18 @@ while True:
     print(f"> {bot}{interface}", end='')
 
     decoded = ''
+    model_tokens = []
+    begin = len(model_tokens)
+    out_last = begin
 
     for i in range(max_tokens_per_generation):
         token = sampling.sample_logits(logits, temperature, top_p)
 
-        decoded = tokenizer.decode([token])
-
-        print(decoded, end='', flush=True)
+        model_tokens.append(token)
+        decoded = tokenizer.decode(model_tokens[out_last:])
+        if '\ufffd' not in decoded: # avoid utf-8 display issues
+            print(decoded, end='', flush=True)
+            out_last = begin + i + 1
 
         if '\n' in decoded:
             break
