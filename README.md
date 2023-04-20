@@ -13,8 +13,7 @@ Loading LoRA checkpoints in [Blealtan's format](https://github.com/Blealtan/RWKV
 **TODO (contributions welcome!)**:
 
 1. Measure latency and perplexity of different model sizes (169M to 14B) and data types (`FP32`, `FP16`, `Q4_0`, `Q4_1`, `Q4_1_O`)
-2. Test on Linux (including Colab) and MacOS
-3. Make required memory calculation more robust (see [#4](https://github.com/saharNooby/rwkv.cpp/issues/4))
+2. Make required memory calculation more robust (see [#4](https://github.com/saharNooby/rwkv.cpp/issues/4))
 
 ## How to use
 
