@@ -276,5 +276,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             if  '\n\n' in send_msg:
                 send_msg = send_msg.strip()
                 break
+        if i == max_tokens_per_generation - 1:
+            print()
 
     save_all_stat(srv, name, logits)
