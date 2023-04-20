@@ -4,6 +4,7 @@ import os
 import sys
 import argparse
 import pathlib
+import copy
 import sampling
 import tokenizers
 import rwkv_cpp_model
@@ -80,7 +81,7 @@ Ask Research Experts
         init_prompt = f'''
 The following is a verbose and detailed conversation between an AI assistant called {bot}, and a human user called {user}. {bot} is intelligent, knowledgeable, wise and polite.
 
-{user}{interface} wat is lhc
+{user}{interface} what is lhc
 
 {bot}{interface} LHC is a high-energy particle collider, built by CERN, and completed in 2008. They used it to confirm the existence of the Higgs boson in 2012.
 
@@ -118,28 +119,148 @@ prompt_tokens = tokenizer.encode(init_prompt).ids
 prompt_token_count = len(prompt_tokens)
 print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
-logits, state = None, None
+
+########################################################################################################
+def run_rnn(tokens):
+    global model_tokens, model_state, logits
+
+    tokens = [int(x) for x in tokens]
+    model_tokens += tokens
+
+    for token in tokens:
+        logits, model_state = model.eval(token, model_state, model_state, logits)
+    
+    return logits
+
+
+all_state = {}
+def save_all_stat(srv, name, last_out):
+    n = f'{name}_{srv}'
+    all_state[n] = {}
+    all_state[n]['logits'] = last_out
+    all_state[n]['rnn'] = copy.deepcopy(model_state)
+    all_state[n]['token'] = copy.deepcopy(model_tokens)
+
+def load_all_stat(srv, name):
+    global model_tokens, model_state
+    n = f'{name}_{srv}'
+    model_state = copy.deepcopy(all_state[n]['rnn'])
+    model_tokens = copy.deepcopy(all_state[n]['token'])
+    return all_state[n]['logits']
+
+########################################################################################################
+
+model_tokens = []
+logits, model_state = None, None
 
 for token in prompt_tokens:
-    logits, state = model.eval(token, state, state, logits)
+    logits, model_state = model.eval(token, model_state, model_state, logits)
+    model_tokens.append(token)
 
+save_all_stat('', 'chat_init', logits)
 print('\nChat initialized! Write something and press Enter.')
+
+srv_list = ['dummy_server']
+for s in srv_list:
+    save_all_stat(s, 'chat', logits)
+
+
+def reply_msg(msg):
+    print(f'{bot}{interface} {msg}\n')
+
 
 while True:
     # Read user input
     user_input = input(f'> {user}{interface} ')
+    msg = user_input.replace('\\n','\n').strip()
 
-    # Process the input
-    new_tokens = tokenizer.encode(f"\n{user}{interface} {user_input}\n\n{bot}{interface}").ids
+    srv = 'dummy_server'
 
-    for token in new_tokens:
-        logits, state = model.eval(token, state, state, logits)
+    if msg == '+reset':
+        logits = load_all_stat('', 'chat_init')
+        save_all_stat(srv, 'chat', logits)
+        reply_msg("Chat reset.")
+        continue
+    elif msg[:5].lower() == '+gen ' or msg[:3].lower() == '+i ' or msg[:4].lower() == '+qa ' or msg[:4].lower() == '+qq ' or msg.lower() == '+++' or msg.lower() == '++':
 
-    # Generate and print bot response
-    print(f"> {bot}{interface}", end='')
+        if msg[:5].lower() == '+gen ':
+            new = '\n' + msg[5:].strip()
+            # print(f'### prompt ###\n[{new}]')
+            model_state = None
+            model_tokens = []
+            logits = run_rnn(tokenizer.encode(new).ids)
+            save_all_stat(srv, 'gen_0', logits)
+
+        elif msg[:3].lower() == '+i ':
+            new = f'''
+Below is an instruction that describes a task. Write a response that appropriately completes the request.
+
+# Instruction:
+{msg[3:].strip()}
+
+# Response:
+'''
+            # print(f'### prompt ###\n[{new}]')
+            model_state = None
+            model_tokens = []
+            logits = run_rnn(tokenizer.encode(new).ids)
+            save_all_stat(srv, 'gen_0', logits)
+
+        elif msg[:4].lower() == '+qq ':
+            new = '\nQ: ' + msg[4:].strip() + '\nA:'
+            # print(f'### prompt ###\n[{new}]')
+            model_state = None
+            model_tokens = []
+            logits = run_rnn(tokenizer.encode(new).ids)
+            save_all_stat(srv, 'gen_0', logits)
+
+        elif msg[:4].lower() == '+qa ':
+            logits = load_all_stat('', 'chat_init')
+
+            real_msg = msg[4:].strip()
+            new = f"{user}{interface} {real_msg}\n\n{bot}{interface}"
+            # print(f'### qa ###\n[{new}]')
+            
+            logits = run_rnn(tokenizer.encode(new).ids)
+            save_all_stat(srv, 'gen_0', logits)
+
+        elif msg.lower() == '+++':
+            try:
+                logits = load_all_stat(srv, 'gen_1')
+                save_all_stat(srv, 'gen_0', logits)
+            except Exception as e:
+                print(e)
+                continue
+
+        elif msg.lower() == '++':
+            try:
+                logits = load_all_stat(srv, 'gen_0')
+            except Exception as e:
+                print(e)
+                continue
+        name = "gen_1"
+        print()
+
+    else:
+        if msg.lower() == '+':
+            try:
+                logits = load_all_stat(srv, 'chat_pre')
+            except Exception as e:
+                print(e)
+                continue
+        else:
+            logits = load_all_stat(srv, 'chat')
+            new = f"{user}{interface} {msg}\n\n{bot}{interface}"
+            # print(f'### add ###\n[{new}]')
+            logits = run_rnn(tokenizer.encode(new).ids)
+            save_all_stat(srv, 'chat_pre', logits)
+        
+        name = 'chat'
+
+        # Generate and print bot response
+        print(f"> {bot}{interface}", end='')
 
     decoded = ''
-    model_tokens = []
     begin = len(model_tokens)
     out_last = begin
 
@@ -152,10 +273,13 @@ while True:
             print(decoded, end='', flush=True)
             out_last = begin + i + 1
 
-        if '\n' in decoded:
-            break
+        if name == 'chat':
+            send_msg = tokenizer.decode(model_tokens[begin:])
+            if  '\n\n' in send_msg:
+                send_msg = send_msg.strip()
+                break
 
-        logits, state = model.eval(token, state, state, logits)
+        logits, model_state = model.eval(token, model_state, model_state, logits)
 
-    if '\n' not in decoded:
-        print()
+    print()
+    save_all_stat(srv, name, logits)
