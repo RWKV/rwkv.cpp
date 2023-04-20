@@ -137,7 +137,7 @@ all_state = {}
 def save_all_stat(srv, name, last_out):
     n = f'{name}_{srv}'
     all_state[n] = {}
-    all_state[n]['logits'] = last_out
+    all_state[n]['logits'] = copy.deepcopy(last_out)
     all_state[n]['rnn'] = copy.deepcopy(model_state)
     all_state[n]['token'] = copy.deepcopy(model_tokens)
 
@@ -146,7 +146,7 @@ def load_all_stat(srv, name):
     n = f'{name}_{srv}'
     model_state = copy.deepcopy(all_state[n]['rnn'])
     model_tokens = copy.deepcopy(all_state[n]['token'])
-    return all_state[n]['logits']
+    return copy.deepcopy(all_state[n]['logits'])
 
 ########################################################################################################
 
