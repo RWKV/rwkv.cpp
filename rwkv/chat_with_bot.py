@@ -100,8 +100,7 @@ top_p: float = 0.5
 
 parser = argparse.ArgumentParser(description='Provide terminal-based chat interface for RWKV model')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
-# args = parser.parse_args()
-args = parser.parse_args(['./rwkv.cpp-3B.bin'])
+args = parser.parse_args()
 
 assert init_prompt != '', 'Prompt must not be empty'
 
