@@ -101,7 +101,8 @@ top_p: float = 0.5
 
 parser = argparse.ArgumentParser(description='Provide terminal-based chat interface for RWKV model')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
-args = parser.parse_args()
+# args = parser.parse_args()
+args = parser.parse_args(['./rwkv.cpp-169M.bin'])
 
 assert init_prompt != '', 'Prompt must not be empty'
 
@@ -266,8 +267,7 @@ Below is an instruction that describes a task. Write a response that appropriate
 
     for i in range(max_tokens_per_generation):
         token = sampling.sample_logits(logits, temperature, top_p)
-
-        model_tokens.append(token)
+        logits = run_rnn([token])
         decoded = tokenizer.decode(model_tokens[out_last:])
         if '\ufffd' not in decoded: # avoid utf-8 display issues
             print(decoded, end='', flush=True)
@@ -278,8 +278,6 @@ Below is an instruction that describes a task. Write a response that appropriate
             if  '\n\n' in send_msg:
                 send_msg = send_msg.strip()
                 break
-
-        logits, model_state = model.eval(token, model_state, model_state, logits)
 
     print()
     save_all_stat(srv, name, logits)
