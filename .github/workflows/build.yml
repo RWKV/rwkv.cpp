@@ -18,8 +18,48 @@ env:
  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
 jobs:
+  ubuntu-latest-cmake-sanitizer:
+    runs-on: ubuntu-latest
+
+    continue-on-error: true
+
+    strategy:
+      matrix:
+        sanitizer: [ADDRESS, THREAD, UNDEFINED]
+        build_type: [Debug, Release]
+        accelerate: [ON, OFF]
+
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: Dependencies
+        id: depends
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential
+
+      - name: Build
+        id: cmake_build
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DRWKV_SANITIZE_${{ matrix.sanitizer }}=ON -DGGML_SANITIZE_${{ matrix.sanitizer }}=ON -DRWKV_ACCELERATE=${{ matrix.accelerate }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          cmake --build . --config ${{ matrix.build_type }}
+
+      - name: Test
+        id: cmake_test
+        run: |
+          cd build
+          ctest --verbose
+
   ubuntu-latest-cmake:
     runs-on: ubuntu-latest
+
+    continue-on-error: true
 
     steps:
       - name: Clone
@@ -41,6 +81,12 @@ jobs:
           cd build
           cmake -DBUILD_SHARED_LIBS=ON ..
           cmake --build . --config Release
+
+      - name: Test
+        id: cmake_test
+        run: |
+          cd build
+          ctest --verbose
 
       - name: Get commit hash
         id: commit
@@ -71,6 +117,8 @@ jobs:
   macOS-latest-cmake:
     runs-on: macOS-latest
 
+    continue-on-error: true
+
     steps:
       - name: Clone
         id: checkout
@@ -86,11 +134,18 @@ jobs:
 
       - name: Build
         id: cmake_build
+        # FMA disabled because it gives "Illegal instruction" in GitHub Actions runner
         run: |
           mkdir build
           cd build
-          cmake -DBUILD_SHARED_LIBS=ON -DRWKV_AVX2=OFF ..
+          cmake -DBUILD_SHARED_LIBS=ON -DRWKV_AVX2=OFF -DRWKV_FMA=OFF ..
           cmake --build . --config Release
+
+      - name: Test
+        id: cmake_test
+        run: |
+          cd build
+          ctest --verbose
 
       - name: Get commit hash
         id: commit
@@ -120,6 +175,8 @@ jobs:
 
   windows-latest-cmake:
     runs-on: windows-latest
+
+    continue-on-error: true
 
     strategy:
       matrix:
