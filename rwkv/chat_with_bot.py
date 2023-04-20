@@ -239,7 +239,6 @@ Below is an instruction that describes a task. Write a response that appropriate
                 print(e)
                 continue
         name = "gen_1"
-        print()
 
     else:
         if msg.lower() == '+':
@@ -278,5 +277,4 @@ Below is an instruction that describes a task. Write a response that appropriate
                 send_msg = send_msg.strip()
                 break
 
-    print()
     save_all_stat(srv, name, logits)
