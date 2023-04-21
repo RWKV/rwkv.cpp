@@ -121,6 +121,7 @@ print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
 
 ########################################################################################################
+
 def run_rnn(tokens):
     global model_tokens, model_state, logits
 
