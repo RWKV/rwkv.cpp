@@ -134,6 +134,7 @@ def run_rnn(tokens):
 
 
 all_state = {}
+
 def save_all_stat(srv, name, last_out):
     n = f'{name}_{srv}'
     all_state[n] = {}
