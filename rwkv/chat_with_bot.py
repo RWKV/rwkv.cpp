@@ -13,7 +13,7 @@ import rwkv_cpp_shared_library
 # ======================================== Script settings ========================================
 
 # Copied from https://github.com/BlinkDL/ChatRWKV/blob/9ca4cdba90efaee25cfec21a0bae72cbd48d8acd/chat.py#L92-L178
-CHAT_LANG = 'English' # English // Chinese // more to come
+CHAT_LANG = 'English' # English // Chinese
 
 QA_PROMPT = False # True: Q & A prompt // False: User & Bot prompt
 # 中文问答设置QA_PROMPT=True（只能问答，问答效果更好，但不能闲聊） 中文聊天设置QA_PROMPT=False（可以闲聊，但需要大模型才适合闲聊）
