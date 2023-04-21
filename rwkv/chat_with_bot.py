@@ -43,7 +43,7 @@ The following is a verbose and detailed conversation between an AI assistant cal
 
 {bot}{interface} The answer is a = 7, because 9 - 7 = 2.
 
-{user}{interface} wat is lhc
+{user}{interface} what is lhc
 
 {bot}{interface} LHC is a high-energy particle collider, built by CERN, and completed in 2008. They used it to confirm the existence of the Higgs boson in 2012.
 
