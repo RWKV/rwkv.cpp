@@ -19,7 +19,7 @@ QA_PROMPT = False # True: Q & A prompt // False: User & Bot prompt
 # 中文问答设置QA_PROMPT=True（只能问答，问答效果更好，但不能闲聊） 中文聊天设置QA_PROMPT=False（可以闲聊，但需要大模型才适合闲聊）
 
 if CHAT_LANG == 'English':
-    interface = ":"
+    interface = ':'
 
     if QA_PROMPT:
         user = "User"
