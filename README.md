@@ -95,7 +95,7 @@ Formats available:
 - `3`: `Q4_1`, poor quality, very fast.
 - `2`: `Q4_0`, worst quality, very fast.
 
-If you use `rwkv.cpp` for anything serious (just having fun is serious enough), please [test all available formats for perplexity and latency]((rwkv%2Fmeasure_pexplexity.py)) on a representative dataset, and decide which trade-off is best for you.
+If you use `rwkv.cpp` for anything serious (just having fun is serious enough!), please [test all available formats for perplexity and latency](rwkv%2Fmeasure_pexplexity.py) on a representative dataset, and decide which trade-off is best for you.
 
 ### 4. Run the model
 
