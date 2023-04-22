@@ -73,7 +73,7 @@ for i in range(run_count):
         loss_sum += losses
         loss_count += 1
 
-    if i % 10 == 0:
+    if run_count <= 5 or i % (run_count // 10) == 0:
         avg_loss_so_far = loss_sum / loss_count
 
         duration: float = time.time() - start
@@ -91,10 +91,8 @@ for i in range(run_count):
             print()
 
 print()
-print(f'Average latency: {int((time.time() - start) * 1000 / run_count)} ms per token')
-
-print()
 print(f'Model: {os.path.basename(args.model_path)}, '
       f'data: {os.path.basename(args.text_path)} with {token_count} tokens, '
       f'skipped {args.ignore_first_n_tokens} tokens, '
-      f'averages: {format_loss_with_perplexity(loss_sum / loss_count)}')
+      f'averages: {format_loss_with_perplexity(loss_sum / loss_count)}, '
+      f'latency {int((time.time() - start) * 1000 / run_count)} ms per token')
