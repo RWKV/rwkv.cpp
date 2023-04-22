@@ -94,8 +94,12 @@ The following is a verbose and detailed conversation between an AI assistant cal
 FREE_GEN_LEN: int = 100
 
 # Sampling settings.
-GEN_TEMP: float = 0.8 # It could be a good idea to increase temp when top_p is low
-GEN_TOP_P: float = 0.5 # Reduce top_p (to 0.5, 0.2, 0.1 etc.) for better Q&A accuracy (and less diversity)
+GEN_TEMP: float = 1.1 # It could be a good idea to increase temp when top_p is low
+GEN_TOP_P: float = 0.7 # Reduce top_p (to 0.5, 0.2, 0.1 etc.) for better Q&A accuracy (and less diversity)
+GEN_alpha_presence = 0.2 # Presence Penalty
+GEN_alpha_frequency = 0.2 # Frequency Penalty
+END_OF_LINE = 187
+END_OF_TEXT = 0
 
 # =================================================================================================
 
@@ -122,14 +126,15 @@ print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
 ########################################################################################################
 
-def run_rnn(tokens: List[int]):
+def run_rnn(tokens: List[int], newline_adj = 0):
     global model_tokens, model_state, logits
 
-    tokens = [int(x) for x in tokens]
     model_tokens += tokens
 
     for token in tokens:
         logits, model_state = model.eval(token, model_state, model_state, logits)
+
+    logits[END_OF_LINE] += newline_adj # adjust \n probability
     
     return logits
 
@@ -269,7 +274,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             logits = load_all_stat('chat')
             new = f"{user}{interface} {msg}\n\n{bot}{interface}"
             # print(f'### add ###\n[{new}]')
-            logits = run_rnn(tokenizer.encode(new).ids)
+            logits = run_rnn(tokenizer.encode(new).ids, newline_adj=-999999999)
             save_all_stat('chat_pre', logits)
         
         thread = 'chat'
@@ -280,9 +285,18 @@ Below is an instruction that describes a task. Write a response that appropriate
     decoded = ''
     begin = len(model_tokens)
     out_last = begin
-
+    occurrence = {}
     for i in range(FREE_GEN_LEN):
+        for n in occurrence:
+            logits[n] -= (GEN_alpha_presence + occurrence[n] * GEN_alpha_frequency)
         token = sampling.sample_logits(logits, temperature, top_p)
+        if token == END_OF_TEXT:
+            print()
+            break
+        if token not in occurrence:
+            occurrence[token] = 1
+        else:
+            occurrence[token] += 1
         logits = run_rnn([token])
         decoded = tokenizer.decode(model_tokens[out_last:])
         if '\ufffd' not in decoded: # avoid utf-8 display issues
