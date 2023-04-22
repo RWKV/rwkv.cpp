@@ -1,3 +1,4 @@
 [submodule "ggml"]
 	path = ggml
 	url = https://github.com/saharNooby/ggml
+	branch = sync-upstream-1
