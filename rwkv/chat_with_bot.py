@@ -14,9 +14,9 @@ import rwkv_cpp_shared_library
 # ======================================== Script settings ========================================
 
 # Copied from https://github.com/BlinkDL/ChatRWKV/blob/9ca4cdba90efaee25cfec21a0bae72cbd48d8acd/chat.py#L92-L178
-CHAT_LANG = 'English' # English // Chinese
+CHAT_LANG = 'Chinese' # English // Chinese
 
-QA_PROMPT = False # True: Q & A prompt // False: chat prompt (need large model)
+QA_PROMPT = True # True: Q & A prompt // False: chat prompt (need large model)
 
 if CHAT_LANG == 'English':
     interface = ':'
@@ -91,11 +91,11 @@ The following is a verbose and detailed conversation between an AI assistant cal
 
 '''
 
-max_tokens_per_generation: int = 100
+FREE_GEN_LEN: int = 100
 
 # Sampling settings.
-temperature: float = 0.8
-top_p: float = 0.5
+GEN_TEMP: float = 0.8 # It could be a good idea to increase temp when top_p is low
+GEN_TOP_P: float = 0.5 # Reduce top_p (to 0.5, 0.2, 0.1 etc.) for better Q&A accuracy (and less diversity)
 
 # =================================================================================================
 
@@ -166,6 +166,24 @@ while True:
     # Read user input
     user_input = input(f'> {user}{interface} ')
     msg = user_input.replace('\\n','\n').strip()
+
+    temperature = GEN_TEMP
+    top_p = GEN_TOP_P
+    if ("-temp=" in msg):
+        temperature = float(msg.split("-temp=")[1].split(" ")[0])
+        msg = msg.replace("-temp="+f'{temperature:g}', "")
+        # print(f"temp: {temperature}")
+    if ("-top_p=" in msg):
+        top_p = float(msg.split("-top_p=")[1].split(" ")[0])
+        msg = msg.replace("-top_p="+f'{top_p:g}', "")
+        # print(f"top_p: {top_p}")
+    if temperature <= 0.2:
+        temperature = 0.2
+    if temperature >= 5:
+        temperature = 5
+    if top_p <= 0:
+        top_p = 0
+    msg = msg.strip()
 
     # + reset --> reset chat
     if msg == '+reset':
@@ -263,7 +281,7 @@ Below is an instruction that describes a task. Write a response that appropriate
     begin = len(model_tokens)
     out_last = begin
 
-    for i in range(max_tokens_per_generation):
+    for i in range(FREE_GEN_LEN):
         token = sampling.sample_logits(logits, temperature, top_p)
         logits = run_rnn([token])
         decoded = tokenizer.decode(model_tokens[out_last:])
@@ -276,7 +294,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             if  '\n\n' in send_msg:
                 send_msg = send_msg.strip()
                 break
-        if i == max_tokens_per_generation - 1:
+        if i == FREE_GEN_LEN - 1:
             print()
 
     save_all_stat(thread, logits)
