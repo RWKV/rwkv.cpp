@@ -5,6 +5,7 @@ import sys
 import argparse
 import pathlib
 import copy
+from typing import List
 import sampling
 import tokenizers
 import rwkv_cpp_model
@@ -15,8 +16,7 @@ import rwkv_cpp_shared_library
 # Copied from https://github.com/BlinkDL/ChatRWKV/blob/9ca4cdba90efaee25cfec21a0bae72cbd48d8acd/chat.py#L92-L178
 CHAT_LANG = 'English' # English // Chinese
 
-QA_PROMPT = False # True: Q & A prompt // False: User & Bot prompt
-# 中文问答设置QA_PROMPT=True（只能问答，问答效果更好，但不能闲聊） 中文聊天设置QA_PROMPT=False（可以闲聊，但需要大模型才适合闲聊）
+QA_PROMPT = False # True: Q & A prompt // False: chat prompt (need large model)
 
 if CHAT_LANG == 'English':
     interface = ':'
@@ -52,7 +52,7 @@ The following is a verbose and detailed conversation between an AI assistant cal
         user = "Bob"
         bot = "Alice"
         init_prompt = f'''
-The following is a verbose detailed conversation between {user} and a young girl {bot}. {bot} is intelligent, friendly and cute. {bot} is unlikely to disagree with {user}.
+The following is a verbose detailed conversation between {user} and a young girl {bot}. {bot} is intelligent, friendly and cute. {bot} is likely to agree with {user}.
 
 {user}{interface} Hello {bot}, how are you doing?
 
@@ -76,8 +76,8 @@ Ask Research Experts
 
 '''
     else:
-        user = "User"
-        bot = "Bot"
+        user = "Bob"
+        bot = "Alice"
         init_prompt = f'''
 The following is a verbose and detailed conversation between an AI assistant called {bot}, and a human user called {user}. {bot} is intelligent, knowledgeable, wise and polite.
 
@@ -122,7 +122,7 @@ print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
 ########################################################################################################
 
-def run_rnn(tokens):
+def run_rnn(tokens: List[int]):
     global model_tokens, model_state, logits
 
     tokens = [int(x) for x in tokens]
@@ -133,19 +133,18 @@ def run_rnn(tokens):
     
     return logits
 
-
 all_state = {}
 
-def save_all_stat(srv, name, last_out):
-    n = f'{name}_{srv}'
+def save_all_stat(thread: str, last_out):
+    n = f'{thread}'
     all_state[n] = {}
     all_state[n]['logits'] = copy.deepcopy(last_out)
     all_state[n]['rnn'] = copy.deepcopy(model_state)
     all_state[n]['token'] = copy.deepcopy(model_tokens)
 
-def load_all_stat(srv, name):
+def load_all_stat(thread: str):
     global model_tokens, model_state
-    n = f'{name}_{srv}'
+    n = f'{thread}'
     model_state = copy.deepcopy(all_state[n]['rnn'])
     model_tokens = copy.deepcopy(all_state[n]['token'])
     return copy.deepcopy(all_state[n]['logits'])
@@ -159,29 +158,19 @@ for token in prompt_tokens:
     logits, model_state = model.eval(token, model_state, model_state, logits)
     model_tokens.append(token)
 
-save_all_stat('', 'chat_init', logits)
+save_all_stat('chat_init', logits)
 print('\nChat initialized! Write something and press Enter.')
-
-srv_list = ['dummy_server']
-for s in srv_list:
-    save_all_stat(s, 'chat', logits)
-
-
-def reply_msg(msg):
-    print(f'{bot}{interface} {msg}\n')
-
+save_all_stat('chat', logits)
 
 while True:
     # Read user input
     user_input = input(f'> {user}{interface} ')
     msg = user_input.replace('\\n','\n').strip()
 
-    srv = 'dummy_server'
-
     if msg == '+reset':
-        logits = load_all_stat('', 'chat_init')
-        save_all_stat(srv, 'chat', logits)
-        reply_msg("Chat reset.")
+        logits = load_all_stat('chat_init')
+        save_all_stat('chat', logits)
+        print(f'{bot}{interface} "Chat reset."\n')
         continue
     elif msg[:5].lower() == '+gen ' or msg[:3].lower() == '+i ' or msg[:4].lower() == '+qa ' or msg[:4].lower() == '+qq ' or msg.lower() == '+++' or msg.lower() == '++':
 
@@ -191,7 +180,7 @@ while True:
             model_state = None
             model_tokens = []
             logits = run_rnn(tokenizer.encode(new).ids)
-            save_all_stat(srv, 'gen_0', logits)
+            save_all_stat('gen_0', logits)
 
         elif msg[:3].lower() == '+i ':
             new = f'''
@@ -206,7 +195,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             model_state = None
             model_tokens = []
             logits = run_rnn(tokenizer.encode(new).ids)
-            save_all_stat(srv, 'gen_0', logits)
+            save_all_stat('gen_0', logits)
 
         elif msg[:4].lower() == '+qq ':
             new = '\nQ: ' + msg[4:].strip() + '\nA:'
@@ -214,49 +203,49 @@ Below is an instruction that describes a task. Write a response that appropriate
             model_state = None
             model_tokens = []
             logits = run_rnn(tokenizer.encode(new).ids)
-            save_all_stat(srv, 'gen_0', logits)
+            save_all_stat('gen_0', logits)
 
         elif msg[:4].lower() == '+qa ':
-            logits = load_all_stat('', 'chat_init')
+            logits = load_all_stat('chat_init')
 
             real_msg = msg[4:].strip()
             new = f"{user}{interface} {real_msg}\n\n{bot}{interface}"
             # print(f'### qa ###\n[{new}]')
             
             logits = run_rnn(tokenizer.encode(new).ids)
-            save_all_stat(srv, 'gen_0', logits)
+            save_all_stat('gen_0', logits)
 
         elif msg.lower() == '+++':
             try:
-                logits = load_all_stat(srv, 'gen_1')
-                save_all_stat(srv, 'gen_0', logits)
+                logits = load_all_stat('gen_1')
+                save_all_stat('gen_0', logits)
             except Exception as e:
                 print(e)
                 continue
 
         elif msg.lower() == '++':
             try:
-                logits = load_all_stat(srv, 'gen_0')
+                logits = load_all_stat('gen_0')
             except Exception as e:
                 print(e)
                 continue
-        name = "gen_1"
+        thread = "gen_1"
 
     else:
         if msg.lower() == '+':
             try:
-                logits = load_all_stat(srv, 'chat_pre')
+                logits = load_all_stat('chat_pre')
             except Exception as e:
                 print(e)
                 continue
         else:
-            logits = load_all_stat(srv, 'chat')
+            logits = load_all_stat('chat')
             new = f"{user}{interface} {msg}\n\n{bot}{interface}"
             # print(f'### add ###\n[{new}]')
             logits = run_rnn(tokenizer.encode(new).ids)
-            save_all_stat(srv, 'chat_pre', logits)
+            save_all_stat('chat_pre', logits)
         
-        name = 'chat'
+        thread = 'chat'
 
         # Generate and print bot response
         print(f"> {bot}{interface}", end='')
@@ -273,7 +262,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             print(decoded, end='', flush=True)
             out_last = begin + i + 1
 
-        if name == 'chat':
+        if thread == 'chat':
             send_msg = tokenizer.decode(model_tokens[begin:])
             if  '\n\n' in send_msg:
                 send_msg = send_msg.strip()
@@ -281,4 +270,4 @@ Below is an instruction that describes a task. Write a response that appropriate
         if i == max_tokens_per_generation - 1:
             print()
 
-    save_all_stat(srv, name, logits)
+    save_all_stat(thread, logits)
