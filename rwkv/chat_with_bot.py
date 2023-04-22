@@ -167,6 +167,7 @@ while True:
     user_input = input(f'> {user}{interface} ')
     msg = user_input.replace('\\n','\n').strip()
 
+    # + reset --> reset chat
     if msg == '+reset':
         logits = load_all_stat('chat_init')
         save_all_stat('chat', logits)
@@ -174,6 +175,7 @@ while True:
         continue
     elif msg[:5].lower() == '+gen ' or msg[:3].lower() == '+i ' or msg[:4].lower() == '+qa ' or msg[:4].lower() == '+qq ' or msg.lower() == '+++' or msg.lower() == '++':
 
+        # +gen YOUR PROMPT --> free single-round generation with any prompt. Requires Novel model.
         if msg[:5].lower() == '+gen ':
             new = '\n' + msg[5:].strip()
             # print(f'### prompt ###\n[{new}]')
@@ -182,6 +184,7 @@ while True:
             logits = run_rnn(tokenizer.encode(new).ids)
             save_all_stat('gen_0', logits)
 
+        # +i YOUR INSTRUCT --> free single-round generation with any instruct. Requires Raven model.
         elif msg[:3].lower() == '+i ':
             new = f'''
 Below is an instruction that describes a task. Write a response that appropriately completes the request.
@@ -197,6 +200,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             logits = run_rnn(tokenizer.encode(new).ids)
             save_all_stat('gen_0', logits)
 
+        # +qq YOUR QUESTION --> answer an independent question with more creativity (regardless of context).
         elif msg[:4].lower() == '+qq ':
             new = '\nQ: ' + msg[4:].strip() + '\nA:'
             # print(f'### prompt ###\n[{new}]')
@@ -205,6 +209,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             logits = run_rnn(tokenizer.encode(new).ids)
             save_all_stat('gen_0', logits)
 
+        # +qa YOUR QUESTION --> answer an independent question (regardless of context).
         elif msg[:4].lower() == '+qa ':
             logits = load_all_stat('chat_init')
 
@@ -215,6 +220,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             logits = run_rnn(tokenizer.encode(new).ids)
             save_all_stat('gen_0', logits)
 
+        # +++ --> continue last free generation (only for +gen / +i)
         elif msg.lower() == '+++':
             try:
                 logits = load_all_stat('gen_1')
@@ -223,6 +229,7 @@ Below is an instruction that describes a task. Write a response that appropriate
                 print(e)
                 continue
 
+        # ++ --> retry last free generation (only for +gen / +i)
         elif msg.lower() == '++':
             try:
                 logits = load_all_stat('gen_0')
@@ -232,12 +239,14 @@ Below is an instruction that describes a task. Write a response that appropriate
         thread = "gen_1"
 
     else:
+        # + --> alternate chat reply
         if msg.lower() == '+':
             try:
                 logits = load_all_stat('chat_pre')
             except Exception as e:
                 print(e)
                 continue
+        # chat with bot
         else:
             logits = load_all_stat('chat')
             new = f"{user}{interface} {msg}\n\n{bot}{interface}"
@@ -247,7 +256,7 @@ Below is an instruction that describes a task. Write a response that appropriate
         
         thread = 'chat'
 
-        # Generate and print bot response
+        # Print bot response
         print(f"> {bot}{interface}", end='')
 
     decoded = ''
