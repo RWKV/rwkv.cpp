@@ -89,9 +89,13 @@ python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-
 
 Formats available:
 
-- `4`: `Q4_1_O`, OK quality, moderately fast (20% slower than `FP16`).
-- `3`: `Q4_1`, worst quality, fast (comparable to `FP16`).
-- `2`: `Q4_0`, poor quality, very fast.
+- `6`: `Q4_3`, OK quality, fast.
+- `5`: `Q4_2`, poor quality, fast.
+- `4`: `Q4_1_O`, best quality, slow (20% slower than `FP16`).
+- `3`: `Q4_1`, poor quality, very fast.
+- `2`: `Q4_0`, worst quality, very fast.
+
+If you use `rwkv.cpp` for anything serious (just having fun is serious enough!), please [test all available formats for perplexity and latency](rwkv%2Fmeasure_pexplexity.py) on a representative dataset, and decide which trade-off is best for you.
 
 ### 4. Run the model
 
