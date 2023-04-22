@@ -14,9 +14,9 @@ import rwkv_cpp_shared_library
 # ======================================== Script settings ========================================
 
 # Copied from https://github.com/BlinkDL/ChatRWKV/blob/9ca4cdba90efaee25cfec21a0bae72cbd48d8acd/chat.py#L92-L178
-CHAT_LANG = 'Chinese' # English // Chinese
+CHAT_LANG = 'English' # English // Chinese
 
-QA_PROMPT = True # True: Q & A prompt // False: chat prompt (need large model)
+QA_PROMPT = False # True: Q & A prompt // False: chat prompt (need large model)
 
 if CHAT_LANG == 'English':
     interface = ':'
