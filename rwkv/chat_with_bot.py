@@ -16,12 +16,13 @@ import rwkv_cpp_shared_library
 
 # English, Chinese
 LANGUAGE: str = 'English'
+# 1: Q&A prompt 
+# 2: chat prompt (you need a large model for adequate quality, 7B+)
+QA_PROMPT: int = 2 
 
-QA_PROMPT = 2 # 1: [User & Bot] (Q&A) prompt // 2: [Bob & Alice] (chat) prompt
+PROMPT_FILE: str = f'./rwkv/prompt/default/{LANGUAGE}-{QA_PROMPT}.py'
 
-PROMPT_FILE = f'./rwkv/prompt/default/{CHAT_LANG}-{QA_PROMPT}.py'
-
-def load_prompt(PROMPT_FILE):
+def load_prompt(PROMPT_FILE: str):
     variables = {}
     with open(PROMPT_FILE, 'rb') as file:
         exec(compile(file.read(), PROMPT_FILE, 'exec'), variables)
