@@ -16,80 +16,20 @@ import rwkv_cpp_shared_library
 # Copied from https://github.com/BlinkDL/ChatRWKV/blob/9ca4cdba90efaee25cfec21a0bae72cbd48d8acd/chat.py#L92-L178
 CHAT_LANG = 'English' # English // Chinese
 
-QA_PROMPT = False # True: Q & A prompt // False: chat prompt (need large model)
+QA_PROMPT = 2 # 1: [User & Bot] (Q&A) prompt // 2: [Bob & Alice] (chat) prompt
 
-if CHAT_LANG == 'English':
-    interface = ':'
+PROMPT_FILE = f'./rwkv/prompt/default/{CHAT_LANG}-{QA_PROMPT}.py'
 
-    if QA_PROMPT:
-        user = "User"
-        bot = "Bot" # Or: 'The following is a verbose and detailed Q & A conversation of factual information.'
-        init_prompt = f'''
-The following is a verbose and detailed conversation between an AI assistant called {bot}, and a human user called {user}. {bot} is intelligent, knowledgeable, wise and polite.
-
-{user}{interface} french revolution what year
-
-{bot}{interface} The French Revolution started in 1789, and lasted 10 years until 1799.
-
-{user}{interface} 3+5=?
-
-{bot}{interface} The answer is 8.
-
-{user}{interface} guess i marry who ?
-
-{bot}{interface} Only if you tell me more about yourself - what are your interests?
-
-{user}{interface} solve for a: 9-a=2
-
-{bot}{interface} The answer is a = 7, because 9 - 7 = 2.
-
-{user}{interface} what is lhc
-
-{bot}{interface} LHC is a high-energy particle collider, built by CERN, and completed in 2008. They used it to confirm the existence of the Higgs boson in 2012.
-
-'''        
-    else:
-        user = "Bob"
-        bot = "Alice"
-        init_prompt = f'''
-The following is a verbose detailed conversation between {user} and a young girl {bot}. {bot} is intelligent, friendly and cute. {bot} is likely to agree with {user}.
-
-{user}{interface} Hello {bot}, how are you doing?
-
-{bot}{interface} Hi {user}! Thanks, I'm fine. What about you?
-
-{user}{interface} I am very good! It's nice to see you. Would you mind me chatting with you for a while?
-
-{bot}{interface} Not at all! I'm listening.
-
-'''
-
-elif CHAT_LANG == 'Chinese':
-    interface = ":"
-    if QA_PROMPT:
-        user = "Q"
-        bot = "A"
-        init_prompt = f'''
-Expert Questions & Helpful Answers
-
-Ask Research Experts
-
-'''
-    else:
-        user = "Bob"
-        bot = "Alice"
-        init_prompt = f'''
-The following is a verbose and detailed conversation between an AI assistant called {bot}, and a human user called {user}. {bot} is intelligent, knowledgeable, wise and polite.
-
-{user}{interface} what is lhc
-
-{bot}{interface} LHC is a high-energy particle collider, built by CERN, and completed in 2008. They used it to confirm the existence of the Higgs boson in 2012.
-
-{user}{interface} 企鹅会飞吗
-
-{bot}{interface} 企鹅是不会飞的。它们的翅膀主要用于游泳和平衡，而不是飞行。
-
-'''
+def load_prompt(PROMPT_FILE):
+    variables = {}
+    with open(PROMPT_FILE, 'rb') as file:
+        exec(compile(file.read(), PROMPT_FILE, 'exec'), variables)
+    user, bot, interface, init_prompt = variables['user'], variables['bot'], variables['interface'], variables['init_prompt']
+    init_prompt = init_prompt.strip().split('\n')
+    for c in range(len(init_prompt)):
+        init_prompt[c] = init_prompt[c].strip().strip('\u3000').strip('\r')
+    init_prompt = '\n' + ('\n'.join(init_prompt)).strip() + '\n\n'
+    return user, bot, interface, init_prompt
 
 FREE_GEN_LEN: int = 100
 
@@ -107,6 +47,7 @@ parser = argparse.ArgumentParser(description='Provide terminal-based chat interf
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
 args = parser.parse_args()
 
+user, bot, interface, init_prompt = load_prompt(PROMPT_FILE)
 assert init_prompt != '', 'Prompt must not be empty'
 
 print('Loading 20B tokenizer')
@@ -159,9 +100,7 @@ def load_all_stat(thread: str):
 model_tokens = []
 logits, model_state = None, None
 
-for token in prompt_tokens:
-    logits, model_state = model.eval(token, model_state, model_state, logits)
-    model_tokens.append(token)
+logits = run_rnn(tokenizer.encode(init_prompt).ids)
 
 save_all_stat('chat_init', logits)
 print('\nChat initialized! Write something and press Enter.')
