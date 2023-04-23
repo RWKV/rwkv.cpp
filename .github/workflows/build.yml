@@ -8,11 +8,9 @@ on:
         description: 'Create new release'
         required: true
         type: boolean
-  push:
-    paths: ['.github/workflows/**', '**/CMakeLists.txt', '**/*.h', '**/*.c', '**/*.cpp']
+  push: {}
   pull_request:
     types: [opened, synchronize, edited, reopened, review_requested, ready_for_review]
-    paths: ['**/CMakeLists.txt', '**/*.h', '**/*.c', '**/*.cpp']
 
 env:
  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
