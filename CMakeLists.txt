@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.12) # Don't bump this version for no reason
+cmake_minimum_required(VERSION 3.12)
+
 project("rwkv.cpp" C CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -10,23 +11,12 @@ endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-if (EMSCRIPTEN)
-    set(BUILD_SHARED_LIBS_DEFAULT OFF)
-
-    option(RWKV_WASM_SINGLE_FILE "rwkv: embed WASM inside the generated rwkv.js" ON)
-else()
-    if (MINGW)
-        set(BUILD_SHARED_LIBS_DEFAULT OFF)
-    else()
-        set(BUILD_SHARED_LIBS_DEFAULT ON)
-    endif()
-endif()
-
 #
 # Option list
 #
 
 # General
+option(RWKV_BUILD_SHARED_LIBRARY   "rwkv: build as a shared library"                      ON)
 option(RWKV_STATIC                 "rwkv: static link libraries"                          OFF)
 option(RWKV_NATIVE                 "rwkv: enable -march=native flag"                      OFF)
 option(RWKV_LTO                    "rwkv: enable link time optimization"                  OFF)
@@ -54,26 +44,25 @@ option(RWKV_OPENBLAS               "rwkv: use OpenBLAS"                         
 # Compile flags
 #
 
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED true)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 if (NOT MSVC)
     if (RWKV_SANITIZE_THREAD)
-        message(STATUS "Using RWKV_SANITIZE_THREAD")
         add_compile_options(-fsanitize=thread)
         link_libraries(-fsanitize=thread)
     endif()
 
     if (RWKV_SANITIZE_ADDRESS)
-        message(STATUS "Using RWKV_SANITIZE_ADDRESS")
         add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
         link_libraries(-fsanitize=address)
     endif()
 
     if (RWKV_SANITIZE_UNDEFINED)
-        message(STATUS "Using RWKV_SANITIZE_UNDEFINED")
         add_compile_options(-fsanitize=undefined)
         link_libraries(-fsanitize=undefined)
     endif()
@@ -127,6 +116,7 @@ if (RWKV_ALL_WARNINGS)
             -Wpedantic
             -Wcast-qual
             -Wno-unused-function
+            -Wno-multichar
         )
     else()
         # TODO [llama.cpp]: msvc
@@ -201,9 +191,7 @@ elseif (${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(x86_64|i686|AMD64)$")
         endif()
         if (RWKV_AVX512)
             add_compile_options(-mavx512f)
-            # add_compile_options(-mavx512cd)
-            # add_compile_options(-mavx512dq)
-            # add_compile_options(-mavx512bw)
+            add_compile_options(-mavx512bw)
         endif()
     endif()
 else()
@@ -221,17 +209,21 @@ endif()
 
 add_subdirectory(ggml)
 
-if (BUILD_SHARED_LIBS)
+if (RWKV_BUILD_SHARED_LIBRARY)
     set_target_properties(ggml PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
-add_library(rwkv rwkv.cpp rwkv.h)
+if (RWKV_BUILD_SHARED_LIBRARY)
+    add_library(rwkv SHARED rwkv.cpp rwkv.h)
+else()
+    add_library(rwkv rwkv.cpp rwkv.h)
+endif()
 
 target_include_directories(rwkv PUBLIC .)
-target_compile_features(rwkv PUBLIC cxx_std_11) # Don't bump
+target_compile_features(rwkv PUBLIC cxx_std_11)
 target_link_libraries(rwkv PRIVATE ggml ${RWKV_EXTRA_LIBS})
 
-if (BUILD_SHARED_LIBS)
+if (RWKV_BUILD_SHARED_LIBRARY)
     set_target_properties(rwkv PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(rwkv PRIVATE RWKV_SHARED RWKV_BUILD)
 endif()

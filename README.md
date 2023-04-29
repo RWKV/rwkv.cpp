@@ -55,7 +55,7 @@ On Windows: to check whether your CPU supports AVX2 or AVX-512, [use CPU-Z](http
 **Requirements**: [CMake](https://cmake.org/download/) or [CMake from anaconda](https://anaconda.org/conda-forge/cmake), MSVC compiler.
 
 ```commandline
-cmake -DBUILD_SHARED_LIBS=ON .
+cmake .
 cmake --build . --config Release
 ```
 
@@ -66,11 +66,11 @@ If everything went OK, `bin\Release\rwkv.dll` file should appear.
 **Requirements**: CMake (Linux: `sudo apt install cmake`, MacOS: `brew install cmake`, anaconoda: [cmake package](https://anaconda.org/conda-forge/cmake)).
 
 ```commandline
-cmake -DBUILD_SHARED_LIBS=ON .
+cmake .
 cmake --build . --config Release
 ```
 
-**Anaconda & M1 users**: please verify that `CMAKE_SYSTEM_PROCESSOR: arm64` after running `cmake -DBUILD_SHARED_LIBS=ON .` — if it detects `x86_64`, edit the `CMakeLists.txt` file under the `# Compile flags` to add `set(CMAKE_SYSTEM_PROCESSOR "arm64")`.
+**Anaconda & M1 users**: please verify that `CMAKE_SYSTEM_PROCESSOR: arm64` after running `cmake .` — if it detects `x86_64`, edit the `CMakeLists.txt` file under the `# Compile flags` to add `set(CMAKE_SYSTEM_PROCESSOR "arm64")`.
 
 If everything went OK, `librwkv.so` (Linux) or `librwkv.dylib` (MacOS) file should appear in the base repo folder.
 

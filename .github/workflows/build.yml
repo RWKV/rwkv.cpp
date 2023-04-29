@@ -76,7 +76,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DBUILD_SHARED_LIBS=ON ..
+          cmake ..
           cmake --build . --config Release
 
       - name: Test
@@ -135,7 +135,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DBUILD_SHARED_LIBS=ON -DRWKV_AVX2=OFF -DRWKV_FMA=OFF ..
+          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF ..
           cmake --build . --config Release
 
       - name: Test
@@ -197,7 +197,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DBUILD_SHARED_LIBS=ON ${{ matrix.defines }}
+          cmake .. ${{ matrix.defines }}
           cmake --build . --config Release
 
       - name: Check AVX512F support
