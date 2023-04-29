@@ -11,27 +11,23 @@ import sampling
 import tokenizers
 import rwkv_cpp_model
 import rwkv_cpp_shared_library
+import json
 
 # ======================================== Script settings ========================================
 
-# English, Chinese
+# English, Chinese, Japanese
 LANGUAGE: str = 'English'
-# 1: Q&A prompt 
-# 2: chat prompt (you need a large model for adequate quality, 7B+)
-QA_PROMPT: int = 2 
+# QA: Question and Answer prompt 
+# Chat: chat prompt (you need a large model for adequate quality, 7B+)
+PROMPT_TYPE: str = "Chat"
 
-PROMPT_FILE: str = f'./rwkv/prompt/default/{LANGUAGE}-{QA_PROMPT}.py'
+PROMPT_FILE: str = f'./rwkv/prompt/{LANGUAGE}-{PROMPT_TYPE}.json'
 
 def load_prompt(PROMPT_FILE: str):
-    variables = {}
-    with open(PROMPT_FILE, 'rb') as file:
-        exec(compile(file.read(), PROMPT_FILE, 'exec'), variables)
-    user, bot, interface, init_prompt = variables['user'], variables['bot'], variables['interface'], variables['init_prompt']
-    init_prompt = init_prompt.strip().split('\n')
-    for c in range(len(init_prompt)):
-        init_prompt[c] = init_prompt[c].strip().strip('\u3000').strip('\r')
-    init_prompt = '\n' + ('\n'.join(init_prompt)).strip() + '\n\n'
-    return user, bot, interface, init_prompt
+    with open(PROMPT_FILE, 'r') as json_file:
+        variables = json.load(json_file)
+        user, bot, separator, prompt = variables['user'], variables['bot'], variables['separator'], variables['prompt']
+        return user, bot, separator, prompt
 
 MAX_GENERATION_LENGTH: int = 250
 
