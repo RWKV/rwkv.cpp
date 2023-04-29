@@ -56,7 +56,7 @@ extern "C" {
     // Returns false on any error. Error messages would be printed to stderr.
     // - model_file_path_in: path to model file in ggml format, must be either FP32 or FP16.
     // - model_file_path_out: quantized model will be written here.
-    // - q_type: set to 2 for GGML_TYPE_Q4_0, 3 for GGML_TYPE_Q4_1, 4 for GGML_TYPE_Q4_1_O, 5 for GGML_TYPE_Q4_2, 6 for GGML_TYPE_Q4_3.
+    // - q_type: set to 2 for GGML_TYPE_Q4_0, 3 for GGML_TYPE_Q4_1, 4 for GGML_TYPE_Q4_1_O, 5 for GGML_TYPE_Q4_2.
     RWKV_API bool rwkv_quantize_model_file(const char * model_file_path_in, const char * model_file_path_out, uint32_t q_type);
 
     // Returns system information string.

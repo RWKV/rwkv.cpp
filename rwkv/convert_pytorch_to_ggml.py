@@ -12,7 +12,7 @@
 #   int32 n_vocab;
 #   int32 n_embed;
 #   int32 n_layer;
-#   // 0 if float32, 1 if float16, 2 if Q4_0, 3 if Q4_1, 4 if Q4_1_O, 5 if Q4_2, 6 if Q4_3.
+#   // 0 if float32, 1 if float16, 2 if Q4_0, 3 if Q4_1, 4 if Q4_1_O, 5 if Q4_2.
 #   int32 data_type;
 #   // Read until EOF.
 #   Parameter[] parameters;
@@ -21,7 +21,7 @@
 # Parameter {
 #   int32 dim_count;
 #   int32 key_length;
-#   // 0 if float32, 1 if float16, 2 if Q4_0, 3 if Q4_1, 4 if Q4_1_O, 5 if Q4_2, 6 if Q4_3.
+#   // 0 if float32, 1 if float16, 2 if Q4_0, 3 if Q4_1, 4 if Q4_1_O, 5 if Q4_2.
 #   int32 data_type;
 #   // Compared to PyTorch's tensor.shape, dimension order is reversed here!
 #   int32[dim_count] shape;

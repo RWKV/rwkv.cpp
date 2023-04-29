@@ -50,7 +50,7 @@ static const ggml_type FORMAT_TYPE_TO_GGML_TYPE[7] = {
     GGML_TYPE_Q4_1,
     GGML_TYPE_Q4_1_O,
     GGML_TYPE_Q4_2,
-    GGML_TYPE_Q4_3
+    GGML_TYPE_COUNT // GGML_TYPE_Q4_3 was here until it was removed
 };
 
 // --- Model definition and loading utilities ---
@@ -580,7 +580,7 @@ void rwkv_free(struct rwkv_context * ctx) {
 }
 
 bool rwkv_quantize_model_file(const char * model_file_path_in, const char * model_file_path_out, uint32_t q_type) {
-    RWKV_ASSERT_FALSE(q_type == 2 || q_type == 3 || q_type == 4 || q_type == 5 || q_type == 6, "Unsupported quantization type %d", q_type);
+    RWKV_ASSERT_FALSE(q_type >= 2 && q_type <= 6, "Unsupported quantization type %d", q_type);
 
     // Needed to initialize FP16 lookup table
     {
@@ -590,6 +590,8 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
     }
 
     ggml_type type = FORMAT_TYPE_TO_GGML_TYPE[q_type];
+
+    RWKV_ASSERT_FALSE(type != GGML_TYPE_COUNT, "Unsupported quantization type %d", q_type);
 
     printf("Loading model from '%s'\n", model_file_path_in);
 
@@ -675,7 +677,7 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
                     "Q4_1",
                     "Q4_1_O",
                     "Q4_2",
-                    "Q4_3"
+                    ""
                 };
                 printf("%48s - [%5d, %5d], type = %6s ", name.data(), ne[0], ne[1], parameter_data_type_str[parameter_data_type]);
 
@@ -749,10 +751,6 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
                     case GGML_TYPE_Q4_2:
                         {
                             cur_size = ggml_quantize_q4_2(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
-                        } break;
-                    case GGML_TYPE_Q4_3:
-                        {
-                            cur_size = ggml_quantize_q4_3(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
                         } break;
                     default:
                         {

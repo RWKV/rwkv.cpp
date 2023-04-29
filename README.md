@@ -89,7 +89,6 @@ python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-
 
 Formats available:
 
-- `6`: `Q4_3`, OK quality, fast.
 - `5`: `Q4_2`, poor quality, fast.
 - `4`: `Q4_1_O`, best quality, slow (20% slower than `FP16`).
 - `3`: `Q4_1`, poor quality, very fast.
