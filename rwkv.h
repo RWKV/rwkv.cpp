@@ -60,7 +60,6 @@ extern "C" {
     // Available format names:
     // - Q4_0
     // - Q4_1
-    // - Q4_1_O
     // - Q4_2
     // - Q5_0
     // - Q5_1

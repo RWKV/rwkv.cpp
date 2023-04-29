@@ -50,7 +50,7 @@ static const ggml_type FORMAT_TYPE_TO_GGML_TYPE[FORMAT_TYPE_COUNT] = {
     GGML_TYPE_F16,
     GGML_TYPE_Q4_0,
     GGML_TYPE_Q4_1,
-    GGML_TYPE_Q4_1_O,
+    GGML_TYPE_UNKNOWN, // Unused
     GGML_TYPE_Q4_2,
     GGML_TYPE_UNKNOWN, // Unused
     GGML_TYPE_Q5_0,
@@ -61,7 +61,6 @@ static const ggml_type FORMAT_TYPE_TO_GGML_TYPE[FORMAT_TYPE_COUNT] = {
 static int32_t format_name_to_format_type(const char * format_name) {
     if (strcmp(format_name, "Q4_0") == 0) return 2;
     if (strcmp(format_name, "Q4_1") == 0) return 3;
-    if (strcmp(format_name, "Q4_1_O") == 0) return 4;
     if (strcmp(format_name, "Q4_2") == 0) return 5;
     if (strcmp(format_name, "Q5_0") == 0) return 7;
     if (strcmp(format_name, "Q5_1") == 0) return 8;
@@ -226,8 +225,13 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
     RWKV_ASSERT_NULL(model->data_type >= 0 && model->data_type < FORMAT_TYPE_COUNT, "Unsupported model data type %d", model->data_type);
 
     RWKV_ASSERT_NULL(
+        model->data_type != 4,
+        "Models in Q4_1_O format cannot be loaded anymore because the format was removed. You need to quantize the model into another format"
+    );
+
+    RWKV_ASSERT_NULL(
         model->data_type != 6,
-        "Models in Q4_3 format cannot be loaded anymore because the format was removed from ggml. You need to quantize the model into another format"
+        "Models in Q4_3 format cannot be loaded anymore because the format was removed. You need to quantize the model into another format"
     );
 
     // Parameter tensors would take at least this amount in memory.
@@ -764,9 +768,6 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
                         break;
                     case GGML_TYPE_Q4_1:
                         cur_size = ggml_quantize_q4_1(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
-                        break;
-                    case GGML_TYPE_Q4_1_O:
-                        cur_size = ggml_quantize_q4_1_o(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
                         break;
                     case GGML_TYPE_Q4_2:
                         cur_size = ggml_quantize_q4_2(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());

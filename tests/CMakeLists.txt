@@ -10,6 +10,4 @@ file(COPY tiny-rwkv-660K-FP16.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY expected_logits.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 rwkv_add_test(test_ggml_basics.c)
-rwkv_add_test(test_Q4_1_O.c)
-rwkv_add_test(test_Q4_1_O_large_matmul.c)
 rwkv_add_test(test_tiny_rwkv.c)
