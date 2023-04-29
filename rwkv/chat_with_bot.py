@@ -40,9 +40,9 @@ TEMPERATURE: float = 0.8
 # For better Q&A accuracy and less diversity, reduce top_p (to 0.5, 0.2, 0.1 etc.)
 TOP_P: float = 0.5
 # Penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics.
-PRESENCE_PENALTY = 0.2
+PRESENCE_PENALTY: float = 0.2
 # Penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim.
-FREQUENCY_PENALTY = 0.2
+FREQUENCY_PENALTY: float = 0.2
 END_OF_LINE_TOKEN: int = 187
 END_OF_TEXT_TOKEN: int = 0
 
@@ -74,7 +74,7 @@ model_tokens: list[int] = []
 
 logits, model_state = None, None
 
-def process_tokens(_tokens: list[int], newline_adj = 0) -> torch.Tensor:
+def process_tokens(_tokens: list[int], newline_adj: int = 0) -> torch.Tensor:
     global model_tokens, model_state, logits
 
     _tokens = [int(x) for x in _tokens]
@@ -84,7 +84,7 @@ def process_tokens(_tokens: list[int], newline_adj = 0) -> torch.Tensor:
     for _token in _tokens:
         logits, model_state = model.eval(_token, model_state, model_state, logits)
 
-    logits[END_OF_LINE] += newline_adj # adjust \n probability
+    logits[END_OF_LINE_TOKEN] += newline_adj # adjust \n probability
 
     return logits
 
@@ -236,13 +236,13 @@ Below is an instruction that describes a task. Write a response that appropriate
 
     start_index: int = len(model_tokens)
     accumulated_tokens: list[int] = []
-    occurrence = {}
+    occurrence: dict[int, int] = {}
 
     for i in range(MAX_GENERATION_LENGTH):
         for n in occurrence:
             logits[n] -= (PRESENCE_PENALTY + occurrence[n] * FREQUENCY_PENALTY)
         token: int = sampling.sample_logits(logits, temperature, top_p)
-        if token == END_OF_TEXT:
+        if token == END_OF_TEXT_TOKEN:
             print()
             break
         if token not in occurrence:
