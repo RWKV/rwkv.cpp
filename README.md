@@ -2,18 +2,30 @@
 
 This is a port of [BlinkDL/RWKV-LM](https://github.com/BlinkDL/RWKV-LM) to [ggerganov/ggml](https://github.com/ggerganov/ggml).
 
-Besides the usual **FP32**, it supports **FP16** and **quantized INT4** inference on CPU. This project is **CPU only**.
-
-RWKV is a novel large language model architecture, [with the largest model in the family having 14B parameters](https://huggingface.co/BlinkDL/rwkv-4-pile-14b). In contrast to Transformer with `O(n^2)` attention, RWKV requires only state from previous step to calculate logits. This makes RWKV very CPU-friendly on large context lenghts.
+Besides the usual **FP32**, it supports **FP16**, **quantized INT4** and **quantized INT8** inference. This project is **CPU only**.
 
 This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrapper](rwkv%2Frwkv_cpp_model.py) for it.
 
+RWKV is a novel large language model architecture, [with the largest model in the family having 14B parameters](https://huggingface.co/BlinkDL/rwkv-4-pile-14b). In contrast to Transformer with `O(n^2)` attention, RWKV requires only state from previous step to calculate logits. This makes RWKV very CPU-friendly on large context lenghts.
+
 Loading LoRA checkpoints in [Blealtan's format](https://github.com/Blealtan/RWKV-LM-LoRA) is supported through [merge_lora_into_ggml.py script](rwkv%2Fmerge_lora_into_ggml.py).
 
-**TODO (contributions welcome!)**:
+### Quality and performance
 
-1. Measure latency and perplexity of different model sizes (169M to 14B) and data types (`FP32`, `FP16`, `Q4_0`, `Q4_1`, `Q4_1_O`)
-2. Make required memory calculation more robust (see [#4](https://github.com/saharNooby/rwkv.cpp/issues/4))
+If you use `rwkv.cpp` for anything serious, please [test all available formats for perplexity and latency](rwkv%2Fmeasure_pexplexity.py) on a representative dataset, and decide which trade-off is best for you.
+
+Below table is for reference only. Measurements were made on 4C/8T x86 CPU with AVX2, 4 threads.
+
+| Format    | Perplexity (169M) | Latency, ms (1.5B) | File size, GB (1.5B) |
+|-----------|-------------------|--------------------|----------------------|
+| `Q4_0`    | 17.507            | *76*               | **1.53**             |
+| `Q4_1`    | 17.187            | **72**             | 1.68                 |
+| `Q4_2`    | 17.060            | 85                 | **1.53**             |
+| `Q5_0`    | 16.194            | 78                 | *1.60*               |
+| `Q5_1`    | 15.851            | 81                 | 1.68                 |
+| `Q8_0`    | *15.652*          | 89                 | 2.13                 |
+| `FP16`    | **15.623**        | 117                | 2.82                 |
+| `FP32`    | **15.623**        | 198                | 5.64                 |
 
 ## How to use
 
@@ -77,25 +89,15 @@ python rwkv/convert_pytorch_to_ggml.py ~/Downloads/RWKV-4-Pile-169M-20220807-802
 
 #### 3.1. Optionally, quantize the model
 
-To convert the model into INT4 quantized format, run:
+To convert the model into one of quantized formats from the table above, run:
 
 ```commandline
 # Windows
-python rwkv\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q4_1_O.bin 4
+python rwkv\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q4_2.bin Q4_2
 
 # Linux / MacOS
-python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q4_1_O.bin 4
+python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q4_2.bin Q4_2
 ```
-
-Formats available:
-
-- `6`: `Q4_3`, OK quality, fast.
-- `5`: `Q4_2`, poor quality, fast.
-- `4`: `Q4_1_O`, best quality, slow (20% slower than `FP16`).
-- `3`: `Q4_1`, poor quality, very fast.
-- `2`: `Q4_0`, worst quality, very fast.
-
-If you use `rwkv.cpp` for anything serious (just having fun is serious enough!), please [test all available formats for perplexity and latency](rwkv%2Fmeasure_pexplexity.py) on a representative dataset, and decide which trade-off is best for you.
 
 ### 4. Run the model
 
@@ -107,20 +109,20 @@ To generate some text, run:
 
 ```commandline
 # Windows
-python rwkv\generate_completions.py C:\rwkv.cpp-169M-Q4_1_O.bin
+python rwkv\generate_completions.py C:\rwkv.cpp-169M-Q4_2.bin
 
 # Linux / MacOS
-python rwkv/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q4_1_O.bin
+python rwkv/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q4_2.bin
 ```
 
 To chat with a bot, run:
 
 ```commandline
 # Windows
-python rwkv\chat_with_bot.py C:\rwkv.cpp-169M-Q4_1_O.bin
+python rwkv\chat_with_bot.py C:\rwkv.cpp-169M-Q4_2.bin
 
 # Linux / MacOS
-python rwkv/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q4_1_O.bin
+python rwkv/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q4_2.bin
 ```
 
 Edit [generate_completions.py](rwkv%2Fgenerate_completions.py) or [chat_with_bot.py](rwkv%2Fchat_with_bot.py) to change prompts and sampling settings.
