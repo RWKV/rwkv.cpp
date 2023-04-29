@@ -225,6 +225,11 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
     read_int32(file, &(model->data_type));
     RWKV_ASSERT_NULL(model->data_type >= 0 && model->data_type < FORMAT_TYPE_COUNT, "Unsupported model data type %d", model->data_type);
 
+    RWKV_ASSERT_NULL(
+        model->data_type != 6,
+        "Models in Q4_3 format cannot be loaded anymore because the format was removed from ggml. You need to quantize the model into another format"
+    );
+
     // Parameter tensors would take at least this amount in memory.
     size_t file_size;
 
