@@ -4,6 +4,15 @@ import ctypes
 import pathlib
 from typing import Optional
 
+QUANTIZED_FORMAT_NAMES = (
+    'Q4_0',
+    'Q4_1',
+    'Q4_1_O',
+    'Q4_2',
+    'Q5_0',
+    'Q5_1',
+    'Q8_0'
+)
 
 P_FLOAT = ctypes.POINTER(ctypes.c_float)
 
@@ -54,7 +63,7 @@ class RWKVSharedLibrary:
         self.library.rwkv_free.argtypes = [ctypes.c_void_p]
         self.library.rwkv_free.restype = None
 
-        self.library.rwkv_quantize_model_file.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint32]
+        self.library.rwkv_quantize_model_file.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
         self.library.rwkv_quantize_model_file.restype = ctypes.c_bool
 
         self.library.rwkv_get_system_info_string.argtypes = []
@@ -149,7 +158,7 @@ class RWKVSharedLibrary:
 
         ctx.ptr = ctypes.cast(0, ctypes.c_void_p)
 
-    def rwkv_quantize_model_file(self, model_file_path_in: str, model_file_path_out: str, q_type: int) -> None:
+    def rwkv_quantize_model_file(self, model_file_path_in: str, model_file_path_out: str, format_name: str) -> None:
         """
         Quantizes FP32 or FP16 model to one of INT4 formats.
         Throws an exception in case of any error. Error messages would be printed to stderr.
@@ -160,14 +169,16 @@ class RWKVSharedLibrary:
             Path to model file in ggml format, must be either FP32 or FP16.
         model_file_path_out : str
             Quantized model will be written here.
-        q_type : int
-            Set to 2 for GGML_TYPE_Q4_0, set to 3 for GGML_TYPE_Q4_1.
+        format_name : str
+            One of QUANTIZED_FORMAT_NAMES.
         """
+
+        assert format_name in QUANTIZED_FORMAT_NAMES, f'Unknown format name {format_name}, use one of {QUANTIZED_FORMAT_NAMES}'
 
         assert self.library.rwkv_quantize_model_file(
             model_file_path_in.encode('utf-8'),
             model_file_path_out.encode('utf-8'),
-            ctypes.c_uint32(q_type)
+            format_name.encode('utf-8')
         ), 'rwkv_quantize_model_file failed, check stderr'
 
     def rwkv_get_system_info_string(self) -> str:
