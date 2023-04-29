@@ -44,7 +44,7 @@ PRESENCE_PENALTY = 0.2
 # Penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim.
 FREQUENCY_PENALTY = 0.2
 END_OF_LINE_TOKEN: int = 187
-END_OF_TEXT = 0
+END_OF_TEXT_TOKEN: int = 0
 
 # =================================================================================================
 
