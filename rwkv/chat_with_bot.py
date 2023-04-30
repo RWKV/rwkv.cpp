@@ -11,15 +11,23 @@ import sampling
 import tokenizers
 import rwkv_cpp_model
 import rwkv_cpp_shared_library
+import json
 
 # ======================================== Script settings ========================================
 
-# English, Chinese
+# English, Chinese, Japanese
 LANGUAGE: str = 'English'
+# QA: Question and Answer prompt 
+# Chat: chat prompt (you need a large model for adequate quality, 7B+)
+PROMPT_TYPE: str = "Chat"
 
-# True: Q&A prompt
-# False: chat prompt (you need a large model for adequate quality, 7B+)
-QA_PROMPT: bool = False
+PROMPT_FILE: str = f'./rwkv/prompt/{LANGUAGE}-{PROMPT_TYPE}.json'
+
+def load_prompt(PROMPT_FILE: str):
+    with open(PROMPT_FILE, 'r') as json_file:
+        variables = json.load(json_file)
+        user, bot, separator, prompt = variables['user'], variables['bot'], variables['separator'], variables['prompt']
+        return user, bot, separator, prompt
 
 MAX_GENERATION_LENGTH: int = 250
 
@@ -27,84 +35,12 @@ MAX_GENERATION_LENGTH: int = 250
 TEMPERATURE: float = 0.8
 # For better Q&A accuracy and less diversity, reduce top_p (to 0.5, 0.2, 0.1 etc.)
 TOP_P: float = 0.5
-
-if LANGUAGE == 'English':
-    separator: str = ':'
-
-    if QA_PROMPT:
-        user: str = 'User'
-        bot: str = 'Bot'
-        init_prompt: str = f'''
-The following is a verbose and detailed conversation between an AI assistant called {bot}, and a human user called {user}. {bot} is intelligent, knowledgeable, wise and \
-polite.
-
-{user}{separator} french revolution what year
-
-{bot}{separator} The French Revolution started in 1789, and lasted 10 years until 1799.
-
-{user}{separator} 3+5=?
-
-{bot}{separator} The answer is 8.
-
-{user}{separator} guess i marry who ?
-
-{bot}{separator} Only if you tell me more about yourself - what are your interests?
-
-{user}{separator} solve for a: 9-a=2
-
-{bot}{separator} The answer is a = 7, because 9 - 7 = 2.
-
-{user}{separator} what is lhc
-
-{bot}{separator} LHC is a high-energy particle collider, built by CERN, and completed in 2008. They used it to confirm the existence of the Higgs boson in 2012.
-
-'''
-    else:
-        user: str = 'Bob'
-        bot: str = 'Alice'
-        init_prompt: str = f'''
-The following is a verbose detailed conversation between {user} and a young girl {bot}. {bot} is intelligent, friendly and cute. {bot} is likely to agree with {user}.
-
-{user}{separator} Hello {bot}, how are you doing?
-
-{bot}{separator} Hi {user}! Thanks, I'm fine. What about you?
-
-{user}{separator} I am very good! It's nice to see you. Would you mind me chatting with you for a while?
-
-{bot}{separator} Not at all! I'm listening.
-
-'''
-
-elif LANGUAGE == 'Chinese':
-    separator: str = ':'
-
-    if QA_PROMPT:
-        user: str = 'Q'
-        bot: str = 'A'
-        init_prompt: str = f'''
-Expert Questions & Helpful Answers
-
-Ask Research Experts
-
-'''
-    else:
-        user: str = 'Bob'
-        bot: str = 'Alice'
-        init_prompt: str = f'''
-The following is a verbose and detailed conversation between an AI assistant called {bot}, and a human user called {user}. {bot} is intelligent, knowledgeable, wise and \
-polite.
-
-{user}{separator} what is lhc
-
-{bot}{separator} LHC is a high-energy particle collider, built by CERN, and completed in 2008. They used it to confirm the existence of the Higgs boson in 2012.
-
-{user}{separator} 企鹅会飞吗
-
-{bot}{separator} 企鹅是不会飞的。它们的翅膀主要用于游泳和平衡，而不是飞行。
-
-'''
-else:
-    assert False, f'Invalid language {LANGUAGE}'
+# Penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics.
+PRESENCE_PENALTY: float = 0.2
+# Penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim.
+FREQUENCY_PENALTY: float = 0.2
+END_OF_LINE_TOKEN: int = 187
+END_OF_TEXT_TOKEN: int = 0
 
 # =================================================================================================
 
@@ -112,6 +48,7 @@ parser = argparse.ArgumentParser(description='Provide terminal-based chat interf
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
 args = parser.parse_args()
 
+user, bot, separator, init_prompt = load_prompt(PROMPT_FILE)
 assert init_prompt != '', 'Prompt must not be empty'
 
 print('Loading 20B tokenizer')
@@ -133,7 +70,7 @@ model_tokens: list[int] = []
 
 logits, model_state = None, None
 
-def process_tokens(_tokens: list[int]) -> torch.Tensor:
+def process_tokens(_tokens: list[int], newline_adj: int = 0) -> torch.Tensor:
     global model_tokens, model_state, logits
 
     _tokens = [int(x) for x in _tokens]
@@ -142,6 +79,8 @@ def process_tokens(_tokens: list[int]) -> torch.Tensor:
 
     for _token in _tokens:
         logits, model_state = model.eval(_token, model_state, model_state, logits)
+
+    logits[END_OF_LINE_TOKEN] += newline_adj # adjust \n probability
 
     return logits
 
@@ -163,10 +102,7 @@ def load_thread_state(_thread: str) -> torch.Tensor:
 
 print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
-for token in prompt_tokens:
-    logits, model_state = model.eval(token, model_state, model_state, logits)
-
-    model_tokens.append(token)
+logits = process_tokens(tokenizer.encode(init_prompt).ids)
 
 save_thread_state('chat_init', logits)
 save_thread_state('chat', logits)
@@ -286,7 +222,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             logits = load_thread_state('chat')
             new = f"{user}{separator} {msg}\n\n{bot}{separator}"
             # print(f'### add ###\n[{new}]')
-            logits = process_tokens(tokenizer.encode(new).ids)
+            logits = process_tokens(tokenizer.encode(new).ids, newline_adj=-999999999)
             save_thread_state('chat_pre', logits)
 
         thread = 'chat'
@@ -296,10 +232,19 @@ Below is an instruction that describes a task. Write a response that appropriate
 
     start_index: int = len(model_tokens)
     accumulated_tokens: list[int] = []
+    occurrence: dict[int, int] = {}
 
     for i in range(MAX_GENERATION_LENGTH):
+        for n in occurrence:
+            logits[n] -= (PRESENCE_PENALTY + occurrence[n] * FREQUENCY_PENALTY)
         token: int = sampling.sample_logits(logits, temperature, top_p)
-
+        if token == END_OF_TEXT_TOKEN:
+            print()
+            break
+        if token not in occurrence:
+            occurrence[token] = 1
+        else:
+            occurrence[token] += 1
         logits: torch.Tensor = process_tokens([token])
 
         # Avoid UTF-8 display issues
