@@ -568,7 +568,6 @@ bool rwkv_eval(struct rwkv_context * ctx, int32_t token, float * state_in, float
 
     RWKV_ASSERT_FALSE(token >= 0 && token < n_vocab, "Token is out of range 0..%d", n_vocab - 1);
 
-    ggml_set_i32(ctx->token_index, 0);
     ggml_set_i32_1d(ctx->token_index, 0, token);
 
     if (state_in == NULL) {
