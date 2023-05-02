@@ -43,6 +43,16 @@ extern "C" {
     // - logits_out: FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to.
     RWKV_API bool rwkv_eval(struct rwkv_context * ctx, int32_t token, float * state_in, float * state_out, float * logits_out);
 
+    // Evaluates the model for multiple token in an array
+    // Returns false on any error. Error messages would be printed to stderr.
+    //
+    // - tokens: next token array
+    // - n_tokens: number of tokens in the token array
+    // - state_in: FP32 buffer of size rwkv_get_state_buffer_element_count; or NULL, if this is a first pass.
+    // - state_out: FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to.
+    // - logits_out: FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to.
+    RWKV_API bool rwkv_eval_array(struct rwkv_context * ctx, int32_t * token_arr, size_t tokens_count, float * state_in, float * state_out, float * logits_out);
+
     // Returns count of FP32 elements in state buffer.
     RWKV_API uint32_t rwkv_get_state_buffer_element_count(struct rwkv_context * ctx);
 

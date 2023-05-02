@@ -597,6 +597,20 @@ bool rwkv_eval(struct rwkv_context * ctx, int32_t token, float * state_in, float
     return true;
 }
 
+bool rwkv_eval_array(struct rwkv_context * ctx, int32_t * token_arr, int n_tokens, float * state_in, float * state_out, float * logits_out) {
+    bool success = true;
+    for (int i = 0; i < n_tokens; i++) {
+        success = success && rwkv_eval(ctx, token_arr[i], state_in, state_out, logits_out);
+        state_in = state_out; // switch to using state_out from here onwards
+
+        // If success fail, abort now
+        if( success == false ) {
+            return false;
+        }
+    }
+    return success;
+}
+
 void rwkv_free(struct rwkv_context * ctx) {
     ctx->model->layers.~vector();
     free(ctx->model);
