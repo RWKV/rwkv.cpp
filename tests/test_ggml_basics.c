@@ -19,10 +19,10 @@
 
 #define ASSERT_ELEMENT_F32(tensor, i, expected_value) {\
         float actual = ((float *) tensor->data)[i];\
-        ASSERT(fabsf(actual - expected_value) <= 0.0000001F, "At %s[%d]: expected %f, actual %f", #tensor, i, expected_value, actual);\
+        ASSERT(fabsf(actual - expected_value) <= 0.0000001F, "At %s[%d]: expected %f, actual %f", #tensor, i, (double) expected_value, (double) actual);\
     }
 
-int main(int argc, const char ** argv) {
+int main(void) {
     struct ggml_init_params params = {
         .mem_size   = 16 * 1024,
         .mem_buffer = NULL,

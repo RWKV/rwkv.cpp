@@ -51,7 +51,7 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     fprintf(stderr, "Difference sum: %f\n", diff_sum);
 
     // When something breaks, difference would be way more than 10
-    ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big difference %f, expected no more than %f", diff_sum, max_diff);
+    ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
 
     rwkv_free(model);
 
@@ -59,7 +59,7 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     free(logits);
 }
 
-int main(int argc, const char ** argv) {
+int main(void) {
     fprintf(stderr, "System info: %s\n", rwkv_get_system_info_string());
 
     float * expected_logits = malloc(sizeof(float) * N_VOCAB);
