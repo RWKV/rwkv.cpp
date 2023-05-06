@@ -119,7 +119,12 @@ if (RWKV_ALL_WARNINGS)
             -Wno-multichar
         )
     else()
-        # TODO [llama.cpp]: msvc
+        set(c_flags
+            -W4
+        )
+        set(cxx_flags
+            -W4
+        )
     endif()
 
     add_compile_options(
