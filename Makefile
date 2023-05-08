@@ -31,8 +31,9 @@ endif
 #
 
 # keep standard at C11 and C++11
-CFLAGS   = -I.              -O3 -DNDEBUG -std=c11   -fPIC
-CXXFLAGS = -I. -I./examples -O3 -DNDEBUG -std=c++11 -fPIC
+SHAREDFLAGS = -I ggml/include/ggml -I. -O3 -DNDEBUG -fPIC
+CFLAGS   = $(SHAREDFLAGS) -std=c11
+CXXFLAGS = $(SHAREDFLAGS) -std=c++11
 LDFLAGS  =
 
 # warnings
@@ -216,14 +217,14 @@ $(info I CC:       $(CCV))
 $(info I CXX:      $(CXXV))
 $(info )
 
-default: rwkv.o
+default: librwkv.so
 
 #
 # Build library
 #
 
-ggml.o: ggml.c ggml.h
-	$(CC)  $(CFLAGS)   -c ggml.c -o ggml.o
+ggml.o: ggml/src/ggml.c ggml/include/*
+	$(CC)  $(CFLAGS) -c ggml/src/ggml.c -o ggml.o
 
 rwkv.o: rwkv.cpp rwkv.h
 	$(CXX) $(CXXFLAGS) -c rwkv.cpp -o rwkv.o
