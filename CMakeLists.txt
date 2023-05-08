@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.12) # Don't bump this version for no reason
+cmake_minimum_required(VERSION 3.12)
+
 project("rwkv.cpp" C CXX)
 set(CMAKE_CXX_STANDARD 20)
 
@@ -11,48 +12,26 @@ endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    set(RWKV_STANDALONE ON)
-
-    # configure project version
-    # TODO
-else()
-    set(RWKV_STANDALONE OFF)
-endif()
-
-if (EMSCRIPTEN)
-    set(BUILD_SHARED_LIBS_DEFAULT OFF)
-
-    option(RWKV_WASM_SINGLE_FILE "rwkv: embed WASM inside the generated rwkv.js" ON)
-else()
-    if (MINGW)
-        set(BUILD_SHARED_LIBS_DEFAULT OFF)
-    else()
-        set(BUILD_SHARED_LIBS_DEFAULT ON)
-    endif()
-endif()
-
-
 #
 # Option list
 #
 
-# general
+# General
+option(RWKV_BUILD_SHARED_LIBRARY   "rwkv: build as a shared library"                      ON)
 option(RWKV_STATIC                 "rwkv: static link libraries"                          OFF)
 option(RWKV_NATIVE                 "rwkv: enable -march=native flag"                      OFF)
 option(RWKV_LTO                    "rwkv: enable link time optimization"                  OFF)
 
-# debug
+# Debug
 option(RWKV_ALL_WARNINGS           "rwkv: enable all compiler warnings"                   ON)
-option(RWKV_ALL_WARNINGS_3RD_PARTY "rwkv: enable all compiler warnings in 3rd party libs" OFF)
 option(RWKV_GPROF                  "rwkv: enable gprof"                                   OFF)
 
-# sanitizers
+# Sanitizers
 option(RWKV_SANITIZE_THREAD        "rwkv: enable thread sanitizer"                        OFF)
 option(RWKV_SANITIZE_ADDRESS       "rwkv: enable address sanitizer"                       OFF)
 option(RWKV_SANITIZE_UNDEFINED     "rwkv: enable undefined sanitizer"                     OFF)
 
-# instruction set specific
+# Instruction set specific
 option(RWKV_AVX                    "rwkv: enable AVX"                                     ON)
 option(RWKV_AVX2                   "rwkv: enable AVX2"                                    ON)
 option(RWKV_AVX512                 "rwkv: enable AVX512"                                  OFF)
@@ -66,7 +45,9 @@ option(RWKV_OPENBLAS               "rwkv: use OpenBLAS"                         
 # Compile flags
 #
 
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED true)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -99,6 +80,7 @@ if (APPLE AND RWKV_ACCELERATE)
         message(WARNING "Accelerate framework not found")
     endif()
 endif()
+
 if (RWKV_OPENBLAS)
     if (RWKV_STATIC)
         set(BLA_STATIC ON)
@@ -135,9 +117,15 @@ if (RWKV_ALL_WARNINGS)
             -Wpedantic
             -Wcast-qual
             -Wno-unused-function
+            -Wno-multichar
         )
     else()
-        # todo : msvc
+        set(c_flags
+            -W4
+        )
+        set(cxx_flags
+            -W4
+        )
     endif()
 
     add_compile_options(
@@ -158,7 +146,7 @@ if (RWKV_LTO)
 endif()
 
 # Architecture specific
-# TODO: probably these flags need to be tweaked on some architectures
+# TODO [llama.cpp]: probably these flags need to be tweaked on some architectures
 #       feel free to update the Makefile for your architecture and send a pull request or issue
 message(STATUS "CMAKE_SYSTEM_PROCESSOR: ${CMAKE_SYSTEM_PROCESSOR}")
 if (NOT MSVC)
@@ -179,12 +167,12 @@ endif()
 if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm" OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
     message(STATUS "ARM detected")
     if (MSVC)
-        # TODO: arm msvc?
+        # TODO [llama.cpp]: arm msvc?
     else()
         if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
             add_compile_options(-mcpu=native)
         endif()
-        # TODO: armv6,7,8 version specific flags
+        # TODO [llama.cpp]: armv6,7,8 version specific flags
     endif()
 elseif (${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(x86_64|i686|AMD64)$")
     message(STATUS "x86 detected")
@@ -209,13 +197,11 @@ elseif (${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(x86_64|i686|AMD64)$")
         endif()
         if (RWKV_AVX512)
             add_compile_options(-mavx512f)
-            # add_compile_options(-mavx512cd)
-            # add_compile_options(-mavx512dq)
-            # add_compile_options(-mavx512bw)
+            add_compile_options(-mavx512bw)
         endif()
     endif()
 else()
-    # TODO: support PowerPC
+    # TODO [llama.cpp]: support PowerPC
     message(STATUS "Unknown architecture")
 endif()
 
@@ -223,51 +209,30 @@ endif()
 # Build libraries
 #
 
-add_library(ggml OBJECT
-            ggml.c
-            ggml.h)
+if (MSVC)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+endif()
 
-target_include_directories(ggml PUBLIC .)
-target_compile_features(ggml PUBLIC c_std_11) # don't bump
-target_link_libraries(ggml PRIVATE Threads::Threads ${RWKV_EXTRA_LIBS})
-if (BUILD_SHARED_LIBS)
+add_subdirectory(ggml)
+
+if (RWKV_BUILD_SHARED_LIBRARY)
     set_target_properties(ggml PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
-add_library(rwkv
-            rwkv.cpp
-            rwkv.h)
+if (RWKV_BUILD_SHARED_LIBRARY)
+    add_library(rwkv SHARED rwkv.cpp rwkv.h)
+else()
+    add_library(rwkv rwkv.cpp rwkv.h)
+endif()
 
 target_include_directories(rwkv PUBLIC .)
-target_compile_features(rwkv PUBLIC cxx_std_11) # don't bump
+target_compile_features(rwkv PUBLIC cxx_std_11)
 target_link_libraries(rwkv PRIVATE ggml ${RWKV_EXTRA_LIBS})
 
-if (BUILD_SHARED_LIBS)
+if (RWKV_BUILD_SHARED_LIBRARY)
     set_target_properties(rwkv PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(rwkv PRIVATE RWKV_SHARED RWKV_BUILD)
 endif()
 
-if (SKBUILD)
-    if (UNIX)
-        add_custom_command(
-            OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/librwkv.so
-            COMMAND make librwkv.so
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        )
-        add_custom_target(
-            run ALL
-            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/librwkv.so
-        )
-        install(
-            FILES ${CMAKE_CURRENT_SOURCE_DIR}/librwkv.so
-            DESTINATION rwkv_cpp
-        )
-    else()
-        set(BUILD_SHARED_LIBS "On")
-        install(
-            TARGETS rwkv 
-            LIBRARY DESTINATION rwkv_cpp
-            RUNTIME DESTINATION rwkv_cpp
-        )
-    endif(UNIX)
-endif(SKBUILD)
+enable_testing()
+add_subdirectory(tests)

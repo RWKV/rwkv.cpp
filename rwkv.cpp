@@ -15,41 +15,61 @@
 
 // --- Utilities ---
 
-#define FP32_SIZE 4
-
-// Checks that x is not false. If x is false, prints fancy message to stderr and returns 0.
-#define RWKV_ASSERT_FALSE(x, ...) \
-    do { \
+// Checks that x is not false. If x is false, prints fancy message to stderr and returns RET_VAL.
+#define RWKV_ASSERT(RET_VAL, x, ...) \
+    { \
         if (!(x)) { \
             fprintf(stderr, __VA_ARGS__); \
             fprintf(stderr, "\n%s:%d: %s\n", __FILE__, __LINE__, #x); \
-            return false; \
+            return RET_VAL; \
         } \
-    } while (0)
+    }
+
+// Checks that x is not false. If x is false, prints fancy message to stderr and returns false.
+#define RWKV_ASSERT_FALSE(x, ...) RWKV_ASSERT(false, x, __VA_ARGS__)
 
 // Checks that x is not false. If x is false, prints fancy message to stderr and returns NULL.
-#define RWKV_ASSERT_NULL(x, ...) \
-    do { \
-        if (!(x)) { \
-            fprintf(stderr, __VA_ARGS__); \
-            fprintf(stderr, "\n%s:%d: %s\n", __FILE__, __LINE__, #x); \
-            return NULL; \
-        } \
-    } while (0)
+#define RWKV_ASSERT_NULL(x, ...) RWKV_ASSERT(NULL, x, __VA_ARGS__)
 
 // Reads single int32 value from a file.
 bool read_int32(FILE * file, int32_t * dest) {
-    RWKV_ASSERT_FALSE(fread(dest, 4, 1, file) == 1, "Failed to read an int32 value from a file");
+    RWKV_ASSERT_FALSE(fread(dest, sizeof(int32_t), 1, file) == 1, "Failed to read an int32 value from a file");
     return true;
 }
 
-static const ggml_type FORMAT_TYPE_TO_GGML_TYPE[5] = {
+// Reads single uint32 value from a file.
+bool read_uint32(FILE * file, uint32_t * dest) {
+    RWKV_ASSERT_FALSE(fread(dest, sizeof(uint32_t), 1, file) == 1, "Failed to read a uint32 value from a file");
+    return true;
+}
+
+#define GGML_TYPE_UNKNOWN GGML_TYPE_COUNT
+
+#define FORMAT_TYPE_COUNT 10
+
+static const ggml_type FORMAT_TYPE_TO_GGML_TYPE[FORMAT_TYPE_COUNT] = {
     GGML_TYPE_F32,
     GGML_TYPE_F16,
     GGML_TYPE_Q4_0,
     GGML_TYPE_Q4_1,
-    GGML_TYPE_Q4_1_O
+    GGML_TYPE_UNKNOWN, // Unused
+    GGML_TYPE_Q4_2,
+    GGML_TYPE_UNKNOWN, // Unused
+    GGML_TYPE_Q5_0,
+    GGML_TYPE_Q5_1,
+    GGML_TYPE_Q8_0
 };
+
+static int32_t format_name_to_format_type(const char * format_name) {
+    if (strcmp(format_name, "Q4_0") == 0) return 2;
+    if (strcmp(format_name, "Q4_1") == 0) return 3;
+    if (strcmp(format_name, "Q4_2") == 0) return 5;
+    if (strcmp(format_name, "Q5_0") == 0) return 7;
+    if (strcmp(format_name, "Q5_1") == 0) return 8;
+    if (strcmp(format_name, "Q8_0") == 0) return 9;
+
+    return -1;
+}
 
 // --- Model definition and loading utilities ---
 
@@ -80,9 +100,9 @@ struct rwkv_layer {
 };
 
 struct rwkv_model {
-    int32_t n_vocab;
-    int32_t n_layer;
-    int32_t n_embed;
+    uint32_t n_vocab;
+    uint32_t n_layer;
+    uint32_t n_embed;
     // 0 for float32, 1 for float16.
     int32_t data_type;
 
@@ -118,6 +138,46 @@ bool set_block_parameter(std::unordered_map<std::string, struct ggml_tensor *> *
 
 // --- Operators ---
 
+void rwkv_exp_impl(const int n_cols, float * dest, const float * src) {
+    for (int i = 0; i < n_cols; i++) {
+        dest[i] = expf(src[i]);
+    }
+}
+
+void rwkv_1_minus_x_impl(const int n_cols, float * dest, const float * src) {
+    for (int i = 0; i < n_cols; i++) {
+        dest[i] = 1.0F - src[i];
+    }
+}
+
+void rwkv_sigmoid_impl(const int n_cols, float * dest, const float * src) {
+    for (int i = 0; i < n_cols; i++) {
+        dest[i] = 1.0F / (1.0F + expf(-src[i]));
+    }
+}
+
+void rwkv_max_impl(const int n_cols, float * dest, const float * src0, const float * src1) {
+    for (int i = 0; i < n_cols; i++) {
+        dest[i] = fmaxf(src0[i], src1[i]);
+    }
+}
+
+struct ggml_tensor * rwkv_exp(ggml_context * ctx, struct ggml_tensor * x) {
+    return ggml_map_unary_f32(ctx, x, rwkv_exp_impl);
+}
+
+struct ggml_tensor * rwkv_1_minus_x(ggml_context * ctx, struct ggml_tensor * x) {
+    return ggml_map_unary_f32(ctx, x, rwkv_1_minus_x_impl);
+}
+
+struct ggml_tensor * rwkv_sigmoid(ggml_context * ctx, struct ggml_tensor * x) {
+    return ggml_map_unary_f32(ctx, x, rwkv_sigmoid_impl);
+}
+
+struct ggml_tensor * rwkv_max(ggml_context * ctx, struct ggml_tensor * x, struct ggml_tensor * y) {
+    return ggml_map_binary_f32(ctx, x, y, rwkv_max_impl);
+}
+
 struct ggml_tensor * rwkv_layer_norm(ggml_context * ctx, struct ggml_tensor * x, struct ggml_tensor * weight, struct ggml_tensor * bias) {
     // LayerNorm in RWKV is `x = (x - mean(x)) / sqrt(variance(x) + 1e-5) * weight + bias`
     // Looks like ggml_norm does the first part, we only need to apply weight & bias.
@@ -140,7 +200,7 @@ struct rwkv_context {
     bool freed;
 };
 
-struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_threads) {
+struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads) {
     FILE * file = fopen(file_path, "rb");
     RWKV_ASSERT_NULL(file != NULL, "Failed to open file %s", file_path);
 
@@ -154,24 +214,21 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
 
     struct rwkv_model * model = (struct rwkv_model *) calloc(1, sizeof(struct rwkv_model));
 
-    read_int32(file, &(model->n_vocab));
-    RWKV_ASSERT_NULL(model->n_vocab > 0, "Non-positive n_vocab %d", model->n_vocab);
-
-    read_int32(file, &(model->n_embed));
-    RWKV_ASSERT_NULL(model->n_embed > 0, "Non-positive n_embed %d", model->n_embed);
-
-    read_int32(file, &(model->n_layer));
-    RWKV_ASSERT_NULL(model->n_layer > 0, "Non-positive n_layer %d", model->n_layer);
+    read_uint32(file, &(model->n_vocab));
+    read_uint32(file, &(model->n_embed));
+    read_uint32(file, &(model->n_layer));
 
     read_int32(file, &(model->data_type));
+    RWKV_ASSERT_NULL(model->data_type >= 0 && model->data_type < FORMAT_TYPE_COUNT, "Unsupported model data type %d", model->data_type);
+
     RWKV_ASSERT_NULL(
-        model->data_type == 0 ||
-            model->data_type == 1 ||
-            model->data_type == 2 ||
-            model->data_type == 3 ||
-            model->data_type == 4,
-        "Unsupported model data type %d",
-        model->data_type
+        model->data_type != 4,
+        "Models in Q4_1_O format cannot be loaded anymore because the format was removed. You need to quantize the model into another format"
+    );
+
+    RWKV_ASSERT_NULL(
+        model->data_type != 6,
+        "Models in Q4_3 format cannot be loaded anymore because the format was removed. You need to quantize the model into another format"
     );
 
     // Parameter tensors would take at least this amount in memory.
@@ -197,7 +254,10 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
         size_t(256) * 1024 * 1024;
 
     // Initialize ggml
-    struct ggml_init_params params = { .mem_size = memory_required, .mem_buffer = NULL };
+    struct ggml_init_params params;
+    params.mem_size = memory_required;
+    params.mem_buffer = NULL;
+    params.no_alloc = false;
     struct ggml_context * ctx = ggml_init(params);
 
     std::unordered_map<std::string, struct ggml_tensor *> parameters;
@@ -219,17 +279,11 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
 
         int32_t data_type;
         read_int32(file, &data_type);
-        RWKV_ASSERT_NULL(
-            data_type == 0 ||
-                data_type == 1 ||
-                data_type == 2 ||
-                data_type == 3 ||
-                data_type == 4,
-            "Unsupported parameter data type %d",
-            data_type
-        );
+        RWKV_ASSERT_NULL(data_type >= 0 && data_type < FORMAT_TYPE_COUNT, "Unsupported parameter data type %d", data_type);
 
         ggml_type ggml_data_type = FORMAT_TYPE_TO_GGML_TYPE[data_type];
+
+        RWKV_ASSERT_NULL(ggml_data_type != GGML_TYPE_UNKNOWN, "Unsupported parameter data type %d", data_type);
 
         struct ggml_tensor * tensor;
 
@@ -264,7 +318,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
     set_parameter(&parameters, "blocks.0.ln0.weight", &(model->ln0_weight));
     set_parameter(&parameters, "blocks.0.ln0.bias", &(model->ln0_bias));
 
-    for (int i = 0; i < model->n_layer; i++) {
+    for (uint32_t i = 0; i < model->n_layer; i++) {
         rwkv_layer layer = model->layers[i];
 
         set_block_parameter(&parameters, i, "ln1.weight", &(layer.ln1_weight));
@@ -300,11 +354,11 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
     // Verify order of dimensions
     struct ggml_tensor * emb = model->emb;
     RWKV_ASSERT_NULL(emb->n_dims == 2, "Unexpected dimension count of embedding matrix %d", emb->n_dims);
-    RWKV_ASSERT_NULL(emb->ne[0] == model->n_embed, "Unexpected dimension of embedding matrix %d", emb->ne[0]);
-    RWKV_ASSERT_NULL(emb->ne[1] == model->n_vocab, "Unexpected dimension of embedding matrix %d", emb->ne[1]);
+    RWKV_ASSERT_NULL(emb->ne[0] == model->n_embed, "Unexpected dimension of embedding matrix %lld", emb->ne[0]);
+    RWKV_ASSERT_NULL(emb->ne[1] == model->n_vocab, "Unexpected dimension of embedding matrix %lld", emb->ne[1]);
 
-    int32_t n_embed = model->n_embed;
-    int32_t n_layer = model->n_layer;
+    uint32_t n_embed = model->n_embed;
+    uint32_t n_layer = model->n_layer;
 
     // Build graph
     struct ggml_tensor * state = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n_layer * 5 * n_embed);
@@ -319,7 +373,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
     // We collect parts of new state here. Each part is (n_embed) vector.
     struct ggml_tensor ** state_parts = new ggml_tensor * [n_layer * 5];
 
-    for (int i = 0; i < n_layer; i++) {
+    for (uint32_t i = 0; i < n_layer; i++) {
         auto layer = model->layers[i];
 
         // RWKV/time mixing
@@ -327,30 +381,30 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
             // self.layer_norm(x, self.w.blocks[i].ln1)
             struct ggml_tensor * x0 = rwkv_layer_norm(ctx, x, layer.ln1_weight, layer.ln1_bias);
             // state[5 * i + 1]
-            struct ggml_tensor * x_prev = ggml_view_1d(ctx, state, n_embed, (5 * i + 1) * n_embed * FP32_SIZE);
+            struct ggml_tensor * x_prev = ggml_view_1d(ctx, state, n_embed, (5 * i + 1) * n_embed * sizeof(float));
             // xk = x * time_mix_k + state[5 * i + 1] * (1 - time_mix_k)
             // xv = x * time_mix_v + state[5 * i + 1] * (1 - time_mix_v)
             // xr = x * time_mix_r + state[5 * i + 1] * (1 - time_mix_r)
             struct ggml_tensor * xk = ggml_add(
                 ctx,
                 ggml_mul(ctx, x0, layer.att_time_mix_k),
-                ggml_mul(ctx, x_prev, ggml_1_minus_x(ctx, layer.att_time_mix_k))
+                ggml_mul(ctx, x_prev, rwkv_1_minus_x(ctx, layer.att_time_mix_k))
             );
             struct ggml_tensor * xv = ggml_add(
                 ctx,
                 ggml_mul(ctx, x0, layer.att_time_mix_v),
-                ggml_mul(ctx, x_prev, ggml_1_minus_x(ctx, layer.att_time_mix_v))
+                ggml_mul(ctx, x_prev, rwkv_1_minus_x(ctx, layer.att_time_mix_v))
             );
             struct ggml_tensor * xr = ggml_add(
                 ctx,
                 ggml_mul(ctx, x0, layer.att_time_mix_r),
-                ggml_mul(ctx, x_prev, ggml_1_minus_x(ctx, layer.att_time_mix_r))
+                ggml_mul(ctx, x_prev, rwkv_1_minus_x(ctx, layer.att_time_mix_r))
             );
             // state[5 * i + 1] = x
             state_parts[5 * i + 1] = x0;
 
             // r = torch.sigmoid(rw @ xr)
-            struct ggml_tensor * r = ggml_sigmoid(
+            struct ggml_tensor * r = rwkv_sigmoid(
                 ctx,
                 ggml_mul_mat(ctx, layer.att_receptance, xr)
             );
@@ -362,18 +416,18 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
             // aa = state[5 * i + 2]
             // bb = state[5 * i + 3]
             // pp = state[5 * i + 4]
-            struct ggml_tensor * aa = ggml_view_1d(ctx, state, n_embed, (5 * i + 2) * n_embed * FP32_SIZE);
-            struct ggml_tensor * bb = ggml_view_1d(ctx, state, n_embed, (5 * i + 3) * n_embed * FP32_SIZE);
-            struct ggml_tensor * pp = ggml_view_1d(ctx, state, n_embed, (5 * i + 4) * n_embed * FP32_SIZE);
+            struct ggml_tensor * aa = ggml_view_1d(ctx, state, n_embed, (5 * i + 2) * n_embed * sizeof(float));
+            struct ggml_tensor * bb = ggml_view_1d(ctx, state, n_embed, (5 * i + 3) * n_embed * sizeof(float));
+            struct ggml_tensor * pp = ggml_view_1d(ctx, state, n_embed, (5 * i + 4) * n_embed * sizeof(float));
 
             // ww = time_first + k
             struct ggml_tensor * ww = ggml_add(ctx, layer.att_time_first, k);
             // qq = torch.maximum(pp, ww)
-            struct ggml_tensor * qq = ggml_max(ctx, pp, ww);
+            struct ggml_tensor * qq = rwkv_max(ctx, pp, ww);
             // e1 = torch.exp(pp - qq)
-            struct ggml_tensor * e1 = ggml_exp(ctx, ggml_sub(ctx, pp, qq));
+            struct ggml_tensor * e1 = rwkv_exp(ctx, ggml_sub(ctx, pp, qq));
             // e2 = torch.exp(ww - qq)
-            struct ggml_tensor * e2 = ggml_exp(ctx, ggml_sub(ctx, ww, qq));
+            struct ggml_tensor * e2 = rwkv_exp(ctx, ggml_sub(ctx, ww, qq));
             // a = e1 * aa + e2 * v
             struct ggml_tensor * a = ggml_add(
                 ctx,
@@ -391,11 +445,11 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
             // ww = pp + time_decay
             ww = ggml_add(ctx, pp, layer.att_time_decay);
             // qq = torch.maximum(ww, k)
-            qq = ggml_max(ctx, ww, k);
+            qq = rwkv_max(ctx, ww, k);
             // e1 = torch.exp(ww - qq)
-            e1 = ggml_exp(ctx, ggml_sub(ctx, ww, qq));
+            e1 = rwkv_exp(ctx, ggml_sub(ctx, ww, qq));
             // e2 = torch.exp(k - qq)
-            e2 = ggml_exp(ctx, ggml_sub(ctx, k, qq));
+            e2 = rwkv_exp(ctx, ggml_sub(ctx, k, qq));
             // state[5 * i + 2] = e1 * aa + e2 * v
             state_parts[5 * i + 2] = ggml_add(
                 ctx,
@@ -427,24 +481,24 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
             // self.layer_norm(x, self.w.blocks[i].ln2)
             struct ggml_tensor * x0 = rwkv_layer_norm(ctx, x, layer.ln2_weight, layer.ln2_bias);
             // state[5 * i + 0]
-            struct ggml_tensor * x_prev = ggml_view_1d(ctx, state, n_embed, (5 * i + 0) * n_embed * FP32_SIZE);
+            struct ggml_tensor * x_prev = ggml_view_1d(ctx, state, n_embed, (5 * i + 0) * n_embed * sizeof(float));
             // xk = x * time_mix_k + state[5 * i + 0] * (1 - time_mix_k)
             // xr = x * time_mix_r + state[5 * i + 0] * (1 - time_mix_r)
             struct ggml_tensor * xk = ggml_add(
                 ctx,
                 ggml_mul(ctx, x0, layer.ffn_time_mix_k),
-                ggml_mul(ctx, x_prev, ggml_1_minus_x(ctx, layer.ffn_time_mix_k))
+                ggml_mul(ctx, x_prev, rwkv_1_minus_x(ctx, layer.ffn_time_mix_k))
             );
             struct ggml_tensor * xr = ggml_add(
                 ctx,
                 ggml_mul(ctx, x0, layer.ffn_time_mix_r),
-                ggml_mul(ctx, x_prev, ggml_1_minus_x(ctx, layer.ffn_time_mix_r))
+                ggml_mul(ctx, x_prev, rwkv_1_minus_x(ctx, layer.ffn_time_mix_r))
             );
             // state[5 * i + 0] = x
             state_parts[5 * i + 0] = x0;
 
             // r = torch.sigmoid(rw @ xr)
-            struct ggml_tensor * r = ggml_sigmoid(
+            struct ggml_tensor * r = rwkv_sigmoid(
                 ctx,
                 ggml_mul_mat(ctx, layer.ffn_receptance, xr)
             );
@@ -476,7 +530,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
 
     *graph = ggml_build_forward(logits);
 
-    for (int i = 0; i < n_layer * 5; i++) {
+    for (uint32_t i = 0; i < n_layer * 5; i++) {
        ggml_build_forward_expand(graph, state_parts[i]);
     }
 
@@ -493,69 +547,77 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, uint32_t n_thr
     return rwkv_ctx;
 }
 
-uint32_t rwkv_get_state_buffer_element_count(struct rwkv_context * ctx) {
+uint32_t rwkv_get_state_buffer_element_count(const struct rwkv_context * ctx) {
     return ctx->model->n_layer * 5 * ctx->model->n_embed;
 }
 
-uint32_t rwkv_get_logits_buffer_element_count(struct rwkv_context * ctx) {
+uint32_t rwkv_get_logits_buffer_element_count(const struct rwkv_context * ctx) {
     return ctx->model->n_vocab;
 }
 
-bool rwkv_eval(struct rwkv_context * ctx, int32_t token, float * state_in, float * state_out, float * logits_out) {
+bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const float * state_in, float * state_out, float * logits_out) {
     RWKV_ASSERT_FALSE(state_out != NULL, "state_out is NULL");
     RWKV_ASSERT_FALSE(logits_out != NULL, "logits_out is NULL");
 
-    int32_t n_layer = ctx->model->n_layer;
-    int32_t n_embed = ctx->model->n_embed;
-    int32_t n_vocab = ctx->model->n_vocab;
+    uint32_t n_layer = ctx->model->n_layer;
+    uint32_t n_embed = ctx->model->n_embed;
+    uint32_t n_vocab = ctx->model->n_vocab;
 
-    RWKV_ASSERT_FALSE(token >= 0 && token < n_vocab, "Token is out of range 0..%d", n_vocab - 1);
+    RWKV_ASSERT_FALSE(token < (uint32_t) n_vocab, "Token is out of range 0..%d", n_vocab - 1);
 
-    ggml_set_i32(ctx->token_index, 0);
     ggml_set_i32_1d(ctx->token_index, 0, token);
 
     if (state_in == NULL) {
         ggml_set_f32(ctx->state, 0.0F);
 
-        for (int i = 0; i < n_layer; i++) {
+        for (uint32_t i = 0; i < n_layer; i++) {
             // state[5 * i + 4] = -1e30
             ggml_set_f32(
-                ggml_view_1d(ctx->ctx, ctx->state, n_embed, (5 * i + 4) * n_embed * FP32_SIZE),
+                ggml_view_1d(ctx->ctx, ctx->state, n_embed, (5 * i + 4) * n_embed * sizeof(float)),
                 -1e30F
             );
         }
     } else {
-        memcpy(ctx->state->data, state_in, ctx->state->ne[0] * FP32_SIZE);
+        memcpy(ctx->state->data, state_in, ctx->state->ne[0] * sizeof(float));
     }
 
     ggml_graph_compute(ctx->ctx, ctx->graph);
 
-    for (size_t i = 0; i < size_t(n_layer * 5); i++) {
+    for (uint32_t i = 0; i < n_layer * 5; i++) {
         struct ggml_tensor * part = ctx->state_parts[i];
 
-        memcpy(state_out + i * n_embed, part->data, part->ne[0] * FP32_SIZE);
+        memcpy(state_out + i * n_embed, part->data, part->ne[0] * sizeof(float));
     }
 
-    memcpy(logits_out, ctx->logits->data, ctx->logits->ne[0] * FP32_SIZE);
-
-    // Uncomment to measure used memory for adding the value into get_memory_required_mb.
-    //fprintf(stderr, "Used mem: %d MB\n", ggml_used_mem(ctx->ctx) / 1024 / 1024);
+    memcpy(logits_out, ctx->logits->data, ctx->logits->ne[0] * sizeof(float));
 
     return true;
 }
 
 void rwkv_free(struct rwkv_context * ctx) {
+    ctx->model->layers.~vector();
+    free(ctx->model);
+    delete[] ctx->state_parts;
     ggml_free(ctx->ctx);
-
-    delete ctx->model;
-    delete ctx->state_parts;
-    delete ctx;
+    free(ctx->graph);
+    free(ctx);
 }
 
-bool rwkv_quantize_model_file(const char * model_file_path_in, const char * model_file_path_out, uint32_t q_type) {
-    RWKV_ASSERT_FALSE(q_type == 2 || q_type == 3 || q_type == 4, "Unsupported quantization type %d", q_type);
+bool rwkv_quantize_model_file(const char * model_file_path_in, const char * model_file_path_out, const char * format_name) {
+    int32_t format_type = format_name_to_format_type(format_name);
 
-    ggml_type type = FORMAT_TYPE_TO_GGML_TYPE[q_type];
+    RWKV_ASSERT_FALSE(format_type != -1, "Unsupported format \"%s\"", format_name);
+
+    ggml_type type = FORMAT_TYPE_TO_GGML_TYPE[format_type];
+
+    RWKV_ASSERT_FALSE(type != GGML_TYPE_UNKNOWN, "Unsupported format \"%s\"", format_name);
+
+    // Needed to initialize FP16 lookup table
+    {
+        struct ggml_init_params params = { 0, NULL, false };
+        struct ggml_context * ctx = ggml_init(params);
+        ggml_free(ctx);
+    }
 
     printf("Loading model from '%s'\n", model_file_path_in);
 
@@ -589,7 +651,7 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
 
         RWKV_ASSERT_FALSE(data_type == 0 || data_type == 1, "Unsupported data type %d, only FP32 and FP16 can be quantized", data_type);
 
-        data_type = q_type;
+        data_type = format_type;
 
         fout.write((char *) &n_vocab, sizeof(n_vocab));
         fout.write((char *) &n_embed, sizeof(n_embed));
@@ -623,6 +685,12 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
                 break;
             }
 
+            RWKV_ASSERT_FALSE(parameter_data_type >= 0 && parameter_data_type < FORMAT_TYPE_COUNT, "Invalid parameter data type %d", parameter_data_type);
+
+            ggml_type parameter_ggml_type = FORMAT_TYPE_TO_GGML_TYPE[parameter_data_type];
+
+            RWKV_ASSERT_FALSE(parameter_ggml_type != GGML_TYPE_UNKNOWN, "Invalid parameter data type %d", parameter_data_type);
+
             int32_t nelements = 1;
             int32_t ne[2] = { 1, 1 };
             for (int i = 0; i < n_dims; ++i) {
@@ -634,16 +702,9 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
             finp.read(&name[0], key_length);
 
             {
-                static const char * parameter_data_type_str[] = {
-                    "F32",
-                    "F16",
-                    "Q4_0",
-                    "Q4_1",
-                    "Q4_1_O"
-                };
-                printf("%48s - [%5d, %5d], type = %6s ", name.data(), ne[0], ne[1], parameter_data_type_str[parameter_data_type]);
+                printf("%48s - [%5d, %5d], type = %6s ", name.data(), ne[0], ne[1], ggml_type_name(parameter_ggml_type));
 
-                total_size_orig += (size_t) (nelements * ggml_type_sizef(FORMAT_TYPE_TO_GGML_TYPE[parameter_data_type]));
+                total_size_orig += (size_t) (nelements * ggml_type_sizef(parameter_ggml_type));
             }
 
             // Quantize only 2D tensors, except embedding and head matrices.
@@ -672,7 +733,7 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
                     finp.read(reinterpret_cast<char *>(data_f32.data()), nelements * sizeof(float));
                 }
 
-                parameter_data_type = q_type;
+                parameter_data_type = format_type;
             } else {
                 const int bytes_per_element = (parameter_data_type == 0) ? sizeof(float) : sizeof(uint16_t);
                 data_u8.resize(nelements * bytes_per_element);
@@ -699,22 +760,27 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
 
                 switch (type) {
                     case GGML_TYPE_Q4_0:
-                        {
-                            cur_size = ggml_quantize_q4_0(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
-                        } break;
+                        cur_size = ggml_quantize_q4_0(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
+                        break;
                     case GGML_TYPE_Q4_1:
-                        {
-                            cur_size = ggml_quantize_q4_1(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
-                        } break;
-                    case GGML_TYPE_Q4_1_O:
-                        {
-                            cur_size = ggml_quantize_q4_1_o(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
-                        } break;
-                    default:
-                        {
-                            fprintf(stderr, "unsupported quantization type %d\n", type);
-                            return false;
-                        }
+                        cur_size = ggml_quantize_q4_1(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
+                        break;
+                    case GGML_TYPE_Q4_2:
+                        cur_size = ggml_quantize_q4_2(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
+                        break;
+                    case GGML_TYPE_Q5_0:
+                        cur_size = ggml_quantize_q5_0(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
+                        break;
+                    case GGML_TYPE_Q5_1:
+                        cur_size = ggml_quantize_q5_1(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
+                        break;
+                    case GGML_TYPE_Q8_0:
+                        cur_size = ggml_quantize_q8_0(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
+                        break;
+                    default: {
+                        fprintf(stderr, "unsupported quantization type %d\n", type);
+                        return false;
+                    }
                 }
 
                 fout.write(reinterpret_cast<char *>(work.data()), cur_size);

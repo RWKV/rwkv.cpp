@@ -14,9 +14,10 @@ from typing import List
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Measure perplexity and per-token latency of an RWKV model on a given text file')
-    parser.add_argument('model_path', help='Path to model checkpoint file')
-    parser.add_argument('text_path', help='Path to text file in UTF-8 encoding')
-    parser.add_argument('ignore_first_n_tokens', help='How many tokens should be skipped before loss is measured', type=int, default=1024)
+    parser.add_argument('model_path', help='Path to model checkpoint file', type=str)
+    parser.add_argument('text_path', help='Path to text file in UTF-8 encoding', type=str)
+    parser.add_argument('ignore_first_n_tokens', help='How many tokens should be skipped before loss is measured', type=int)
+    parser.add_argument('token_limit', help='How many tokens to process; set to -1 to process all text', nargs='?', type=int, default=-1)
     return parser.parse_args()
 
 args = parse_args()
@@ -32,6 +33,15 @@ text: str = open(args.text_path, encoding='utf-8').read()
 tokens: List[int] = tokenizer.encode(text).ids
 token_count: int = len(tokens)
 print(f'{token_count} tokens in the text')
+
+token_limit: int = args.token_limit
+
+assert token_limit == -1 or token_limit > 0, 'Invalid token_limit'
+
+if token_limit != -1 and token_count > token_limit:
+    tokens = tokens[0:token_limit]
+    token_count = token_limit
+    print(f'Text was limited to {token_limit} tokens')
 
 assert token_count - args.ignore_first_n_tokens > 1, 'Need at least 2 tokens for evaluation'
 
@@ -73,7 +83,7 @@ for i in range(run_count):
         loss_sum += losses
         loss_count += 1
 
-    if i % 10 == 0:
+    if run_count <= 5 or i % (run_count // 10) == 0:
         avg_loss_so_far = loss_sum / loss_count
 
         duration: float = time.time() - start
@@ -91,10 +101,8 @@ for i in range(run_count):
             print()
 
 print()
-print(f'Average latency: {int((time.time() - start) * 1000 / run_count)} ms per token')
-
-print()
 print(f'Model: {os.path.basename(args.model_path)}, '
       f'data: {os.path.basename(args.text_path)} with {token_count} tokens, '
       f'skipped {args.ignore_first_n_tokens} tokens, '
-      f'averages: {format_loss_with_perplexity(loss_sum / loss_count)}')
+      f'averages: {format_loss_with_perplexity(loss_sum / loss_count)}, '
+      f'latency {int((time.time() - start) * 1000 / run_count)} ms per token')
