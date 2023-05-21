@@ -13,6 +13,7 @@ import rwkv_cpp_model
 import rwkv_cpp_shared_library
 import json
 from typing import Optional
+import time
 
 # ======================================== Script settings ========================================
 
@@ -99,10 +100,13 @@ def load_thread_state(_thread: str) -> None:
     state = copy.deepcopy(thread_state['state'])
 
 # =================================================================================================
-
+T1 = time.time()
 print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
 process_tokens(tokenizer.encode(init_prompt).ids)
+T2 = time.time()
+print(f'Process time :{((T2 - T1)*1000)} ms')
+print(f'Process time per token :{(((T2 - T1)*1000)) / prompt_token_count} ms')
 
 save_thread_state('chat_init')
 save_thread_state('chat')

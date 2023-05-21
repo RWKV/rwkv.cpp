@@ -209,6 +209,10 @@ def load_rwkv_shared_library() -> RWKVSharedLibrary:
         f'../bin/Release/{file_name}',
         # If we are in repo root directory
         f'bin/Release/{file_name}',
+        # If we compiled in build directory
+        f'build/bin/Release/{file_name}',
+        # If we compiled in build directory
+        f'build/{file_name}',
         # Search relative to this file
         str(repo_root_dir / 'bin' / 'Release' / file_name),
         # Fallback
