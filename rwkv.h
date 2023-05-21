@@ -5,8 +5,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "ggml.h"
-
 #ifdef RWKV_SHARED
 #    if defined(_WIN32) && !defined(__MINGW32__)
 #        ifdef RWKV_BUILD
@@ -29,17 +27,7 @@
 extern "C" {
 #endif
 
-    struct rwkv_context {
-        struct rwkv_model * model;
-        struct ggml_tensor * token_index;
-        struct ggml_tensor * state;
-        struct ggml_tensor ** state_parts;
-        struct ggml_tensor * logits;
-        struct ggml_context * ctx;
-        struct ggml_cgraph * graph;
-        bool freed;
-    };
-
+    struct rwkv_context;
 
     // Loads the model from a file and prepares it for inference.
     // Returns NULL on any error. Error messages would be printed to stderr.
