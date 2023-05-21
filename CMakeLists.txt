@@ -39,6 +39,7 @@ option(RWKV_FMA                    "rwkv: enable FMA"                           
 # 3rd party libs
 option(RWKV_ACCELERATE             "rwkv: enable Accelerate framework"                    ON)
 option(RWKV_OPENBLAS               "rwkv: use OpenBLAS"                                   OFF)
+option(RWKV_CUBLAS                 "rwkv: use CuBLAS"                                     OFF)
 
 #
 # Compile flags
@@ -94,6 +95,30 @@ if (RWKV_OPENBLAS)
         add_link_options(${BLAS_LIBRARIES})
     else()
         message(WARNING "OpenBLAS not found")
+    endif()
+endif()
+
+if (RWKV_CUBLAS)
+    cmake_minimum_required(VERSION 3.17)
+
+    find_package(CUDAToolkit)
+    if (CUDAToolkit_FOUND)
+        message(STATUS "cuBLAS found")
+
+        enable_language(CUDA)
+
+        set(GGML_CUDA_SOURCES ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.h)
+
+        add_compile_definitions(GGML_USE_CUBLAS)
+
+        if (RWKV_STATIC)
+            set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} CUDA::cudart_static CUDA::cublas_static CUDA::cublasLt_static)
+        else()
+            set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} CUDA::cudart CUDA::cublas CUDA::cublasLt)
+        endif()
+
+    else()
+        message(WARNING "cuBLAS not found")
     endif()
 endif()
 
@@ -177,11 +202,18 @@ elseif (${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(x86_64|i686|AMD64)$")
     message(STATUS "x86 detected")
     if (MSVC)
         if (RWKV_AVX512)
-            add_compile_options(/arch:AVX512)
+            add_compile_options($<$<COMPILE_LANGUAGE:C>:/arch:AVX512>)
+            add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/arch:AVX512>)
+            # MSVC has no compile-time flags enabling specific
+            # AVX512 extensions, neither it defines the
+            # macros corresponding to the extensions.
+            # Do it manually.
         elseif (RWKV_AVX2)
-            add_compile_options(/arch:AVX2)
+            add_compile_options($<$<COMPILE_LANGUAGE:C>:/arch:AVX2>)
+            add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/arch:AVX2>)
         elseif (RWKV_AVX)
-            add_compile_options(/arch:AVX)
+            add_compile_options($<$<COMPILE_LANGUAGE:C>:/arch:AVX>)
+            add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/arch:AVX>)
         endif()
     else()
         add_compile_options(-mf16c)
@@ -212,7 +244,14 @@ if (MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
-add_subdirectory(ggml)
+add_library(ggml OBJECT
+            ${CMAKE_SOURCE_DIR}/ggml/src/ggml.c
+            ${CMAKE_SOURCE_DIR}/ggml/include/ggml/ggml.h
+            ${GGML_CUDA_SOURCES})
+
+target_include_directories(ggml PUBLIC ${CMAKE_SOURCE_DIR}/ggml/include/ggml)
+target_compile_features(ggml PUBLIC c_std_11) # don't bump
+target_link_libraries(ggml PUBLIC Threads::Threads ${RWKV_EXTRA_LIBS})
 
 if (RWKV_BUILD_SHARED_LIBRARY)
     set_target_properties(ggml PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -231,6 +270,13 @@ target_link_libraries(rwkv PRIVATE ggml ${RWKV_EXTRA_LIBS})
 if (RWKV_BUILD_SHARED_LIBRARY)
     set_target_properties(rwkv PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(rwkv PRIVATE RWKV_SHARED RWKV_BUILD)
+endif()
+
+if (GGML_CUDA_SOURCES)
+    message(STATUS "GGML CUDA sources found, configuring CUDA architecture")
+    set_property(TARGET ggml PROPERTY CUDA_ARCHITECTURES OFF)
+    set_property(TARGET ggml PROPERTY CUDA_SELECT_NVCC_ARCH_FLAGS "Auto")
+    set_property(TARGET rwkv PROPERTY CUDA_ARCHITECTURES OFF)
 endif()
 
 enable_testing()

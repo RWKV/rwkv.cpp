@@ -63,6 +63,17 @@ cmake --build . --config Release
 
 If everything went OK, `bin\Release\rwkv.dll` file should appear.
 
+##### WIndows + CuBlas
+copy cuda libs into release
+https://github.com/ggerganov/llama.cpp/pull/1271/files
+```commandline
+mkdir build
+cd build
+cmake .. -DRWKV_CUBLAS=ON
+cmake --build . --config Release
+```
+**Important** `cudart64_12.dll`, `cublas64_12.dll`, `cublasLt64_12.dll` should be copied from `{CUDA}/bin` into `build/bin/Release`
+
 ##### Linux / MacOS
 
 **Requirements**: CMake (Linux: `sudo apt install cmake`, MacOS: `brew install cmake`, anaconoda: [cmake package](https://anaconda.org/conda-forge/cmake)).
