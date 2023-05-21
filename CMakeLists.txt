@@ -39,7 +39,7 @@ option(RWKV_FMA                    "rwkv: enable FMA"                           
 # 3rd party libs
 option(RWKV_ACCELERATE             "rwkv: enable Accelerate framework"                    ON)
 option(RWKV_OPENBLAS               "rwkv: use OpenBLAS"                                   OFF)
-option(RWKV_CUBLAS                 "rwkv: use CuBLAS"                                     OFF)
+option(RWKV_CUBLAS                 "rwkv: use cuBLAS"                                     OFF)
 
 #
 # Compile flags
@@ -250,8 +250,13 @@ add_library(ggml OBJECT
             ${GGML_CUDA_SOURCES})
 
 target_include_directories(ggml PUBLIC ${CMAKE_SOURCE_DIR}/ggml/include/ggml)
-target_compile_features(ggml PUBLIC c_std_11) # don't bump
-target_link_libraries(ggml PUBLIC Threads::Threads ${RWKV_EXTRA_LIBS})
+target_compile_features(ggml PUBLIC c_std_11) # Don't bump
+
+if (MSVC)
+    target_link_libraries(ggml PUBLIC ${RWKV_EXTRA_LIBS} Threads::Threads)
+else()
+    target_link_libraries(ggml PUBLIC m ${RWKV_EXTRA_LIBS} Threads::Threads)
+endif()
 
 if (RWKV_BUILD_SHARED_LIBRARY)
     set_target_properties(ggml PROPERTIES POSITION_INDEPENDENT_CODE ON)
