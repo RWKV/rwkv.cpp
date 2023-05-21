@@ -234,7 +234,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     );
 
     RWKV_ASSERT_NULL(
-        model->data_type != 6,
+        model->data_type != 5,
         "Models in Q4_3 format cannot be loaded anymore because the format was removed. You need to quantize the model into another format"
     );
 
@@ -365,23 +365,23 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
             const auto & layer = model->layers[i];
 
             ggml_cuda_transform_tensor(layer.ln1_weight); vram_total += ggml_nbytes(layer.ln1_weight);
-            ggml_cuda_transform_tensor(layer.ln1_bias); vram_total += ggml_nbytes(layer.ln1_bias);
-
-            ggml_cuda_transform_tensor(layer.att_time_mix_k); vram_total += ggml_nbytes(layer.att_time_mix_k);
-            ggml_cuda_transform_tensor(layer.att_time_mix_v); vram_total += ggml_nbytes(layer.att_time_mix_v);
-            ggml_cuda_transform_tensor(layer.att_time_mix_r); vram_total += ggml_nbytes(layer.att_time_mix_r);
-            ggml_cuda_transform_tensor(layer.att_time_first); vram_total += ggml_nbytes(layer.att_time_first);
-            ggml_cuda_transform_tensor(layer.att_time_decay); vram_total += ggml_nbytes(layer.att_time_decay);
+//            ggml_cuda_transform_tensor(layer.ln1_bias); vram_total += ggml_nbytes(layer.ln1_bias);
+//
+//            ggml_cuda_transform_tensor(layer.att_time_mix_k); vram_total += ggml_nbytes(layer.att_time_mix_k);
+//            ggml_cuda_transform_tensor(layer.att_time_mix_v); vram_total += ggml_nbytes(layer.att_time_mix_v);
+//            ggml_cuda_transform_tensor(layer.att_time_mix_r); vram_total += ggml_nbytes(layer.att_time_mix_r);
+//            ggml_cuda_transform_tensor(layer.att_time_first); vram_total += ggml_nbytes(layer.att_time_first);
+//            ggml_cuda_transform_tensor(layer.att_time_decay); vram_total += ggml_nbytes(layer.att_time_decay);
             ggml_cuda_transform_tensor(layer.att_key); vram_total += ggml_nbytes(layer.att_key);
             ggml_cuda_transform_tensor(layer.att_value); vram_total += ggml_nbytes(layer.att_value);
             ggml_cuda_transform_tensor(layer.att_receptance); vram_total += ggml_nbytes(layer.att_receptance);
             ggml_cuda_transform_tensor(layer.att_output); vram_total += ggml_nbytes(layer.att_output);
-
+//
             ggml_cuda_transform_tensor(layer.ln2_weight); vram_total += ggml_nbytes(layer.ln2_weight);
-            ggml_cuda_transform_tensor(layer.ln2_bias); vram_total += ggml_nbytes(layer.ln2_bias);
-
-            ggml_cuda_transform_tensor(layer.ffn_time_mix_k); vram_total += ggml_nbytes(layer.ffn_time_mix_k);
-            ggml_cuda_transform_tensor(layer.ffn_time_mix_r); vram_total += ggml_nbytes(layer.ffn_time_mix_r);
+//            ggml_cuda_transform_tensor(layer.ln2_bias); vram_total += ggml_nbytes(layer.ln2_bias);
+//
+//            ggml_cuda_transform_tensor(layer.ffn_time_mix_k); vram_total += ggml_nbytes(layer.ffn_time_mix_k);
+//            ggml_cuda_transform_tensor(layer.ffn_time_mix_r); vram_total += ggml_nbytes(layer.ffn_time_mix_r);
             ggml_cuda_transform_tensor(layer.ffn_key); vram_total += ggml_nbytes(layer.ffn_key);
             ggml_cuda_transform_tensor(layer.ffn_value); vram_total += ggml_nbytes(layer.ffn_value);
             ggml_cuda_transform_tensor(layer.ffn_receptance); vram_total += ggml_nbytes(layer.ffn_receptance);
