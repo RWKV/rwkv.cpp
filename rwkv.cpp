@@ -1,6 +1,10 @@
 #include "rwkv.h"
 #include "ggml.h"
 
+#ifdef GGML_USE_CUBLAS
+#include "ggml/src/ggml-cuda.h"
+#endif
+
 #include <string>
 #include <vector>
 #include <thread>
@@ -189,16 +193,16 @@ struct ggml_tensor * rwkv_layer_norm(ggml_context * ctx, struct ggml_tensor * x,
 
 // --- Implementation ---
 
-// struct rwkv_context {
-//     struct rwkv_model * model;
-//     struct ggml_tensor * token_index;
-//     struct ggml_tensor * state;
-//     struct ggml_tensor ** state_parts;
-//     struct ggml_tensor * logits;
-//     struct ggml_context * ctx;
-//     struct ggml_cgraph * graph;
-//     bool freed;
-// };
+struct rwkv_context {
+    struct rwkv_model * model;
+    struct ggml_tensor * token_index;
+    struct ggml_tensor * state;
+    struct ggml_tensor ** state_parts;
+    struct ggml_tensor * logits;
+    struct ggml_context * ctx;
+    struct ggml_cgraph * graph;
+    bool freed;
+};
 
 struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads) {
     FILE * file = fopen(file_path, "rb");
