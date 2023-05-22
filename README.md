@@ -20,12 +20,23 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 |-----------|-------------------|--------------------|----------------------|
 | `Q4_0`    | 17.507            | *76*               | **1.53**             |
 | `Q4_1`    | 17.187            | **72**             | 1.68                 |
-| `Q4_2`    | 17.060            | 85                 | **1.53**             |
 | `Q5_0`    | 16.194            | 78                 | *1.60*               |
 | `Q5_1`    | 15.851            | 81                 | 1.68                 |
 | `Q8_0`    | *15.652*          | 89                 | 2.13                 |
 | `FP16`    | **15.623**        | 117                | 2.82                 |
 | `FP32`    | **15.623**        | 198                | 5.64                 |
+
+### cuBLAS's performance on 3060Ti(8G) + i7 13700K  time cost per token
+| Model                  | Format | 24 Thread + 32 Layers on GPU | 4 Thread + 32 Layers on GPU | 1 Thread + 32 Layers on GPU |
+|------------------------|--------|------------------------------|-----------------------------|-----------------------------|
+| `RWKV-4-Raven-7B-v11`  | `Q4_0` | 100.56ms                     | 52.6ms                      | 61.6ms                      |
+| `RWKV-4-Raven-7B-v11`  | `Q4_1` | 98.4ms                       | 52.5ms                      | 63.5ms                      |
+| `RWKV-4-Raven-7B-v11`  | `Q5_1` | 137.6ms                      | 72.6ms                      | 82.6ms                      |
+
+##### Since there is only `ggml_mul_mat()` supported with cuBLAS, so we still need to assign few cpu resources to process with the left computation
+
+## Notice
+**2023-05-22**: Due to GGML update, Q4_2 support has been removed, and re-quantize of all models is required when using the latest version.
 
 ## How to use
 
@@ -83,6 +94,14 @@ cmake --build . --config Release
 
 **Anaconda & M1 users**: please verify that `CMAKE_SYSTEM_PROCESSOR: arm64` after running `cmake .` — if it detects `x86_64`, edit the `CMakeLists.txt` file under the `# Compile flags` to add `set(CMAKE_SYSTEM_PROCESSOR "arm64")`.
 
+##### Linux / MacOS + cuBLAS
+```commandline
+mkdir build
+cd build
+cmake .. -DRWKV_CUBLAS=ON
+cmake --build . --config Release
+```
+
 If everything went OK, `librwkv.so` (Linux) or `librwkv.dylib` (MacOS) file should appear in the base repo folder.
 
 
@@ -114,10 +133,10 @@ python rwkv/convert_pytorch_to_ggml.py ~/Downloads/RWKV-4-Pile-169M-20220807-802
 
 ```commandline
 # Windows
-python rwkv\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q4_2.bin Q4_2
+python rwkv\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q5_1.bin Q5_1
 
 # Linux / MacOS
-python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q4_2.bin Q4_2
+python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q5_1.bin Q5_1
 ```
 
 ### 4. Run the model
@@ -130,20 +149,20 @@ To generate some text, run:
 
 ```commandline
 # Windows
-python rwkv\generate_completions.py C:\rwkv.cpp-169M-Q4_2.bin
+python rwkv\generate_completions.py C:\rwkv.cpp-169M-Q5_1.bin
 
 # Linux / MacOS
-python rwkv/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q4_2.bin
+python rwkv/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q5_1.bin
 ```
 
 To chat with a bot, run:
 
 ```commandline
 # Windows
-python rwkv\chat_with_bot.py C:\rwkv.cpp-169M-Q4_2.bin
+python rwkv\chat_with_bot.py C:\rwkv.cpp-169M-Q5_1.bin
 
 # Linux / MacOS
-python rwkv/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q4_2.bin
+python rwkv/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q5_1.bin
 ```
 
 Edit [generate_completions.py](rwkv%2Fgenerate_completions.py) or [chat_with_bot.py](rwkv%2Fchat_with_bot.py) to change prompts and sampling settings.
@@ -162,14 +181,16 @@ model_path = r'C:\rwkv.cpp-169M.bin'
 
 model = rwkv_cpp_model.RWKVModel(
     rwkv_cpp_shared_library.load_rwkv_shared_library(),
-    model_path
+    model_path,
+    thread_count=4,    #need to adjust when use cuBLAS
+    gpu_layers_count=5 #only enabled when use cuBLAS
 )
 
 logits, state = None, None
 
 for token in [1, 2, 3]:
     logits, state = model.eval(token, state)
-    
+
     print(f'Output logits: {logits}')
 
 # Don't forget to free the memory after you've done working with the model
