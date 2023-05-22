@@ -26,12 +26,12 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 | `FP16`    | **15.623**        | 117                | 2.82                 |
 | `FP32`    | **15.623**        | 198                | 5.64                 |
 
-### cuBLAS's performance on 3060Ti(8G) + i7 13700K  time cost per token
-| Model                  | Format | 24 Thread + 32 Layers on GPU | 4 Thread + 32 Layers on GPU | 1 Thread + 32 Layers on GPU |
-|------------------------|--------|------------------------------|-----------------------------|-----------------------------|
-| `RWKV-4-Raven-7B-v11`  | `Q4_0` | 100.56ms                     | 52.6ms                      | 61.6ms                      |
-| `RWKV-4-Raven-7B-v11`  | `Q4_1` | 98.4ms                       | 52.5ms                      | 63.5ms                      |
-| `RWKV-4-Raven-7B-v11`  | `Q5_1` | 137.6ms                      | 72.6ms                      | 82.6ms                      |
+### cuBLAS's performance on 3060Ti(8G) + i7 13700K, 32 layers on GPU, time cost per token
+| Model                 | Format | 24 Thread | 8 Thread | 4 Thread | 2 Thread | 1 Thread |
+|-----------------------|--------|-----------|----------|----------|----------|----------|
+| `RWKV-4-Raven-7B-v11` | `Q4_0` | 100.56ms  | 58.2ms   | 52.6ms   | 55.1ms   | 61.6ms   |
+| `RWKV-4-Raven-7B-v11` | `Q4_1` | 98.4ms    | 58.4ms   | 52.5ms   | 55.9ms   | 63.5ms   |
+| `RWKV-4-Raven-7B-v11` | `Q5_1` | 137.6ms   | 75.2ms   | 72.6ms   | 72.4ms   | 82.6ms   |
 
 ##### Since there is only `ggml_mul_mat()` supported with cuBLAS, so we still need to assign few cpu resources to process with the left computation
 
