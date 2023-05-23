@@ -27,6 +27,50 @@
 extern "C" {
 #endif
 
+    // Represents an error encountered during a function call.
+    // These are flags, so an actual value might contain multiple errors.
+    enum rwkv_error_flags {
+        RWKV_ERROR_NONE = 0,
+
+        RWKV_ERROR_ARGS = 1 << 4,
+        RWKV_ERROR_FILE = 2 << 4,
+        RWKV_ERROR_MODEL = 3 << 4,
+        RWKV_ERROR_MODEL_PARAMS = 4 << 4,
+        RWKV_ERROR_GRAPH = 5 << 4,
+        RWKV_ERROR_CTX = 6 << 4,
+
+        RWKV_ERROR_ALLOC = 1,
+        RWKV_ERROR_FILE_OPEN = 2,
+        RWKV_ERROR_FILE_STAT = 3,
+        RWKV_ERROR_FILE_READ = 4,
+        RWKV_ERROR_FILE_WRITE = 5,
+        RWKV_ERROR_FILE_MAGIC = 6,
+        RWKV_ERROR_FILE_VERSION = 7,
+        RWKV_ERROR_DATA_TYPE = 8,
+        RWKV_ERROR_UNSUPPORTED = 9,
+        RWKV_ERROR_SHAPE = 10,
+        RWKV_ERROR_DIMENSION = 11,
+        RWKV_ERROR_KEY = 12,
+        RWKV_ERROR_DATA = 13,
+        RWKV_ERROR_PARAM_MISSING = 14
+    };
+
+    // Sets whether errors are automatically printed to stderr.
+    // If this is set to false, you are responsible for calling rwkv_last_error manually if an operation fails.
+    // - ctx: the context to suppress error messages for.
+    //   If NULL, affects model load (rwkv_init_from_file) and quantization (rwkv_quantize_model_file) errors,
+    //   as well as the default for new context.
+    // - print_errors: whether error messages should be automatically printed.
+    RWKV_API void rwkv_set_print_errors(struct rwkv_context * ctx, bool print_errors);
+
+    // Gets whether errors are automatically printed to stderr.
+    // - ctx: the context to retrieve the setting for, or NULL for the global setting.
+    RWKV_API bool rwkv_get_print_errors(struct rwkv_context * ctx);
+
+    // Retrieves and clears the error flags.
+    // - ctx: the context the retrieve the error for, or NULL for the global error.
+    RWKV_API enum rwkv_error_flags rwkv_get_last_error(struct rwkv_context * ctx);
+
     struct rwkv_context;
 
     // Loads the model from a file and prepares it for inference.
