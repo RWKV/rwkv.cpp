@@ -291,7 +291,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     rwkv_file_guard file_guard { file };
 
     struct stat file_stat;
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(_fileno(file), &file_stat) == 0, "Failed to stat file %s", file_path);
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(file), &file_stat) == 0, "Failed to stat file %s", file_path);
 
     int32_t magic;
     RWKV_ASSERT_NULL(RWKV_ERROR_FILE, read_int32(file, &magic, "magic"));
