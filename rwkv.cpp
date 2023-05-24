@@ -303,7 +303,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL(RWKV_ERROR_FILE, read_int32(file, &version, "version"));
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_VERSION, version == RWKV_FILE_VERSION, "Unsupported file version %d", version);
 
-    std::unique_ptr<rwkv_model> model(new(std::nothrow) struct rwkv_model);
+    std::unique_ptr<rwkv_model> model(new(std::nothrow) struct rwkv_model());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_ALLOC, model.get(), "Failed to allocate model");
  
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL, read_uint32(file, &model->n_vocab, "n_vocab"));
@@ -592,7 +592,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 
     graph->n_threads = n_threads;
 
-    std::unique_ptr<struct rwkv_context> rwkv_ctx(new(std::nothrow) struct rwkv_context);
+    std::unique_ptr<struct rwkv_context> rwkv_ctx(new(std::nothrow) struct rwkv_context());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, rwkv_ctx.get(), "Failed to allocate context");
     rwkv_ctx->model = std::move(model);
     rwkv_ctx->token_index = token_index;
