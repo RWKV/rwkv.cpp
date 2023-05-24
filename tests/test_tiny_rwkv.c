@@ -27,6 +27,7 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     fprintf(stderr, "Testing %s\n", model_path);
 
     struct rwkv_context * model = rwkv_init_from_file(model_path, N_THREADS, N_GPU_LAYERS);
+    enum rwkv_error_flags error = rwkv_get_last_error(NULL);
 
     uint32_t n_vocab = rwkv_get_logits_buffer_element_count(model);
 
@@ -96,7 +97,6 @@ int main(void) {
         0.294953F,
         0.065571F,
     };
-
 
     test_model("tiny-rwkv-660K-FP32.bin", expected_logits, expected_difference_sum[0]);
     test_model("tiny-rwkv-660K-FP16.bin", expected_logits, expected_difference_sum[1]);
