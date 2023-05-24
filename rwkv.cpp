@@ -14,6 +14,8 @@
 #include <unordered_map>
 #include <memory>
 
+#include <sys/stat.h> // fstat
+
 // --- Error handling ---
 
 thread_local enum rwkv_error_flags global_last_error = RWKV_ERROR_NONE;
