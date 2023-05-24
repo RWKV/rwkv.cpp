@@ -32,12 +32,12 @@ extern "C" {
     enum rwkv_error_flags {
         RWKV_ERROR_NONE = 0,
 
-        RWKV_ERROR_ARGS = 1 << 4,
-        RWKV_ERROR_FILE = 2 << 4,
-        RWKV_ERROR_MODEL = 3 << 4,
-        RWKV_ERROR_MODEL_PARAMS = 4 << 4,
-        RWKV_ERROR_GRAPH = 5 << 4,
-        RWKV_ERROR_CTX = 6 << 4,
+        RWKV_ERROR_ARGS = 1 << 8,
+        RWKV_ERROR_FILE = 2 << 8,
+        RWKV_ERROR_MODEL = 3 << 8,
+        RWKV_ERROR_MODEL_PARAMS = 4 << 8,
+        RWKV_ERROR_GRAPH = 5 << 8,
+        RWKV_ERROR_CTX = 6 << 8,
 
         RWKV_ERROR_ALLOC = 1,
         RWKV_ERROR_FILE_OPEN = 2,
