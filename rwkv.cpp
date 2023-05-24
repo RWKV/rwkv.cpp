@@ -28,11 +28,11 @@ inline enum rwkv_error_flags operator|=(enum rwkv_error_flags & a, enum rwkv_err
 }
 
 // If the condition x is false, adds ERR_VAL to the last error, prints a message to stderr, and returns RET_VAL.
-#define RWKV_ASSERT_MSG(ERR_VAL, RET_VAL, x, msg, ...) \
+#define RWKV_ASSERT_MSG(ERR_VAL, RET_VAL, x, ...) \
     if (!(x)) { \
         global_last_error |= ERR_VAL; \
         if (global_print_errors) { \
-            fprintf(stderr, msg, __VA_ARGS__); \
+            fprintf(stderr, __VA_ARGS__); \
             fprintf(stderr, "\n%s:%d: %s\n", __FILE__, __LINE__, #x); \
         } \
         return RET_VAL; \
@@ -46,11 +46,11 @@ inline enum rwkv_error_flags operator|=(enum rwkv_error_flags & a, enum rwkv_err
     }
 
 // If the condition x is false, adds ERR_VAL to the ctx's last error, prints a message to stderr, and returns RET_VAL.
-#define RWKV_CTX_ASSERT_MSG(ctx, ERR_VAL, RET_VAL, x, msg, ...) \
+#define RWKV_CTX_ASSERT_MSG(ctx, ERR_VAL, RET_VAL, x, ...) \
     if (!(x)) { \
         ((struct rwkv_context *) ctx)->last_error |= ERR_VAL; \
         if (ctx->print_errors) { \
-            fprintf(stderr, msg, __VA_ARGS__); \
+            fprintf(stderr, __VA_ARGS__); \
             fprintf(stderr, "\n%s:%d: %s\n", __FILE__, __LINE__, #x); \
         } \
         return RET_VAL; \
@@ -63,10 +63,10 @@ inline enum rwkv_error_flags operator|=(enum rwkv_error_flags & a, enum rwkv_err
         return RET_VAL; \
     }
 
-#define RWKV_ASSERT_FALSE_MSG(ERR_VAL, x, msg, ...) RWKV_ASSERT_MSG(ERR_VAL, false, x, msg, __VA_ARGS__)
-#define RWKV_ASSERT_NULL_MSG(ERR_VAL, x, msg, ...) RWKV_ASSERT_MSG(ERR_VAL, NULL, x, msg, __VA_ARGS__)
-#define RWKV_CTX_ASSERT_FALSE_MSG(ctx, ERR_VAL, x, msg, ...) RWKV_CTX_ASSERT_MSG(ctx, ERR_VAL, false, x, msg, __VA_ARGS__)
-#define RWKV_CTX_ASSERT_NULL_MSG(ctx, ERR_VAL, x, msg, ...) RWKV_CTX_ASSERT_MSG(ctx, ERR_VAL, NULL, x, msg, __VA_ARGS__)
+#define RWKV_ASSERT_FALSE_MSG(ERR_VAL, x, ...) RWKV_ASSERT_MSG(ERR_VAL, false, x, __VA_ARGS__)
+#define RWKV_ASSERT_NULL_MSG(ERR_VAL, x, ...) RWKV_ASSERT_MSG(ERR_VAL, NULL, x, __VA_ARGS__)
+#define RWKV_CTX_ASSERT_FALSE_MSG(ctx, ERR_VAL, x, ...) RWKV_CTX_ASSERT_MSG(ctx, ERR_VAL, false, x, __VA_ARGS__)
+#define RWKV_CTX_ASSERT_NULL_MSG(ctx, ERR_VAL, x, ...) RWKV_CTX_ASSERT_MSG(ctx, ERR_VAL, NULL, x, __VA_ARGS__)
 
 #define RWKV_ASSERT_FALSE(ERR_VAL, x) RWKV_ASSERT(ERR_VAL, false, x)
 #define RWKV_ASSERT_NULL(ERR_VAL, x) RWKV_ASSERT(ERR_VAL, NULL, x)
