@@ -588,6 +588,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     graph->n_leafs = 0;
     graph->n_threads = n_threads;
 
+    memset(graph.get(), 0, sizeof(struct ggml_cgraph));
     ggml_build_forward_expand(graph.get(), logits);
     for (uint32_t i = 0; i < n_layer * 5; i++)
        ggml_build_forward_expand(graph.get(), state_parts[i]);
