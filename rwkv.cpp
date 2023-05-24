@@ -582,7 +582,8 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     // x = (self.w.head.weight @ x).float()
     struct ggml_tensor * logits = ggml_mul_mat(ctx, model->head, x);
 
-    std::unique_ptr<struct ggml_cgraph> graph = std::make_unique<struct ggml_cgraph>();
+    std::unique_ptr<struct ggml_cgraph> graph((struct ggml_cgraph *) calloc(1, sizeof(struct ggml_cgraph)));
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_GRAPH | RWKV_ERROR_ALLOC, graph.get(), "Failed to allocate graph");
     graph->n_nodes = 0;
     graph->n_leafs = 0;
     graph->n_threads = n_threads;
@@ -591,7 +592,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     for (uint32_t i = 0; i < n_layer * 5; i++)
        ggml_build_forward_expand(graph.get(), state_parts[i]);
 
-    std::unique_ptr<struct rwkv_context> rwkv_ctx = std::make_unique<struct rwkv_context>();
+    std::unique_ptr<struct rwkv_context> rwkv_ctx((struct rwkv_context *) calloc(1, sizeof(struct rwkv_context)));
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, rwkv_ctx.get(), "Failed to allocate context");
     rwkv_ctx->model = std::move(model);
     rwkv_ctx->token_index = token_index;
