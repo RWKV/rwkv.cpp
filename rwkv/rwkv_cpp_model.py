@@ -81,7 +81,7 @@ class RWKVModel:
         if state_in is not None:
             validate_buffer(state_in, 'state_in', self._state_buffer_element_count)
 
-            state_in_ptr = state_in.storage().data_ptr()
+            state_in_ptr = state_in.untyped_storage().data_ptr()
         else:
             state_in_ptr = 0
 
@@ -99,8 +99,8 @@ class RWKVModel:
             self._ctx,
             token,
             state_in_ptr,
-            state_out.storage().data_ptr(),
-            logits_out.storage().data_ptr()
+            state_out.untyped_storage().data_ptr(),
+            logits_out.untyped_storage().data_ptr()
         )
 
         return logits_out, state_out

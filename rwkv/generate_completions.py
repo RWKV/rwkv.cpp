@@ -64,7 +64,7 @@ for GENERATION in range(generation_count):
     for i in range(tokens_per_generation):
         token = sampling.sample_logits(logits, temperature, top_p)
 
-        print(tokenizer.decode([token]), end='')
+        print(tokenizer.decode([token]), end='', flush=True)
 
         logits, state = model.eval(token, state, state, logits)
 
