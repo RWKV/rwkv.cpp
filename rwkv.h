@@ -55,6 +55,8 @@ extern "C" {
         RWKV_ERROR_PARAM_MISSING = 14
     };
 
+    struct rwkv_context;
+
     // Sets whether errors are automatically printed to stderr.
     // If this is set to false, you are responsible for calling rwkv_last_error manually if an operation fails.
     // - ctx: the context to suppress error messages for.
@@ -70,8 +72,6 @@ extern "C" {
     // Retrieves and clears the error flags.
     // - ctx: the context the retrieve the error for, or NULL for the global error.
     RWKV_API enum rwkv_error_flags rwkv_get_last_error(struct rwkv_context * ctx);
-
-    struct rwkv_context;
 
     // Loads the model from a file and prepares it for inference.
     // Returns NULL on any error. Error messages would be printed to stderr.

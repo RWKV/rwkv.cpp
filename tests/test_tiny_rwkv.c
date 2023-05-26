@@ -26,7 +26,9 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     fprintf(stderr, "Testing %s\n", model_path);
 
     struct rwkv_context * model = rwkv_init_from_file(model_path, N_THREADS);
+
     enum rwkv_error_flags error = rwkv_get_last_error(NULL);
+    ASSERT(error == 0, "Unexpected error %d", error);
 
     uint32_t n_vocab = rwkv_get_logits_buffer_element_count(model);
 
