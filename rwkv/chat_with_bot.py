@@ -3,14 +3,14 @@
 # Prompts and code adapted from https://github.com/BlinkDL/ChatRWKV/blob/9ca4cdba90efaee25cfec21a0bae72cbd48d8acd/chat.py
 
 import os
-import argparse
+# import argparse
 import pathlib
 import copy
 import torch
-import sampling
+from rwkv_cpp.rwkv import sampling
 import tokenizers
-import rwkv_cpp_model
-import rwkv_cpp_shared_library
+from rwkv_cpp.rwkv import rwkv_cpp_model
+from rwkv_cpp.rwkv import rwkv_cpp_shared_library
 import json
 from typing import Optional
 
@@ -38,9 +38,9 @@ END_OF_TEXT_TOKEN: int = 0
 
 # =================================================================================================
 
-parser = argparse.ArgumentParser(description='Provide terminal-based chat interface for RWKV model')
-parser.add_argument('model_path', help='Path to RWKV model in ggml format')
-args = parser.parse_args()
+#parser = argparse.ArgumentParser(description='Provide terminal-based chat interface for RWKV model')
+#parser.add_argument('model_path', help='Path to RWKV model in ggml format')
+#args = parser.parse_args()
 
 script_dir: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent
 
@@ -59,11 +59,11 @@ library = rwkv_cpp_shared_library.load_rwkv_shared_library()
 print(f'System info: {library.rwkv_get_system_info_string()}')
 
 print('Loading RWKV model')
-model = rwkv_cpp_model.RWKVModel(library, args.model_path)
+model = rwkv_cpp_model.RWKVModel(library, '/home/ubuntu/repos/mvp/Q8_0-RWKV-4-Raven-14B-v11x-Eng99%-Other1%-20230501-ctx8192.bin')
 
 prompt_tokens = tokenizer.encode(init_prompt).ids
 prompt_token_count = len(prompt_tokens)
-
+print(prompt_tokens)
 # =================================================================================================
 
 processed_tokens: list[int] = []
@@ -108,8 +108,9 @@ save_thread_state('chat_init')
 save_thread_state('chat')
 
 print(f'\nChat initialized! Your name is {user}. Write something and press Enter. Use \\n to add line breaks to your message.')
+i=1
 
-while True:
+while i == 1:
     # Read user input
     user_input = input(f'> {user}{separator} ')
     msg = user_input.replace('\\n', '\n').strip()
@@ -264,3 +265,4 @@ Below is an instruction that describes a task. Write a response that appropriate
             print()
 
     save_thread_state(thread)
+    i=0
