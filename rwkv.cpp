@@ -10,24 +10,29 @@
 #include <unordered_map>
 #include <memory>
 
-#include <sys/stat.h> // fstat
-
+#define _FILE_OFFSET_BITS 64
 #define RWKV_MAYBE_BREAK
 
-#ifdef WIN32
-#define stat64 _stat64
-#define fstat64 _fstat64
-#define ftell64 _ftelli64
-#define fseek64 _fseeki64
+#if defined(WIN32)
+#define stat _stat64
+#define fstat _fstat64
+#define ftell _ftelli64
+#define fseek _fseeki64
 
 #ifndef NDEBUG
 #include <intrin.h>
 #define RWKV_MAYBE_BREAK __debugbreak()
 #endif
 #else
-#define ftell64 ftello64
-#define fseek64 fseeko64
+#include <sys/stat.h>
+#if !defined(__APPLE__)
+#define ftell ftello
+#define fseek fseeko
 #endif
+#endif
+
+static_assert(sizeof(stat::st_size) >= 8, "file offsets should be 64-bit");
+static_assert(sizeof(decltype(ftell(NULL))) >= 8, "file offsets should be 64-bit");
 
 // --- Error handling ---
 
@@ -682,13 +687,13 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, file, "failed to open file %s", file_path);
     rwkv_file_guard file_guard { file };
 
-    struct stat64 file_stat;
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat64(fileno(file), &file_stat) == 0, "failed to stat file %s", file_path);
+    struct stat file_stat;
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(file), &file_stat) == 0, "failed to stat file %s", file_path);
 
     struct file_header header;
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE, fread_file_header(file, header), "invalid file header");
 
-    size_t tensors_start = ftell64(file);
+    size_t tensors_start = ftell(file);
     size_t objects_count = 0;
     size_t objects_size = 0;
     size_t scratch_size = 0;
@@ -699,10 +704,10 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
         scratch_size += ((tensor_bytes(type, width, height) + 15) & ~15) * (count - views);
     };
 
-    while ((size_t) ftell64(file) < (size_t) file_stat.st_size) {
+    while ((size_t) ftell(file) < (size_t) file_stat.st_size) {
         struct tensor_header header;
         RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, fread_tensor_header(file, header), "invalid tensor header");
-        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek64(file, (size_t) header.key_length + tensor_bytes(header), SEEK_CUR) == 0, "failed to read tensor");
+        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, (size_t) header.key_length + tensor_bytes(header), SEEK_CUR) == 0, "failed to read tensor");
         add(type_to_ggml[header.data_type], header.width, header.height);
     }
 
@@ -754,7 +759,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     objects_size += tensor_bytes(GGML_TYPE_I8, graph_objects * n_embed * n_threads, 1);
     objects_count++;
 
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek64(file, tensors_start, SEEK_SET) == 0, "failed to seek in file");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, tensors_start, SEEK_SET) == 0, "failed to seek in file");
 
     std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t[scratch_size]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, scratch.get(), "failed to allocate model scratch space");
@@ -766,7 +771,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     std::unordered_map<std::string, struct ggml_tensor *> parameters;
     ggml_set_scratch(ctx, { 0, scratch_size, scratch.get() });
 
-    while ((size_t) ftell64(file) < (size_t) file_stat.st_size) {
+    while ((size_t) ftell(file) < (size_t) file_stat.st_size) {
         std::string name;
         struct ggml_tensor * tensor;
         RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, fread_ggml_tensor(file, ctx, name, tensor), "failed to read model params");
@@ -873,8 +878,8 @@ bool rwkv_quantize_model_file(const char * input_path, const char * output_path,
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, input, "failed to open %s for reading", input_path);
     rwkv_file_guard input_guard { input };
 
-    struct stat64 stat;
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat64(fileno(input), &stat) == 0, "failed to stat file %s", input_path);
+    struct stat stat;
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(input), &stat) == 0, "failed to stat file %s", input_path);
 
     FILE * output = fopen(output_path, "wb");
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, output, "failed to open %s for writing", output_path);
@@ -901,7 +906,7 @@ bool rwkv_quantize_model_file(const char * input_path, const char * output_path,
     std::vector<uint8_t> * container = &a;
     std::vector<uint8_t> * scratch = &b;
 
-    while (ftell64(input) < stat.st_size) {
+    while (ftell(input) < stat.st_size) {
         struct tensor_header header;
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, fread_tensor_header(input, header), "invalid tensor header");
 
