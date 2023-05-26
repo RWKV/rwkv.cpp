@@ -116,7 +116,7 @@ static const ggml_type FORMAT_TYPE_TO_GGML_TYPE[FORMAT_TYPE_COUNT] = {
     GGML_TYPE_Q4_0,
     GGML_TYPE_Q4_1,
     GGML_TYPE_UNKNOWN, // Unused
-    GGML_TYPE_Q4_2,
+    GGML_TYPE_UNKNOWN, // Unused
     GGML_TYPE_UNKNOWN, // Unused
     GGML_TYPE_Q5_0,
     GGML_TYPE_Q5_1,
@@ -126,7 +126,6 @@ static const ggml_type FORMAT_TYPE_TO_GGML_TYPE[FORMAT_TYPE_COUNT] = {
 static int32_t format_name_to_format_type(const char * format_name) {
     if (strcmp(format_name, "Q4_0") == 0) return 2;
     if (strcmp(format_name, "Q4_1") == 0) return 3;
-    if (strcmp(format_name, "Q4_2") == 0) return 5;
     if (strcmp(format_name, "Q5_0") == 0) return 7;
     if (strcmp(format_name, "Q5_1") == 0) return 8;
     if (strcmp(format_name, "Q8_0") == 0) return 9;
@@ -476,10 +475,13 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL, read_uint32(file, &model->n_layer, "n_layer"));
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL, read_int32(file, &model->data_type, "data_type"));
 
-    const char * unsupported_msg = "Models in %s format cannot be loaded anymore because the format was removed. You need to quantize the model into another format";
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_DATA_TYPE, model->data_type >= 0 && model->data_type < FORMAT_TYPE_COUNT, "Unsupported model data type %d", model->data_type);
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED, model->data_type != 4, unsupported_msg, "Q4_1_O");
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED, model->data_type != 6, unsupported_msg, "Q4_3");
+
+    const char * unsupported_type_msg = "Models in %s format cannot be loaded anymore because the format was removed. "
+        "You need to quantize the model into another format";
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED, model->data_type != 4, unsupported_type_msg, "Q4_1_O");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED, model->data_type != 5, unsupported_type_msg, "Q4_2");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED, model->data_type != 6, unsupported_type_msg, "Q4_3");
 
     size_t memory_required = file_stat.st_size +
         // Intermediary vectors for calculation; there are around 100 calls to ggml
@@ -787,7 +789,6 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
             size_t (*f)(const float * src, void * dst, int n, int k, int64_t * hist) =
                 format_ggml_type == GGML_TYPE_Q4_0 ? ggml_quantize_q4_0 :
                 format_ggml_type == GGML_TYPE_Q4_1 ? ggml_quantize_q4_1 :
-                format_ggml_type == GGML_TYPE_Q4_2 ? ggml_quantize_q4_2 :
                 format_ggml_type == GGML_TYPE_Q5_0 ? ggml_quantize_q5_0 :
                 format_ggml_type == GGML_TYPE_Q5_1 ? ggml_quantize_q5_1 :
                 format_ggml_type == GGML_TYPE_Q8_0 ? ggml_quantize_q8_0 :

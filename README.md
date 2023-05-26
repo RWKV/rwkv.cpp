@@ -20,7 +20,6 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 |-----------|-------------------|--------------------|----------------------|
 | `Q4_0`    | 17.507            | *76*               | **1.53**             |
 | `Q4_1`    | 17.187            | **72**             | 1.68                 |
-| `Q4_2`    | 17.060            | 85                 | **1.53**             |
 | `Q5_0`    | 16.194            | 78                 | *1.60*               |
 | `Q5_1`    | 15.851            | 81                 | 1.68                 |
 | `Q8_0`    | *15.652*          | 89                 | 2.13                 |
@@ -105,10 +104,10 @@ python rwkv/convert_pytorch_to_ggml.py ~/Downloads/RWKV-4-Pile-169M-20220807-802
 
 ```commandline
 # Windows
-python rwkv\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q4_2.bin Q4_2
+python rwkv\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q5_1.bin Q5_1
 
 # Linux / MacOS
-python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q4_2.bin Q4_2
+python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q5_1.bin Q5_1
 ```
 
 ### 4. Run the model
@@ -121,20 +120,20 @@ To generate some text, run:
 
 ```commandline
 # Windows
-python rwkv\generate_completions.py C:\rwkv.cpp-169M-Q4_2.bin
+python rwkv\generate_completions.py C:\rwkv.cpp-169M-Q5_1.bin
 
 # Linux / MacOS
-python rwkv/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q4_2.bin
+python rwkv/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q5_1.bin
 ```
 
 To chat with a bot, run:
 
 ```commandline
 # Windows
-python rwkv\chat_with_bot.py C:\rwkv.cpp-169M-Q4_2.bin
+python rwkv\chat_with_bot.py C:\rwkv.cpp-169M-Q5_1.bin
 
 # Linux / MacOS
-python rwkv/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q4_2.bin
+python rwkv/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q5_1.bin
 ```
 
 Edit [generate_completions.py](rwkv%2Fgenerate_completions.py) or [chat_with_bot.py](rwkv%2Fchat_with_bot.py) to change prompts and sampling settings.
