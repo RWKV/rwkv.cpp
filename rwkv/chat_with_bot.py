@@ -34,6 +34,7 @@ PRESENCE_PENALTY: float = 0.2
 FREQUENCY_PENALTY: float = 0.2
 
 END_OF_LINE_TOKEN: int = 187
+DOUBLE_END_OF_LINE_TOKEN: int = 535
 END_OF_TEXT_TOKEN: int = 0
 
 # =================================================================================================
@@ -98,11 +99,19 @@ def load_thread_state(_thread: str) -> None:
     logits = copy.deepcopy(thread_state['logits'])
     state = copy.deepcopy(thread_state['state'])
 
+# Model only saw '\n\n' as [187, 187] before, but the tokenizer outputs [535] for it at the end.
+# See https://github.com/BlinkDL/ChatRWKV/pull/110/files
+def split_last_end_of_line(tokens):
+    if len(tokens) > 0 and tokens[-1] == DOUBLE_END_OF_LINE_TOKEN:
+        tokens = tokens[:-1] + [END_OF_LINE_TOKEN, END_OF_LINE_TOKEN]
+
+    return tokens
+
 # =================================================================================================
 
 print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
-process_tokens(tokenizer.encode(init_prompt).ids)
+process_tokens(split_last_end_of_line(tokenizer.encode(init_prompt).ids))
 
 save_thread_state('chat_init')
 save_thread_state('chat')
