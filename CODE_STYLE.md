@@ -18,8 +18,9 @@ Overall, keep code in similar style as it was before.
 ## C/C++
 
 - Use 4 spaces for indentation.
-- Place braces on the same line as the statement.
-- Always add braces to `if`, `for`, `while`, `do` and other similar statements.
+- Use [The One True Brace Style](https://en.wikipedia.org/wiki/Indentation_style#Variant:_1TBS_(OTBS)):
+  - Place braces on the same line as the statement.
+  - Always add braces to `if`, `for`, `while`, `do` and other similar statements.
 
 ## Python
 

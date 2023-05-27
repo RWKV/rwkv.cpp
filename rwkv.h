@@ -26,6 +26,8 @@
 #define RWKV_FILE_VERSION_1 101
 #define RWKV_FILE_VERSION_MIN RWKV_FILE_VERSION_0
 #define RWKV_FILE_VERSION_MAX RWKV_FILE_VERSION_1
+// Default file version is the latest version.
+#define RWKV_FILE_VERSION RWKV_FILE_VERSION_MAX
 
 #ifdef __cplusplus
 extern "C" {

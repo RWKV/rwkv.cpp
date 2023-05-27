@@ -528,7 +528,11 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
             fread(&dim_count, sizeof(int32_t), 1, file) == 1 || feof(file),
             "Failed to read an int32 value from a file (dim_count)"
         );
-        if (feof(file)) break;
+
+        if (feof(file)) {
+            break;
+        }
+
         RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS, read_int32(file, &key_length, "key_length"));
         RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS, read_int32(file, &data_type, "data_type"));
 
