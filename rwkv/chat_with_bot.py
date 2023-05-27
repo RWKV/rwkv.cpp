@@ -112,7 +112,7 @@ def split_last_end_of_line(tokens):
 T1 = time.time()
 print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
-process_tokens(tokenizer.encode(init_prompt).ids)
+process_tokens(split_last_end_of_line(tokenizer.encode(init_prompt).ids))
 T2 = time.time()
 print(f'Process time :{((T2 - T1)*1000)} ms')
 print(f'Process time per token :{(((T2 - T1)*1000)) / prompt_token_count} ms')
