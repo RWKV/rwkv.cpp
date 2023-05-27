@@ -21,7 +21,7 @@ def test() -> None:
         expected_bytes: bytes = struct.pack(
             '=iiiiii' + 'iiiii10sffffff' + 'iiii19sf',
             0x67676d66,
-            100,
+            101,
             3,
             2,
             1,

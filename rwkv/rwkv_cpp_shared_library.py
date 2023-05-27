@@ -7,10 +7,10 @@ from typing import Optional
 QUANTIZED_FORMAT_NAMES = (
     'Q4_0',
     'Q4_1',
-    'Q4_2',
     'Q5_0',
     'Q5_1',
-    'Q8_0'
+    'Q8_0',
+    'Q8_1'
 )
 
 P_FLOAT = ctypes.POINTER(ctypes.c_float)

@@ -21,7 +21,13 @@
 
 // 'ggmf' in hex.
 #define RWKV_FILE_MAGIC 0x67676d66
-#define RWKV_FILE_VERSION 100
+
+#define RWKV_FILE_VERSION_0 100
+#define RWKV_FILE_VERSION_1 101
+#define RWKV_FILE_VERSION_MIN RWKV_FILE_VERSION_0
+#define RWKV_FILE_VERSION_MAX RWKV_FILE_VERSION_1
+// Default file version is the latest version.
+#define RWKV_FILE_VERSION RWKV_FILE_VERSION_MAX
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,6 +61,8 @@ extern "C" {
         RWKV_ERROR_PARAM_MISSING = 14
     };
 
+    struct rwkv_context;
+
     // Sets whether errors are automatically printed to stderr.
     // If this is set to false, you are responsible for calling rwkv_last_error manually if an operation fails.
     // - ctx: the context to suppress error messages for.
@@ -70,8 +78,6 @@ extern "C" {
     // Retrieves and clears the error flags.
     // - ctx: the context the retrieve the error for, or NULL for the global error.
     RWKV_API enum rwkv_error_flags rwkv_get_last_error(struct rwkv_context * ctx);
-
-    struct rwkv_context;
 
     // Loads the model from a file and prepares it for inference.
     // Returns NULL on any error. Error messages would be printed to stderr.
@@ -104,7 +110,6 @@ extern "C" {
     // Available format names:
     // - Q4_0
     // - Q4_1
-    // - Q4_2
     // - Q5_0
     // - Q5_1
     // - Q8_0

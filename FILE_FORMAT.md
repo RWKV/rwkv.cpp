@@ -11,7 +11,8 @@ RWKVModelFile {
     // All ints and floats are in machine byte order.
     // Magic is "ggml" string bytes.
     int32 magic = 0x67676d66;
-    int32 version = 100;
+    // Can be either 100 or 101. See "File versions" section below for details.
+    int32 version = 101;
     int32 n_vocab;
     int32 n_embed;
     int32 n_layer;
@@ -39,6 +40,20 @@ Parameter {
 }
 ```
 
+## File versions
+
+### `100`
+
+Original version number, chosen to not interfere with `llama.cpp` file version number of `1`.
+
+### `101`
+
+Introduced on 2023-05-27, as `ggml` was updated to commit [00b49ec](https://github.com/ggerganov/ggml/commit/00b49ec707d73df0176e21630a6e23c2aa0e938c).
+
+All quantized formats (`QX_Y`) were changed in a backwards-incompatible way: new version of `ggml` can not handle loading version `100` quantized models.
+
+`FP32` and `FP16` remain the same.
+
 ## Data types
  
 - 0: `FP32`
@@ -46,7 +61,7 @@ Parameter {
 - 2: `Q4_0`
 - 3: `Q4_1`
 - 4: *unused*
-- 5: `Q4_2`
+- 5: *unused*
 - 6: *unused*
 - 7: `Q5_0`
 - 8: `Q5_1`

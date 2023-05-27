@@ -176,6 +176,7 @@ enum rwkv_type {
     TYPE_Q5_0,
     TYPE_Q5_1,
     TYPE_Q8_0,
+    TYPE_Q8_1,
     TYPE_COUNT
 };
 
@@ -187,11 +188,12 @@ static const enum ggml_type type_to_ggml[TYPE_COUNT + 1] = {
     GGML_TYPE_Q4_0,    /* Q4_0   */
     GGML_TYPE_Q4_1,    /* Q4_1   */
     GGML_TYPE_UNKNOWN, /* Q4_1_O */
-    GGML_TYPE_Q4_2,    /* Q4_2   */
+    GGML_TYPE_UNKNOWN, /* Q4_2   */
     GGML_TYPE_UNKNOWN, /* Q4_3   */
     GGML_TYPE_Q5_0,    /* Q5_0   */
     GGML_TYPE_Q5_1,    /* Q5_1   */
     GGML_TYPE_Q8_0,    /* Q8_0   */
+    GGML_TYPE_Q8_1,    /* Q8_1   */
     GGML_TYPE_COUNT    /* COUNT  */
 };
 
@@ -205,14 +207,14 @@ static const enum rwkv_type type_from_ggml[GGML_TYPE_COUNT + 1] = {
     TYPE_Q5_0,   /* Q5_0  */
     TYPE_Q5_1,   /* Q5_1  */
     TYPE_Q8_0,   /* Q8_0  */
-    TYPE_COUNT,  /* Q8_1  */
+    TYPE_Q8_1,   /* Q8_1  */
     TYPE_COUNT,  /* I8    */
     TYPE_COUNT,  /* I16   */
     TYPE_COUNT,  /* I32   */
     TYPE_COUNT,  /* COUNT */
 };
 
-static const char * type_to_string[TYPE_COUNT] = {"f32", "f16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0"};
+static const char * type_to_string[TYPE_COUNT] = {"f32", "f16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "Q8_1"};
 
 static enum rwkv_type type_from_string(const char * str) {
     for (int ord = 0; ord < TYPE_COUNT; ord++)
@@ -231,16 +233,43 @@ struct file_header {
     uint32_t data_type;
 };
 
-static bool fread_file_header(FILE * file, struct file_header & header) {
+static bool is_file_version_in_range(uint32_t version) {
+    return version >= RWKV_FILE_VERSION_MIN && version <= RWKV_FILE_VERSION_MAX;
+}
+
+static bool fread_file_header(FILE * file, struct file_header & header, bool verify_data_type = true) {
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.magic));
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_MAGIC, header.magic == RWKV_FILE_MAGIC);
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.version));
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_VERSION, is_file_version_in_range(header.version), "unsupported file version %" PRId32, header.version);
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.n_vocab));
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.n_embed));
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.n_layer));
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.data_type));
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, header.data_type < TYPE_COUNT, "model data type out of range (%" PRId32 " > %" PRId32 ")", header.data_type, TYPE_COUNT - 1);
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, type_to_ggml[header.data_type] != GGML_TYPE_UNKNOWN, "model data type (%s) is no longer supported", type_to_string[header.data_type]);
+
+    if (verify_data_type) {
+        enum ggml_type ggml_type = type_to_ggml[header.data_type];
+
+        RWKV_ASSERT_FALSE_MSG(
+            RWKV_ERROR_DATA_TYPE,
+            ggml_type != GGML_TYPE_UNKNOWN,
+            "Models in %s format cannot be loaded anymore because the format was removed.\n"
+            "You need to quantize the model into another format or use an older version of rwkv.cpp.\n"
+            "See https://github.com/saharNooby/rwkv.cpp#compatibility for more info",
+            type_to_string[header.data_type]
+        );
+
+        RWKV_ASSERT_FALSE_MSG(
+            RWKV_ERROR_DATA_TYPE,
+            (!ggml_is_quantized(ggml_type) || header.version == RWKV_FILE_VERSION_1),
+            "The quantized model file in %s format was created with an old version of rwkv.cpp and can not be loaded anymore.\n"
+            "You need to requantize the model or use an older version of rwkv.cpp.\n"
+            "See https://github.com/saharNooby/rwkv.cpp#compatibility for more info",
+            type_to_string[header.data_type]
+        );
+    }
+
     return true;
 }
 
@@ -643,8 +672,9 @@ bool rwkv_build_graph(struct ggml_context * ctx, struct rwkv_model & model, cons
 
     ggml_build_forward_expand(cgraph.get(), logits);
 
-    for (uint32_t i = 0; i < n_layer * 5; i++)
-       ggml_build_forward_expand(cgraph.get(), state_parts[i]);
+    for (uint32_t i = 0; i < n_layer * 5; i++) {
+        ggml_build_forward_expand(cgraph.get(), state_parts[i]);
+    }
 
     out.state = state;
     out.state_parts = std::move(state_parts);
@@ -687,6 +717,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, file, "failed to open file %s", file_path);
     rwkv_file_guard file_guard { file };
 
+    // Be very careful when changing this code. It must support files larger than 2 GB by using 64-bit functions to the get file length.
     struct stat file_stat;
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(file), &file_stat) == 0, "failed to stat file %s", file_path);
 
@@ -804,7 +835,8 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     std::unique_ptr<struct rwkv_context> rwkv_ctx(new(std::nothrow) struct rwkv_context());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, rwkv_ctx.get(), "failed to allocate context");
 
-    ggml_guard.ctx = NULL; // don't free ggml context
+    // don't free ggml context
+    ggml_guard.ctx = NULL;
     rwkv_ctx->model = std::move(model);
     rwkv_ctx->ctx = ctx;
     rwkv_ctx->scratch = std::move(scratch);
@@ -878,6 +910,7 @@ bool rwkv_quantize_model_file(const char * input_path, const char * output_path,
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, input, "failed to open %s for reading", input_path);
     rwkv_file_guard input_guard { input };
 
+    // Be very careful when changing this code. It must support files larger than 2 GB by using 64-bit functions to the get file length.
     struct stat stat;
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(input), &stat) == 0, "failed to stat file %s", input_path);
 
@@ -887,8 +920,11 @@ bool rwkv_quantize_model_file(const char * input_path, const char * output_path,
 
     struct file_header file_header;
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, fread_file_header(input, file_header), "invalid file header");
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, fwrite_file_header(output, file_header), "failed to write file header");
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, file_header.data_type == TYPE_F32 || file_header.data_type == TYPE_F16, "unsupported source data type (%s); needs to be f32 or f16", type_to_string[file_header.data_type]);
+
+    file_header.version = RWKV_FILE_VERSION;
+    file_header.data_type = target_type;
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, fwrite_file_header(output, file_header), "failed to write file header");
 
     // required to init the fp16 tables
     // doesn't crash if ggml_init fails
