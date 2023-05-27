@@ -2,7 +2,7 @@
 
 This is a port of [BlinkDL/RWKV-LM](https://github.com/BlinkDL/RWKV-LM) to [ggerganov/ggml](https://github.com/ggerganov/ggml).
 
-Besides the usual **FP32**, it supports **FP16**, **quantized INT4** and **quantized INT8** inference. This project is **CPU only**.
+Besides the usual **FP32**, it supports **FP16**, **quantized INT4, INT5 and INT8** inference. This project is **CPU only**.
 
 This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrapper](rwkv%2Frwkv_cpp_model.py) for it.
 
@@ -20,7 +20,6 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 |-----------|-------------------|--------------------|----------------------|
 | `Q4_0`    | 17.507            | *76*               | **1.53**             |
 | `Q4_1`    | 17.187            | **72**             | 1.68                 |
-| `Q4_2`    | 17.060            | 85                 | **1.53**             |
 | `Q5_0`    | 16.194            | 78                 | *1.60*               |
 | `Q5_1`    | 15.851            | 81                 | 1.68                 |
 | `Q8_0`    | *15.652*          | 89                 | 2.13                 |
@@ -105,10 +104,10 @@ python rwkv/convert_pytorch_to_ggml.py ~/Downloads/RWKV-4-Pile-169M-20220807-802
 
 ```commandline
 # Windows
-python rwkv\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q4_2.bin Q4_2
+python rwkv\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q5_1.bin Q5_1
 
 # Linux / MacOS
-python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q4_2.bin Q4_2
+python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q5_1.bin Q5_1
 ```
 
 ### 4. Run the model
@@ -121,20 +120,20 @@ To generate some text, run:
 
 ```commandline
 # Windows
-python rwkv\generate_completions.py C:\rwkv.cpp-169M-Q4_2.bin
+python rwkv\generate_completions.py C:\rwkv.cpp-169M-Q5_1.bin
 
 # Linux / MacOS
-python rwkv/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q4_2.bin
+python rwkv/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q5_1.bin
 ```
 
 To chat with a bot, run:
 
 ```commandline
 # Windows
-python rwkv\chat_with_bot.py C:\rwkv.cpp-169M-Q4_2.bin
+python rwkv\chat_with_bot.py C:\rwkv.cpp-169M-Q5_1.bin
 
 # Linux / MacOS
-python rwkv/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q4_2.bin
+python rwkv/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q5_1.bin
 ```
 
 Edit [generate_completions.py](rwkv%2Fgenerate_completions.py) or [chat_with_bot.py](rwkv%2Fchat_with_bot.py) to change prompts and sampling settings.
@@ -167,3 +166,22 @@ for token in [1, 2, 3]:
 model.free()
 
 ```
+
+## Compatibility
+
+`ggml` moves fast, and can occasionally break compatibility with older file formats.
+
+`rwkv.cpp` will attempt it's best to explain why a model file can't be loaded and what next steps are available to the user.
+
+For reference only, here is a list of latest versions of `rwkv.cpp` that have supported older formats. **No support will be provided for these versions**.
+
+- `Q4_2`, old layout of quantized formats
+  - [commit 3ca9c7f](https://github.com/saharNooby/rwkv.cpp/commit/3ca9c7f7857a4b9f3de616ec938e71249cfb3f3f), [release with prebuilt binaries](https://github.com/saharNooby/rwkv.cpp/releases/tag/master-3ca9c7f)
+- `Q4_3`, `Q4_1_O`
+  - [commit c736ef5](https://github.com/saharNooby/rwkv.cpp/commit/c736ef5411606b529d3a74c139ee111ef1a28bb9), [release with prebuilt binaries](https://github.com/saharNooby/rwkv.cpp/releases/tag/master-1c363e6)
+
+See also [FILE_FORMAT.md](FILE_FORMAT.md) for version numbers of `rwkv.cpp` model files and their changelog.
+
+## Contributing
+
+There is no complete contributor guide yet; but we have [CODE_STYLE.md](CODE_STYLE.md).
