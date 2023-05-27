@@ -8,6 +8,7 @@ import argparse
 import struct
 import torch
 import numpy as np
+from typing import List, Dict, Tuple
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Merge a PyTorch LoRA checkpoint (.pth) into an rwkv.cpp model file')
@@ -45,16 +46,16 @@ def main() -> None:
 
     print(f'Reading {args.lora_path}')
 
-    lora_state_dict: dict[str, torch.Tensor] = torch.load(args.lora_path, map_location='cpu')
+    lora_state_dict: Dict[str, torch.Tensor] = torch.load(args.lora_path, map_location='cpu')
 
     print(f'Merging')
 
     with open(args.src_path, 'rb') as in_file, open(args.dest_path, 'wb') as out_file:
         # noinspection PyTypeChecker
-        header: tuple[int, int, int, int, int, int] = struct.unpack('=iiiiii', in_file.read(6 * 4))
+        header: Tuple[int, int, int, int, int, int] = struct.unpack('=iiiiii', in_file.read(6 * 4))
 
         assert header[0] == 0x67676d66, 'Invalid magic value'
-        assert header[1] == 100, 'Invalid version number'
+        assert 100 <= header[1] <= 101, 'Invalid version number'
         assert header[5] == 0 or header[5] == 1, 'Only FP32 and FP16 models are supported'
 
         out_file.write(struct.pack('=iiiiii', *header))
@@ -68,9 +69,9 @@ def main() -> None:
             dim_count, key_length, data_type = struct.unpack('=iii', parameter_header_bytes)
 
             # noinspection PyTypeChecker
-            shape: tuple[int] = struct.unpack('=' + 'i' * dim_count, in_file.read(dim_count * 4))
+            shape: Tuple[int] = struct.unpack('=' + 'i' * dim_count, in_file.read(dim_count * 4))
             # ggml order to PyTorch
-            shape: list[int] = [d for d in reversed(shape)]
+            shape: List[int] = [d for d in reversed(shape)]
 
             key: str = in_file.read(key_length).decode('utf-8')
 

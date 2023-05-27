@@ -28,6 +28,7 @@ void test_model(const char * model_path, const float * expected_logits, const fl
 
     struct rwkv_context * model = rwkv_init_from_file(model_path, N_THREADS, N_GPU_LAYERS);
     enum rwkv_error_flags error = rwkv_get_last_error(NULL);
+    ASSERT(error == 0, "Unexpected error %d", error);
 
     uint32_t n_vocab = rwkv_get_logits_buffer_element_count(model);
 
@@ -93,7 +94,7 @@ int main(void) {
         -0.372169F,
 #endif
         -0.372169F,
-        0.658310F,
+        -0.170043F,
         0.294953F,
         0.065571F,
     };

@@ -12,7 +12,7 @@ import tokenizers
 import rwkv_cpp_model
 import rwkv_cpp_shared_library
 import json
-from typing import Optional
+from typing import List, Dict, Optional
 import time
 
 # ======================================== Script settings ========================================
@@ -35,6 +35,7 @@ PRESENCE_PENALTY: float = 0.2
 FREQUENCY_PENALTY: float = 0.2
 
 END_OF_LINE_TOKEN: int = 187
+DOUBLE_END_OF_LINE_TOKEN: int = 535
 END_OF_TEXT_TOKEN: int = 0
 
 # =================================================================================================
@@ -67,11 +68,11 @@ prompt_token_count = len(prompt_tokens)
 
 # =================================================================================================
 
-processed_tokens: list[int] = []
+processed_tokens: List[int] = []
 logits: Optional[torch.Tensor] = None
 state: Optional[torch.Tensor] = None
 
-def process_tokens(_tokens: list[int], new_line_logit_bias: float = 0.0) -> None:
+def process_tokens(_tokens: List[int], new_line_logit_bias: float = 0.0) -> None:
     global processed_tokens, logits, state
 
     processed_tokens += _tokens
@@ -81,7 +82,7 @@ def process_tokens(_tokens: list[int], new_line_logit_bias: float = 0.0) -> None
 
     logits[END_OF_LINE_TOKEN] += new_line_logit_bias
 
-state_by_thread: dict[str, dict] = {}
+state_by_thread: Dict[str, Dict] = {}
 
 def save_thread_state(_thread: str) -> None:
     state_by_thread[_thread] = {
@@ -98,6 +99,14 @@ def load_thread_state(_thread: str) -> None:
     processed_tokens = copy.deepcopy(thread_state['tokens'])
     logits = copy.deepcopy(thread_state['logits'])
     state = copy.deepcopy(thread_state['state'])
+
+# Model only saw '\n\n' as [187, 187] before, but the tokenizer outputs [535] for it at the end.
+# See https://github.com/BlinkDL/ChatRWKV/pull/110/files
+def split_last_end_of_line(tokens):
+    if len(tokens) > 0 and tokens[-1] == DOUBLE_END_OF_LINE_TOKEN:
+        tokens = tokens[:-1] + [END_OF_LINE_TOKEN, END_OF_LINE_TOKEN]
+
+    return tokens
 
 # =================================================================================================
 T1 = time.time()
@@ -230,8 +239,8 @@ Below is an instruction that describes a task. Write a response that appropriate
         print(f'> {bot}{separator}', end='')
 
     start_index: int = len(processed_tokens)
-    accumulated_tokens: list[int] = []
-    token_counts: dict[int, int] = {}
+    accumulated_tokens: List[int] = []
+    token_counts: Dict[int, int] = {}
 
     for i in range(MAX_GENERATION_LENGTH):
         for n in token_counts:

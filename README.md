@@ -2,7 +2,7 @@
 
 This is a port of [BlinkDL/RWKV-LM](https://github.com/BlinkDL/RWKV-LM) to [ggerganov/ggml](https://github.com/ggerganov/ggml).
 
-Besides the usual **FP32**, it supports **FP16**, **quantized INT4** and **quantized INT8** inference. This project is **CPU only**.
+Besides the usual **FP32**, it supports **FP16**, **quantized INT4, INT5 and INT8** inference. This project is **CPU only**.
 
 This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrapper](rwkv%2Frwkv_cpp_model.py) for it.
 
@@ -200,3 +200,22 @@ for token in [1, 2, 3]:
 model.free()
 
 ```
+
+## Compatibility
+
+`ggml` moves fast, and can occasionally break compatibility with older file formats.
+
+`rwkv.cpp` will attempt it's best to explain why a model file can't be loaded and what next steps are available to the user.
+
+For reference only, here is a list of latest versions of `rwkv.cpp` that have supported older formats. **No support will be provided for these versions**.
+
+- `Q4_2`, old layout of quantized formats
+  - [commit 3ca9c7f](https://github.com/saharNooby/rwkv.cpp/commit/3ca9c7f7857a4b9f3de616ec938e71249cfb3f3f), [release with prebuilt binaries](https://github.com/saharNooby/rwkv.cpp/releases/tag/master-3ca9c7f)
+- `Q4_3`, `Q4_1_O`
+  - [commit c736ef5](https://github.com/saharNooby/rwkv.cpp/commit/c736ef5411606b529d3a74c139ee111ef1a28bb9), [release with prebuilt binaries](https://github.com/saharNooby/rwkv.cpp/releases/tag/master-1c363e6)
+
+See also [FILE_FORMAT.md](FILE_FORMAT.md) for version numbers of `rwkv.cpp` model files and their changelog.
+
+## Contributing
+
+There is no complete contributor guide yet; but we have [CODE_STYLE.md](CODE_STYLE.md).

@@ -119,13 +119,25 @@ static const ggml_type FORMAT_TYPE_TO_GGML_TYPE[FORMAT_TYPE_COUNT] = {
     GGML_TYPE_F16,
     GGML_TYPE_Q4_0,
     GGML_TYPE_Q4_1,
-    GGML_TYPE_UNKNOWN, // GGML_TYPE_Q4_1_0 support has been removed
-    GGML_TYPE_UNKNOWN, // GGML_TYPE_Q4_2 support has been removed
-    GGML_TYPE_UNKNOWN, // GGML_TYPE_Q4_3 support has been removed
+    GGML_TYPE_UNKNOWN, // Unused
+    GGML_TYPE_UNKNOWN, // Unused
+    GGML_TYPE_UNKNOWN, // Unused
     GGML_TYPE_Q5_0,
     GGML_TYPE_Q5_1,
-    GGML_TYPE_Q8_0,
+    GGML_TYPE_Q8_0
 };
+
+static bool is_non_quantized_format_type(int32_t format_type) {
+    return format_type == 0 || format_type == 1;
+}
+
+static bool is_quantized_format_type(int32_t format_type) {
+    return format_type == 2 ||
+        format_type == 3 ||
+        format_type == 7 ||
+        format_type == 8 ||
+        format_type == 9;
+}
 
 static int32_t format_name_to_format_type(const char * format_name) {
     if (strcmp(format_name, "Q4_0") == 0) return 2;
@@ -431,8 +443,9 @@ bool rwkv_build_graph(struct ggml_context * ctx, struct rwkv_model * model, cons
 
     ggml_build_forward_expand(cgraph.get(), logits);
 
-    for (uint32_t i = 0; i < n_layer * 5; i++)
+    for (uint32_t i = 0; i < n_layer * 5; i++) {
        ggml_build_forward_expand(cgraph.get(), state_parts[i]);
+    }
 
     out->state = state;
     out->state_parts = std::move(state_parts);
@@ -459,6 +472,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, file, "Failed to open file %s", file_path);
     rwkv_file_guard file_guard { file };
 
+    // Be very careful when changing this code. It must support files larger than 2 GB by using 64-bit functions to the get file length.
     struct stat64 file_stat;
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat64(fileno(file), &file_stat) == 0, "Failed to stat file %s", file_path);
 
@@ -468,7 +482,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 
     int32_t version;
     RWKV_ASSERT_NULL(RWKV_ERROR_FILE, read_int32(file, &version, "version"));
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_VERSION, version == RWKV_FILE_VERSION, "Unsupported file version %d", version);
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_VERSION, version >= RWKV_FILE_VERSION_MIN && version <= RWKV_FILE_VERSION_MAX, "Unsupported file version %d", version);
 
     std::unique_ptr<rwkv_model> model(new(std::nothrow) struct rwkv_model());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_ALLOC, model.get(), "Failed to allocate model");
@@ -478,11 +492,22 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL, read_uint32(file, &model->n_layer, "n_layer"));
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL, read_int32(file, &model->data_type, "data_type"));
 
-    const char * unsupported_msg = "Models in %s format cannot be loaded anymore because the format was removed. You need to quantize the model into another format";
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_DATA_TYPE, model->data_type >= 0 && model->data_type < FORMAT_TYPE_COUNT, "Unsupported model data type %d", model->data_type);
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED, model->data_type != 4, unsupported_msg, "Q4_1_O");
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED, model->data_type != 5, unsupported_msg, "Q4_2");
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED, model->data_type != 6, unsupported_msg, "Q4_3");
+
+    const char * unsupported_type_msg = "Models in %s format cannot be loaded anymore because the format was removed.\n"
+        "You need to quantize the model into another format or use an older version of rwkv.cpp.\n"
+        "See https://github.com/saharNooby/rwkv.cpp#compatibility for more info";
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED, model->data_type != 4, unsupported_type_msg, "Q4_1_O");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED, model->data_type != 5, unsupported_type_msg, "Q4_2");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED, model->data_type != 6, unsupported_type_msg, "Q4_3");
+
+    RWKV_ASSERT_NULL_MSG(
+        RWKV_ERROR_MODEL | RWKV_ERROR_UNSUPPORTED,
+        !is_quantized_format_type(model->data_type) || version >= RWKV_FILE_VERSION_1,
+        "The quantized model file was created with an old version of rwkv.cpp and can not be loaded anymore.\n"
+            "You need to requantize the model or use an older version of rwkv.cpp.\n"
+            "See https://github.com/saharNooby/rwkv.cpp#compatibility for more info"
+    );
 
     size_t memory_required = file_stat.st_size +
         // Intermediary vectors for calculation; there are around 100 calls to ggml
@@ -503,8 +528,16 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 
     while (true) {
         int32_t dim_count, key_length, data_type;
-        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_FILE_READ, fread(&dim_count, sizeof(int32_t), 1, file) == 1 || feof(file), "Failed to read an int32 value from a file (dim_count)");
-        if (feof(file)) break;
+        RWKV_ASSERT_NULL_MSG(
+            RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_FILE_READ,
+            fread(&dim_count, sizeof(int32_t), 1, file) == 1 || feof(file),
+            "Failed to read an int32 value from a file (dim_count)"
+        );
+
+        if (feof(file)) {
+            break;
+        }
+
         RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS, read_int32(file, &key_length, "key_length"));
         RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS, read_int32(file, &data_type, "data_type"));
 
@@ -546,6 +579,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS, set_parameter(&parameters, "blocks.0.ln0.bias", &model->ln0_bias));
 
     model->layers.resize(model->n_layer);
+
     for (uint32_t i = 0; i < model->n_layer; i++) {
         rwkv_layer * layer = &model->layers[i];
         RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS, set_block_parameter(&parameters, i, "ln1.weight", &layer->ln1_weight));
@@ -620,9 +654,6 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DIMENSION, emb->ne[0] == model->n_embed, "Unexpected dimension of embedding matrix %" PRId64, emb->ne[0]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DIMENSION, emb->ne[1] == model->n_vocab, "Unexpected dimension of embedding matrix %" PRId64, emb->ne[1]);
 
-    size_t n_embed = model->n_embed;
-    size_t n_layer = model->n_layer;
-
     // Build graph
     struct rwkv_graph graph;
     RWKV_ASSERT_NULL(RWKV_ERROR_GRAPH, rwkv_build_graph(ctx, model.get(), n_threads, &graph));
@@ -634,7 +665,8 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     rwkv_ctx->graph = std::move(graph);
     rwkv_ctx->last_error = RWKV_ERROR_NONE;
     rwkv_ctx->print_errors = global_print_errors;
-    ggml_guard.ctx = NULL; // don't free ggml context
+    // Don't free ggml context
+    ggml_guard.ctx = NULL;
     return rwkv_ctx.release();
 }
 
@@ -719,16 +751,30 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
 
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, read_uint32(file_in, &magic, "magic"));
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_MAGIC, magic == RWKV_FILE_MAGIC, "Unexpected magic value %d", magic);
+
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, read_uint32(file_in, &version, "version"));
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_VERSION, version == RWKV_FILE_VERSION, "Unsupported file version %d", version);
+        RWKV_ASSERT_FALSE_MSG(
+            RWKV_ERROR_FILE | RWKV_ERROR_FILE_VERSION,
+            version >= RWKV_FILE_VERSION_MIN && version <= RWKV_FILE_VERSION_MAX,
+            "Unsupported file version %d",
+            version
+        );
+
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, read_int32(file_in, &n_vocab, "n_vocab"));
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, read_int32(file_in, &n_embed, "n_embed"));
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, read_int32(file_in, &n_layer, "n_layer"));
+
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, read_int32(file_in, &data_type, "data_type"));
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_DATA_TYPE, data_type == 0 || data_type == 1, "Unsupported data type %d, only FP32 and FP16 can be quantized", data_type);
+        RWKV_ASSERT_FALSE_MSG(
+            RWKV_ERROR_FILE | RWKV_ERROR_DATA_TYPE,
+            is_non_quantized_format_type(data_type),
+            "Unsupported data type %d, only FP32 and FP16 can be quantized",
+            data_type
+        );
 
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, write_uint32(file_out, magic, "magic"));
-        RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, write_uint32(file_out, version, "version"));
+        // Always write latest version number when saving files
+        RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, write_uint32(file_out, RWKV_FILE_VERSION_MAX, "version"));
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, write_int32(file_out, n_vocab, "n_vocab"));
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, write_int32(file_out, n_embed, "n_embed"));
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, write_int32(file_out, n_layer, "n_layer"));
@@ -749,16 +795,34 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
 
     while (true) {
         int32_t n_dims, key_length, parameter_data_type;
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_FILE_READ, fread(&n_dims, sizeof(int32_t), 1, file_in) == 1 || feof(file_in), "Failed to read an int32 value from a file (n_dims)");
-        if (feof(file_in)) break;
+        RWKV_ASSERT_FALSE_MSG(
+            RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_FILE_READ,
+            fread(&n_dims, sizeof(int32_t), 1, file_in) == 1 || feof(file_in),
+            "Failed to read an int32 value from a file (n_dims)"
+        );
+
+        if (feof(file_in)) {
+            break;
+        }
+
         RWKV_ASSERT_FALSE(RWKV_ERROR_MODEL_PARAMS, read_int32(file_in, &key_length, "key_length"));
         RWKV_ASSERT_FALSE(RWKV_ERROR_MODEL_PARAMS, read_int32(file_in, &parameter_data_type, "parameter_data_type"));
 
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_SHAPE, n_dims == 1 || n_dims == 2, "Unsupported dimension count %d", n_dims);
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_UNSUPPORTED, parameter_data_type >= 0 && parameter_data_type < FORMAT_TYPE_COUNT, "Unsupported parameter data type %d", parameter_data_type);
+        RWKV_ASSERT_FALSE_MSG(
+            RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_UNSUPPORTED,
+            parameter_data_type >= 0 && parameter_data_type < FORMAT_TYPE_COUNT,
+            "Unsupported parameter data type %d",
+            parameter_data_type
+        );
 
         ggml_type parameter_ggml_type = FORMAT_TYPE_TO_GGML_TYPE[parameter_data_type];
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_UNSUPPORTED, parameter_ggml_type != GGML_TYPE_UNKNOWN, "Unsupported parameter data type %d", parameter_data_type);
+        RWKV_ASSERT_FALSE_MSG(
+            RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_UNSUPPORTED,
+            parameter_ggml_type != GGML_TYPE_UNKNOWN,
+            "Unsupported parameter data type %d",
+            parameter_data_type
+        );
 
         int32_t nelements, x, y;
 
@@ -795,12 +859,21 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
 
             if (parameter_data_type == GGML_TYPE_F16) {
                 data_f16.resize(nelements);
-                RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DATA, fread(data_f16.data(), nelements * sizeof(ggml_fp16_t), 1, file_in) == 1, "Failed to read parameter data");
+                RWKV_ASSERT_FALSE_MSG(
+                    RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DATA,
+                    fread(data_f16.data(), nelements * sizeof(ggml_fp16_t), 1, file_in) == 1,
+                    "Failed to read parameter data"
+                );
 
-                for (int i = 0; i < nelements; ++i)
+                for (int i = 0; i < nelements; ++i) {
                     data_f32[i] = ggml_fp16_to_fp32(data_f16[i]);
+                }
             } else {
-                RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DATA, fread(data_f32.data(), nelements * sizeof(float), 1, file_in) == 1, "Failed to read parameter data");
+                RWKV_ASSERT_FALSE_MSG(
+                    RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DATA,
+                    fread(data_f32.data(), nelements * sizeof(float), 1, file_in) == 1,
+                    "Failed to read parameter data"
+                );
             }
 
             parameter_data_type = format_data_type;
@@ -808,25 +881,31 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
         } else {
             const size_t element_size = ggml_type_size(parameter_ggml_type);
             data_u8.resize(nelements * element_size);
-            RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DATA, fread(data_u8.data(), nelements * element_size, 1, file_in) == 1, "Failed to read parameter data");
+            RWKV_ASSERT_FALSE_MSG(
+                RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DATA,
+                fread(data_u8.data(), nelements * element_size, 1, file_in) == 1,
+                "Failed to read parameter data"
+            );
         }
 
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, write_int32(file_out, n_dims, "n_dims"));
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, write_int32(file_out, key_length, "key_length"));
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, write_int32(file_out, parameter_data_type, "parameter_data_type"));
-
+            
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, write_int32(file_out, x, "x"));
 
-        if (n_dims == 2)
+        if (n_dims == 2) {
             RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, write_int32(file_out, y, "y"));
+        }
 
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_WRITE, fwrite(&name[0], key_length, 1, file_out) == 1, "Failed to write parameter key");
 
         if (quantize) {
             printf("quantizing... ");
-            work.resize(nelements); // for quantization
+            // For quantization
+            work.resize(nelements);
 
-            // This is a histogramm of some values. If it shows single 1.0, then all 0.0, something went very wrong!
+            // This is a histogram of quantized values. If it shows single 1.0, then all 0.0, something went very wrong!
             std::vector<int64_t> hist_cur(1 << 4, 0);
 
             size_t (*f)(const float * src, void * dst, int n, int k, int64_t * hist) =
@@ -837,7 +916,7 @@ bool rwkv_quantize_model_file(const char * model_file_path_in, const char * mode
                 format_ggml_type == GGML_TYPE_Q8_0 ? ggml_quantize_q8_0 :
                 NULL;
 
-            RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ARGS | RWKV_ERROR_UNSUPPORTED, f, "unsupported quantization type %d\n", format_ggml_type);
+            RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ARGS | RWKV_ERROR_UNSUPPORTED, f, "Unsupported quantization type %d\n", format_ggml_type);
 
             size_t cur_size = (*f)(data_f32.data(), work.data(), nelements, x, hist_cur.data());
             total_size_new += cur_size;
