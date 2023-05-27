@@ -9,8 +9,7 @@ QUANTIZED_FORMAT_NAMES = (
     'Q4_1',
     'Q5_0',
     'Q5_1',
-    'Q8_0',
-    'Q8_1'
+    'Q8_0'
 )
 
 P_FLOAT = ctypes.POINTER(ctypes.c_float)

@@ -171,12 +171,12 @@ enum rwkv_type {
     TYPE_Q4_0,
     TYPE_Q4_1,
     TYPE_Q4_1_O, // Unsupported
-    TYPE_Q4_2,
+    TYPE_Q4_2, // Unsupported
     TYPE_Q4_3, // Unsupported
     TYPE_Q5_0,
     TYPE_Q5_1,
     TYPE_Q8_0,
-    TYPE_Q8_1,
+    TYPE_Q8_1, // Unimplemented in GGML (missing vec_dot_q and dequantize_row_q)
     TYPE_COUNT
 };
 
@@ -193,7 +193,7 @@ static const enum ggml_type type_to_ggml[TYPE_COUNT + 1] = {
     GGML_TYPE_Q5_0,    /* Q5_0   */
     GGML_TYPE_Q5_1,    /* Q5_1   */
     GGML_TYPE_Q8_0,    /* Q8_0   */
-    GGML_TYPE_Q8_1,    /* Q8_1   */
+    GGML_TYPE_UNKNOWN, /* Q8_1   */
     GGML_TYPE_COUNT    /* COUNT  */
 };
 
@@ -862,8 +862,8 @@ bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const floa
     if (state_in == NULL) {
         ggml_set_f32(graph.state, 0.0F);
 
-        for (float * start = (float *) graph.state->data + header.n_embed * 4, * end = start + header.n_embed * 5 * header.n_layer; start < end; start += header.n_embed * 5) {
-            for (float * start2 = start, * end2 = start2 + header.n_embed; start2 < end2; *start2++ = -1e30F);
+        for (size_t layer = 0; layer < header.n_layer; layer++) {
+            for (float * cur = (float *) graph.state->data + header.n_embed * (layer * 5 + 4), * end = cur + header.n_embed; cur < end; *cur++ = -1e30f);
         }
     } else {
         memcpy(graph.state->data, state_in, ggml_nbytes(graph.state));
@@ -975,8 +975,24 @@ bool rwkv_quantize_model_file(const char * input_path, const char * output_path,
             scratch->resize(new_size = tensor_bytes(header));
 
             int64_t hist_cur[16] {};
-            new_size = ggml_quantize_chunk(target_ggml, (const float *) container->data(), scratch->data(), 0, nelements, hist_cur);
-            std::swap(container, scratch);
+
+            if (target_ggml != GGML_TYPE_Q8_1) {
+                ggml_quantize_chunk(target_ggml, (const float *) container->data(), scratch->data(), 0, nelements, hist_cur);
+                std::swap(container, scratch);
+            } else {
+                // Quantize implementation left here for when ggml implements inference on this
+                size_t qk8_0 = ggml_blck_size(GGML_TYPE_Q8_1);
+                ggml_internal_get_quantize_fn(target_ggml).quantize_row_q_reference((const float *) container->data(), scratch->data(), nelements);
+                std::swap(container, scratch);
+
+                size_t type_size = ggml_type_size(target_ggml);
+                for (size_t i = 2 * sizeof(float); i < new_size; i += type_size) {
+                    for (int j = 0; j < qk8_0; j++) {
+                        const int8_t vi = container->data()[i + j];
+                        hist_cur[vi/16 + 8]++;
+                    }
+                }
+            }
 
             orig_total_size += orig_size;
             new_total_size += new_size;
