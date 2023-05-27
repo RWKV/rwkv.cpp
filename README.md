@@ -38,9 +38,6 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 
 ##### Since there is only `ggml_mul_mat()` supported with cuBLAS, so we still need to assign few cpu resources to process with the left computation
 
-## Notice
-**2023-05-22**: Due to GGML update, Q4_2 support has been removed, and re-quantize of all models is required when using the latest version.
-
 ## How to use
 
 ### 1. Clone the repo
