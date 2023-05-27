@@ -55,7 +55,7 @@ def main() -> None:
         header: Tuple[int, int, int, int, int, int] = struct.unpack('=iiiiii', in_file.read(6 * 4))
 
         assert header[0] == 0x67676d66, 'Invalid magic value'
-        assert header[1] == 100, 'Invalid version number'
+        assert 100 <= header[1] <= 101, 'Invalid version number'
         assert header[5] == 0 or header[5] == 1, 'Only FP32 and FP16 models are supported'
 
         out_file.write(struct.pack('=iiiiii', *header))

@@ -21,7 +21,11 @@
 
 // 'ggmf' in hex.
 #define RWKV_FILE_MAGIC 0x67676d66
-#define RWKV_FILE_VERSION 100
+
+#define RWKV_FILE_VERSION_0 100
+#define RWKV_FILE_VERSION_1 101
+#define RWKV_FILE_VERSION_MIN RWKV_FILE_VERSION_0
+#define RWKV_FILE_VERSION_MAX RWKV_FILE_VERSION_1
 
 #ifdef __cplusplus
 extern "C" {
