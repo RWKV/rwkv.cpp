@@ -176,7 +176,6 @@ enum rwkv_type {
     TYPE_Q5_0,
     TYPE_Q5_1,
     TYPE_Q8_0,
-    TYPE_Q8_1, // Unimplemented in GGML (missing vec_dot_q and dequantize_row_q)
     TYPE_COUNT
 };
 
@@ -193,7 +192,6 @@ static const enum ggml_type type_to_ggml[TYPE_COUNT + 1] = {
     GGML_TYPE_Q5_0,    /* Q5_0   */
     GGML_TYPE_Q5_1,    /* Q5_1   */
     GGML_TYPE_Q8_0,    /* Q8_0   */
-    GGML_TYPE_UNKNOWN, /* Q8_1   */
     GGML_TYPE_COUNT    /* COUNT  */
 };
 
@@ -207,14 +205,14 @@ static const enum rwkv_type type_from_ggml[GGML_TYPE_COUNT + 1] = {
     TYPE_Q5_0,   /* Q5_0  */
     TYPE_Q5_1,   /* Q5_1  */
     TYPE_Q8_0,   /* Q8_0  */
-    TYPE_Q8_1,   /* Q8_1  */
+    TYPE_COUNT,  /* Q8_1  */
     TYPE_COUNT,  /* I8    */
     TYPE_COUNT,  /* I16   */
     TYPE_COUNT,  /* I32   */
     TYPE_COUNT,  /* COUNT */
 };
 
-static const char * type_to_string[TYPE_COUNT] = {"f32", "f16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "Q8_1"};
+static const char * type_to_string[TYPE_COUNT] = {"f32", "f16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0"};
 
 static enum rwkv_type type_from_string(const char * str) {
     for (int ord = 0; ord < TYPE_COUNT; ord++)
@@ -976,23 +974,8 @@ bool rwkv_quantize_model_file(const char * input_path, const char * output_path,
 
             int64_t hist_cur[16] {};
 
-            if (target_ggml != GGML_TYPE_Q8_1) {
-                ggml_quantize_chunk(target_ggml, (const float *) container->data(), scratch->data(), 0, nelements, hist_cur);
-                std::swap(container, scratch);
-            } else {
-                // Quantize implementation left here for when ggml implements inference on this
-                size_t qk8_0 = ggml_blck_size(GGML_TYPE_Q8_1);
-                ggml_internal_get_quantize_fn(target_ggml).quantize_row_q_reference((const float *) container->data(), scratch->data(), nelements);
-                std::swap(container, scratch);
-
-                size_t type_size = ggml_type_size(target_ggml);
-                for (size_t i = 2 * sizeof(float); i < new_size; i += type_size) {
-                    for (int j = 0; j < qk8_0; j++) {
-                        const int8_t vi = container->data()[i + j];
-                        hist_cur[vi/16 + 8]++;
-                    }
-                }
-            }
+            ggml_quantize_chunk(target_ggml, (const float *) container->data(), scratch->data(), 0, nelements, hist_cur);
+            std::swap(container, scratch);
 
             orig_total_size += orig_size;
             new_total_size += new_size;
