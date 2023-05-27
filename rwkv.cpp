@@ -13,7 +13,7 @@
 #define _FILE_OFFSET_BITS 64
 #define RWKV_MAYBE_BREAK
 
-#if defined(WIN32)
+#ifdef _MSC_BUILD
 #define stat _stat64
 #define fstat _fstat64
 #define ftell _ftelli64
