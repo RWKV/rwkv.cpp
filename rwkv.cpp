@@ -735,6 +735,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     size_t objects_count = 0;
     size_t objects_size = 0;
     size_t scratch_size = 0;
+    size_t ffn_key_size = 0;
 
     auto add = [&](enum ggml_type type, const uint64_t width, const uint64_t height = 1, const uint64_t count = 1, const uint64_t views = 0) {
         objects_count += count;
@@ -742,11 +743,17 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
         scratch_size += ((tensor_bytes(type, width, height) + 15) & ~15) * (count - views);
     };
 
+    std::string name;
     while ((size_t) ftell(file) < (size_t) file_stat.st_size) {
         struct tensor_header header;
         RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, fread_tensor_header(file, header), "invalid tensor header");
-        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, (size_t) header.key_length + tensor_bytes(header), SEEK_CUR) == 0, "failed to read tensor");
+        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, fread_string(file, header.key_length, name), "failed to read tensor name");
+        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, tensor_bytes(header), SEEK_CUR) == 0, "failed to read tensor data");
         add(type_to_ggml[header.data_type], header.width, header.height);
+
+        if (ffn_key_size == 0 && name == "blocks.0.ffn.key.weight") {
+            ffn_key_size = header.height;
+        }
     }
 
     size_t base_objects = objects_count;
@@ -784,7 +791,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
         add(GGML_TYPE_I32, sizeof(void *) / sizeof(int32_t), 1, 2); // xk, xr [rwkv_1_minus_x]
         add(GGML_TYPE_F32, n_embed, 1, 2); // r
         add(GGML_TYPE_I32, sizeof(void *) / sizeof(int32_t)); // r [rwkv_sigmoid]
-        add(GGML_TYPE_F32, n_vocab, 1, 3); // k
+        add(GGML_TYPE_F32, ffn_key_size > 0 ? ffn_key_size : n_embed * 4, 1, 3); // k
         add(GGML_TYPE_F32, n_embed, 1, 3, 1); // x
     }
 
