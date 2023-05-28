@@ -47,7 +47,7 @@ class AskRWKV:
         tokenizer_path = self.script_dir + '/20B_tokenizer.json'
         tokenizer = tokenizers.Tokenizer.from_file(str(tokenizer_path))
 
-        library = RWKVSharedLibrary(f'rwkv_cpp/rwkv/librwkv.so')
+        library = rwkv_cpp_shared_library.load_rwkv_shared_library()
         print(f'System info: {library.rwkv_get_system_info_string()}')
 
         print('Loading RWKV model')
