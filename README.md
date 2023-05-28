@@ -29,12 +29,12 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 ### cuBLAS's performance on 3060Ti(8G) + i7 13700K, time cost per token
 | Model                 | Layers on GPU | Format | 24 Threads | 8 Threads | 4 Threads | 2 Threads | 1 Threads |
 |-----------------------|---------------|--------|------------|-----------|-----------|-----------|-----------|
-| `RWKV-4-Pile-169M`    | 12            | `Q4_0` | 28.9ms     | 10.5ms    | 8.6ms     | 7.9ms     | 9.4ms     |
-| `RWKV-4-Pile-169M`    | 12            | `Q4_1` | 28.7ms     | 11.0ms    | 8.6ms     | 9.2ms     | 9.5ms     |
-| `RWKV-4-Pile-169M`    | 12            | `Q5_1` | 25.1ms     | 10.7ms    | 8.9ms     | 8.9ms     | 9.9ms     |
-| `RWKV-4-Raven-7B-v11` | 32            | `Q4_0` | 100.56ms   | 58.2ms    | 52.6ms    | 55.1ms    | 61.6ms    |
-| `RWKV-4-Raven-7B-v11` | 32            | `Q4_1` | 98.4ms     | 58.4ms    | 52.5ms    | 55.9ms    | 63.5ms    |
-| `RWKV-4-Raven-7B-v11` | 32            | `Q5_1` | 137.6ms    | 75.2ms    | 72.6ms    | 72.4ms    | 82.6ms    |
+| `RWKV-4-Pile-169M`    | 12            | `Q4_0` | 20.6ms     | 8.6ms     | 6.9ms     | 6.2ms     | 7.9ms     |
+| `RWKV-4-Pile-169M`    | 12            | `Q4_1` | 21.4ms     | 8.6ms     | 6.9ms     | 6.7ms     | 7.8ms     |
+| `RWKV-4-Pile-169M`    | 12            | `Q5_1` | 22.2ms     | 9.0ms     | 6.9ms     | 6.7ms     | 8.1ms     |
+| `RWKV-4-Raven-7B-v11` | 32            | `Q4_0` | 94.9ms     | 54.3ms    | 50.2ms    | 51.6ms    | 59.2ms    |
+| `RWKV-4-Raven-7B-v11` | 32            | `Q4_1` | 94.5ms     | 54.3ms    | 49.7ms    | 51.8ms    | 59.2ms    |
+| `RWKV-4-Raven-7B-v11` | 32            | `Q5_1` | 101.6ms    | 72.3ms    | 67.2ms    | 69.3ms    | 77.0ms    |
 
 ##### Since there is only `ggml_mul_mat()` supported with cuBLAS, so we still need to assign few cpu resources to process with the left computation
 

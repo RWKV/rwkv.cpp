@@ -278,6 +278,8 @@ struct rwkv_context {
     struct rwkv_graph graph;
     enum rwkv_error_flags last_error;
     bool print_errors;
+    size_t vram_total;
+    int gpu_layers;
 };
 
 void rwkv_set_print_errors(struct rwkv_context * ctx, bool print_errors) {
@@ -465,6 +467,10 @@ struct rwkv_ggml_guard {
     ~rwkv_ggml_guard() { if (ctx) ggml_free(ctx); }
 };
 
+struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads) {
+    return rwkv_init_from_file(file_path, n_threads, 0);
+}
+
 struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads, const uint32_t n_gpu_layers) {
     global_last_error = RWKV_ERROR_NONE;
 
@@ -605,19 +611,18 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
         RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS, set_block_parameter(&parameters, i, "ffn.receptance.weight", &layer->ffn_receptance));
     }
 
+    int n_gpu = 0;
+    size_t vram_total = 0;
+
 #ifdef GGML_USE_CUBLAS
     {
-        const int n_gpu = std::min(n_gpu_layers, model->n_layer);
-
-        fprintf(stdout, "%s: [cuBLAS] offloading %d layers to GPU\n", __func__, n_gpu);
-
-        size_t vram_total = 0;
+        n_gpu = std::min(n_gpu_layers, model->n_layer);
 
         for (int i = 0; i < n_gpu; ++i) {
             const auto & layer = model->layers[i];
 
-            ggml_cuda_transform_tensor(layer.ln1_weight); vram_total += ggml_nbytes(layer.ln1_weight);
             // Since there is only ggml_mul_mat() support cuBlas, so transform the tensors which only neccessary
+            //ggml_cuda_transform_tensor(layer.ln1_weight); vram_total += ggml_nbytes(layer.ln1_weight);
             //ggml_cuda_transform_tensor(layer.ln1_bias); vram_total += ggml_nbytes(layer.ln1_bias);
 
             //ggml_cuda_transform_tensor(layer.att_time_mix_k); vram_total += ggml_nbytes(layer.att_time_mix_k);
@@ -630,7 +635,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
             ggml_cuda_transform_tensor(layer.att_receptance); vram_total += ggml_nbytes(layer.att_receptance);
             ggml_cuda_transform_tensor(layer.att_output); vram_total += ggml_nbytes(layer.att_output);
 
-            ggml_cuda_transform_tensor(layer.ln2_weight); vram_total += ggml_nbytes(layer.ln2_weight);
+            //ggml_cuda_transform_tensor(layer.ln2_weight); vram_total += ggml_nbytes(layer.ln2_weight);
             //ggml_cuda_transform_tensor(layer.ln2_bias); vram_total += ggml_nbytes(layer.ln2_bias);
 
             //ggml_cuda_transform_tensor(layer.ffn_time_mix_k); vram_total += ggml_nbytes(layer.ffn_time_mix_k);
@@ -639,8 +644,6 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
             ggml_cuda_transform_tensor(layer.ffn_value); vram_total += ggml_nbytes(layer.ffn_value);
             ggml_cuda_transform_tensor(layer.ffn_receptance); vram_total += ggml_nbytes(layer.ffn_receptance);
         }
-
-        fprintf(stdout, "%s: [cuBLAS] total VRAM used: %zu MB\n", __func__, vram_total / 1024 / 1024);
     }
 #endif
 
@@ -665,6 +668,8 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     rwkv_ctx->graph = std::move(graph);
     rwkv_ctx->last_error = RWKV_ERROR_NONE;
     rwkv_ctx->print_errors = global_print_errors;
+    rwkv_ctx->gpu_layers = n_gpu;
+    rwkv_ctx->vram_total = vram_total;
     // Don't free ggml context
     ggml_guard.ctx = NULL;
     return rwkv_ctx.release();
