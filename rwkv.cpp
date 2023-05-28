@@ -318,7 +318,7 @@ static bool fwrite_tensor_header(FILE * file, const struct tensor_header & heade
     return true;
 }
 
-static size_t tensor_bytes(enum ggml_type type, const int64_t width, const int64_t height) {
+static size_t tensor_bytes(enum ggml_type type, const int64_t width, const int64_t height = 1) {
     static struct ggml_tensor decoy {};
     decoy.type = type;
     decoy.ne[0] = width;
@@ -542,7 +542,91 @@ bool rwkv_set_params(struct rwkv_model & model, F callback) {
     return true;
 }
 
-struct ggml_tensor * rwkv_att_one(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer & layer) {
+struct ctx_size {
+    size_t objects_count = 0;
+    size_t objects_size = 0;
+    size_t scratch_size = 0;
+};
+
+void ctx_size_add_objects(struct ctx_size & ctx_size, size_t objects, size_t object_size = sizeof(struct ggml_tensor)) {
+    ctx_size.objects_count += objects;
+    ctx_size.objects_size += object_size * objects;
+}
+
+void ctx_size_add_scratch(struct ctx_size & ctx_size, size_t length, size_t count = 1) {
+    ctx_size.scratch_size += ((length + 15) & ~15) * count;
+}
+
+void ctx_size_add(struct ctx_size & ctx_size, size_t objects, size_t scratch = 0, size_t scratches = 1) {
+    ctx_size_add_objects(ctx_size, objects);
+    ctx_size_add_scratch(ctx_size, scratch, scratches);
+}
+
+void ctx_size_add(struct ctx_size & ctx_size, size_t count, const struct ctx_size & other) {
+    ctx_size.objects_count += other.objects_count * count;
+    ctx_size.objects_size += other.objects_size * count;
+    ctx_size.scratch_size += other.scratch_size * count;
+}
+
+void ctx_size_add_tensor(struct ctx_size & ctx_size, const uint64_t tensors, const uint64_t views, const enum ggml_type type, const uint64_t width, const uint64_t height = 1) {
+    ctx_size_add_objects(ctx_size, tensors + views);
+    ctx_size_add_scratch(ctx_size, tensor_bytes(type, width, height), tensors);
+}
+
+void ctx_size_add_tensor(struct ctx_size & size, const uint64_t tensors, const uint64_t views, const tensor_header & header) {
+    ctx_size_add_tensor(size, tensors, views, type_to_ggml[header.data_type], header.width, header.height);
+}
+
+struct ctx_size rwkv_single_att_size(const size_t n_embed = 0) {
+    size_t ptr_nelem = sizeof(void *) / sizeof(uint32_t);
+
+    struct ctx_size ctx_size;
+
+    /*  x0 */ ctx_size_add_tensor(ctx_size, 1, 2, GGML_TYPE_F32, n_embed);
+
+    /*  xk */ ctx_size_add_tensor(ctx_size, 3, 1, GGML_TYPE_F32, n_embed);
+    /*  xk */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+    /*  xv */ ctx_size_add_tensor(ctx_size, 3, 1, GGML_TYPE_F32, n_embed);
+    /*  xv */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+    /*  xr */ ctx_size_add_tensor(ctx_size, 3, 1, GGML_TYPE_F32, n_embed);
+    /*  xr */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+
+    /*   r */ ctx_size_add_tensor(ctx_size, 2, 0, GGML_TYPE_F32, n_embed);
+    /*   r */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+    /*   k */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed);
+    /*   v */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed);
+
+    /*  ww */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed);
+    /*  qq */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed);
+    /*  qq */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+    /*  e1 */ ctx_size_add_tensor(ctx_size, 2, 0, GGML_TYPE_F32, n_embed);
+    /*  e1 */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+    /*  e2 */ ctx_size_add_tensor(ctx_size, 2, 0, GGML_TYPE_F32, n_embed);
+    /*  e2 */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+
+    /*   a */ ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed);
+    /*   b */ ctx_size_add_tensor(ctx_size, 1, 1, GGML_TYPE_F32, n_embed);
+
+    /*  ww */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed);
+    /*  qq */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed);
+    /*  qq */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+    /*  e1 */ ctx_size_add_tensor(ctx_size, 2, 0, GGML_TYPE_F32, n_embed);
+    /*  e1 */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+    /*  e2 */ ctx_size_add_tensor(ctx_size, 2, 0, GGML_TYPE_F32, n_embed);
+    /*  e2 */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+
+    /*  xx */ ctx_size_add_tensor(ctx_size, 0, 0, GGML_TYPE_F32, n_embed);
+    /*  aa */ ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed);
+    /*  bb */ ctx_size_add_tensor(ctx_size, 1, 1, GGML_TYPE_F32, n_embed);
+    /*  pp */ ctx_size_add_tensor(ctx_size, 0, 0, GGML_TYPE_F32, n_embed);
+
+    /* wkv */ ctx_size_add_tensor(ctx_size, 0, 1, GGML_TYPE_F32, n_embed);
+    /*   x */ ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed);
+
+    return ctx_size;
+}
+
+struct ggml_tensor * rwkv_single_att(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer & layer) {
     // self.layer_norm(x, self.w.blocks[i].ln1)
     struct ggml_tensor * x0 = rwkv_layer_norm(ctx, x, layer.ln1_weight, layer.ln1_bias);
 
@@ -611,7 +695,30 @@ struct ggml_tensor * rwkv_att_one(struct ggml_context * ctx, struct ggml_tensor 
     return ggml_add_inplace(ctx, x, ggml_mul_mat(ctx, layer.att_output, ggml_mul(ctx, r, wkv)));
 }
 
-struct ggml_tensor * rwkv_ffn_one(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer & layer) {
+struct ctx_size rwkv_single_ffn_size(const size_t n_embed = 0, const size_t ffn_key = 0) {
+    size_t ptr_nelem = sizeof(void *) / sizeof(uint32_t);
+
+    struct ctx_size ctx_size;
+
+    /* x0 */ ctx_size_add_tensor(ctx_size, 1, 2, GGML_TYPE_F32, n_embed);
+
+    /* xk */ ctx_size_add_tensor(ctx_size, 3, 1, GGML_TYPE_F32, n_embed);
+    /* xk */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+    /* xr */ ctx_size_add_tensor(ctx_size, 3, 1, GGML_TYPE_F32, n_embed);
+    /* xr */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+
+    /* xx */ ctx_size_add_tensor(ctx_size, 0, 0, GGML_TYPE_F32, n_embed);
+
+    /*  r */ ctx_size_add_tensor(ctx_size, 2, 0, GGML_TYPE_F32, n_embed);
+    /*  r */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
+    /*  k */ ctx_size_add_tensor(ctx_size, 3, 0, GGML_TYPE_F32, ffn_key);
+
+    /*  x */ ctx_size_add_tensor(ctx_size, 1, 2, GGML_TYPE_F32, n_embed);
+
+    return ctx_size;
+}
+
+struct ggml_tensor * rwkv_single_ffn(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer & layer) {
     // self.layer_norm(x, self.w.blocks[i].ln2)
     struct ggml_tensor * x0 = rwkv_layer_norm(ctx, x, layer.ln2_weight, layer.ln2_bias);
 
@@ -642,7 +749,32 @@ struct ggml_tensor * rwkv_ffn_one(struct ggml_context * ctx, struct ggml_tensor 
     return ggml_add_inplace(ctx, x, rwkv_op_inplace(ctx, GGML_OP_MUL, r, ggml_mul_mat(ctx, layer.ffn_value, k)));
 }
 
-bool rwkv_build_graph(struct ggml_context * ctx, struct rwkv_model & model, const uint32_t n_threads, struct rwkv_graph & out) {
+struct ctx_size rwkv_single_graph_size(const size_t n_vocab = 0, const size_t n_embed = 0, const size_t n_layer = 0, const size_t ffn_key = 0) {
+    size_t ptr_nelem = sizeof(void *) / sizeof(uint32_t);
+
+    struct ctx_size ctx_size;
+
+    /*  state */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_layer * 5 * n_embed);
+    /*  token */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, 1);
+    /*      x */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed);
+    /*      x */ ctx_size_add_tensor(ctx_size, 0, 3, GGML_TYPE_F32, n_embed);
+
+    /* ffn_xx */ ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed);
+    /* att_xx */ ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed);
+    /* att_aa */ ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed);
+    /* att_bb */ ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed);
+    /* att_pp */ ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed);
+
+    /*    att */ ctx_size_add(ctx_size, n_layer, rwkv_single_att_size(n_embed));
+    /*    ffn */ ctx_size_add(ctx_size, n_layer, rwkv_single_ffn_size(n_embed, ffn_key));
+
+    /*      x */ ctx_size_add_tensor(ctx_size, 0, 3, GGML_TYPE_F32, n_embed);
+    /* logits */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_vocab);
+
+    return ctx_size;
+}
+
+bool rwkv_single_graph(struct ggml_context * ctx, struct rwkv_model & model, const uint32_t n_threads, struct rwkv_graph & out) {
     std::unique_ptr<struct ggml_cgraph> cgraph(new(std::nothrow) struct ggml_cgraph());
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, cgraph.get(), "Failed to allocate graph");
     cgraph->n_threads = n_threads;
@@ -673,8 +805,8 @@ bool rwkv_build_graph(struct ggml_context * ctx, struct rwkv_model & model, cons
         layer.att_bb = ggml_view_1d(ctx, input_state, n_embed, output_part_size * (state_index + 3));
         layer.att_pp = ggml_view_1d(ctx, input_state, n_embed, output_part_size * (state_index + 4));
 
-        x = rwkv_att_one(ctx, x, layer);
-        x = rwkv_ffn_one(ctx, x, layer);
+        x = rwkv_single_att(ctx, x, layer);
+        x = rwkv_single_ffn(ctx, x, layer);
 
         output_state[state_index + 0] = layer.ffn_xx;
         output_state[state_index + 1] = layer.att_xx;
@@ -744,16 +876,8 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE, fread_file_header(file, header), "invalid file header");
 
     size_t tensors_start = ftell(file);
-    size_t objects_count = 0;
-    size_t objects_size = 0;
-    size_t scratch_size = 0;
-    size_t ffn_key_size = 0;
-
-    auto add = [&](enum ggml_type type, const uint64_t width, const uint64_t height = 1, const uint64_t count = 1, const uint64_t views = 0) {
-        objects_count += count;
-        objects_size += sizeof(struct ggml_tensor) * count;
-        scratch_size += ((tensor_bytes(type, width, height) + 15) & ~15) * (count - views);
-    };
+    ctx_size ctx_size;
+    size_t ffn_key = 0;
 
     std::string name;
     while ((size_t) ftell(file) < (size_t) file_stat.st_size) {
@@ -761,72 +885,30 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
         RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, fread_tensor_header(file, header), "invalid tensor header");
         RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, fread_string(file, header.key_length, name), "failed to read tensor name");
         RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, tensor_bytes(header), SEEK_CUR) == 0, "failed to read tensor data");
-        add(type_to_ggml[header.data_type], header.width, header.height);
+        ctx_size_add_tensor(ctx_size, 1, 0, header);
 
-        if (ffn_key_size == 0 && name == "blocks.0.ffn.key.weight") {
-            ffn_key_size = header.height;
+        if (ffn_key == 0 && name == "blocks.0.ffn.key.weight") {
+            ffn_key = header.height;
         }
     }
 
-    size_t base_objects = objects_count;
-    size_t n_vocab = (size_t) header.n_vocab;
-    size_t n_embed = (size_t) header.n_embed;
-    size_t n_layer = (size_t) header.n_layer;
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, ffn_key, "model is missing parameter blocks.0.ffn.key.weight");
 
-    // Initialization
-    add(GGML_TYPE_F32, (size_t) n_layer * 5 * (size_t) n_embed); // input_state
-    add(GGML_TYPE_I32, 1, 1); // token_index
-    add(GGML_TYPE_F32, n_embed); // x
-    add(GGML_TYPE_F32, n_embed, 1, 3, 3); // x layer_norm_inplace
-
-    for (uint32_t i = 0; i < n_layer; i++) {
-        add(GGML_TYPE_F32, n_embed, 1, 5, 5); // output_state views
-
-        // att
-        add(GGML_TYPE_F32, n_embed, 1, 3, 2); // x0 layer_norm
-        add(GGML_TYPE_F32, n_embed, 1, 12, 3); // xk, xv, xr
-        add(GGML_TYPE_I32, sizeof(void *) / sizeof(int32_t), 1, 3); // xk, xv, xr [rwkv_1_minus_x]
-        add(GGML_TYPE_F32, n_embed, 1, 4); // r(2), k(1), v(1)
-        add(GGML_TYPE_I32, sizeof(void *) / sizeof(int32_t)); // r [rwkv_sigmoid]
-        add(GGML_TYPE_F32, n_embed, 1, 6); // ww(1), pp(1), e1(2), e2(2)
-        add(GGML_TYPE_I32, sizeof(void *) / sizeof(int32_t), 1, 3); // r [rwkv_max] (1), e1, e2 [rwkv_exp]
-        add(GGML_TYPE_F32, n_embed, 1, 5, 2); // a, b
-        add(GGML_TYPE_F32, n_embed, 1, 6); // ww(1), qq(1), e1(2), e2(2)
-        add(GGML_TYPE_I32, sizeof(void *) / sizeof(int32_t), 1, 3); // ww [rwkv_max] (1), e1, e2 [rwkv_exp]
-        add(GGML_TYPE_F32, n_embed, 1, 5, 2); // output_state calculations
-        add(GGML_TYPE_F32, n_embed, 1, 1, 1); // wkv
-        add(GGML_TYPE_F32, n_embed, 1, 3, 1); // x
-
-        // ffn
-        add(GGML_TYPE_F32, n_embed, 1, 3, 2); // x0 layer_norm
-        add(GGML_TYPE_F32, n_embed, 1, 8, 2); // xk, xr
-        add(GGML_TYPE_I32, sizeof(void *) / sizeof(int32_t), 1, 2); // xk, xr [rwkv_1_minus_x]
-        add(GGML_TYPE_F32, n_embed, 1, 2); // r
-        add(GGML_TYPE_I32, sizeof(void *) / sizeof(int32_t)); // r [rwkv_sigmoid]
-        add(GGML_TYPE_F32, ffn_key_size > 0 ? ffn_key_size : n_embed * 4, 1, 3); // k
-        add(GGML_TYPE_F32, n_embed, 1, 3, 2); // x
-    }
-
-    add(GGML_TYPE_F32, n_embed, 1, 3, 3); // x layer_norm_inplace
-    add(GGML_TYPE_F32, n_vocab); // logits
-
+    ctx_size_add(ctx_size, 1, rwkv_single_graph_size(header.n_vocab, header.n_embed, header.n_layer, ffn_key));
     // and finally to end it all off: the graph work tensor
-    size_t graph_objects = objects_count - base_objects;
-    objects_size += sizeof(struct ggml_tensor);
-    objects_size += tensor_bytes(GGML_TYPE_I8, graph_objects * n_embed * n_threads, 1);
-    objects_count++;
+    ctx_size_add_objects(ctx_size, 1, sizeof(struct ggml_tensor) + tensor_bytes(GGML_TYPE_I8, tensor_bytes(type_to_ggml[header.data_type], ffn_key) * n_threads + 64 * (n_threads - 1), 1));
 
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, tensors_start, SEEK_SET) == 0, "failed to seek in file");
 
-    std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t[scratch_size]);
+    std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [ctx_size.scratch_size]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, scratch.get(), "failed to allocate model scratch space");
 
-    struct ggml_context * ctx = ggml_init({ objects_size + objects_count * GGML_OBJECT_SIZE, NULL, false});
+    struct ggml_context * ctx = ggml_init({ ctx_size.objects_size + ctx_size.objects_count * GGML_OBJECT_SIZE, NULL, false});
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, ctx, "failed to create GGML context");
     rwkv_ggml_guard ggml_guard { ctx };
 
     std::unordered_map<std::string, struct ggml_tensor *> parameters;
-    ggml_set_scratch(ctx, { 0, scratch_size, scratch.get() });
+    ggml_set_scratch(ctx, { 0, ctx_size.scratch_size, scratch.get() });
 
     while ((size_t) ftell(file) < (size_t) file_stat.st_size) {
         std::string name;
@@ -856,7 +938,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 
     // Build graph
     struct rwkv_graph graph;
-    RWKV_ASSERT_NULL(RWKV_ERROR_GRAPH, rwkv_build_graph(ctx, model, n_threads, graph));
+    RWKV_ASSERT_NULL(RWKV_ERROR_GRAPH, rwkv_single_graph(ctx, model, n_threads, graph));
 
     std::unique_ptr<struct rwkv_context> rwkv_ctx(new(std::nothrow) struct rwkv_context());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, rwkv_ctx.get(), "failed to allocate context");
