@@ -413,38 +413,26 @@ void rwkv_max_impl(const int n_cols, float * dest, const float * src0, const flo
     }
 }
 
-struct ggml_tensor * rwkv_op_inplace(struct ggml_context * ctx, enum ggml_op op, struct ggml_tensor * a, struct ggml_tensor * b) {
-    struct ggml_tensor * view = ggml_view_tensor(ctx, a);
-    view->op = op;
-    view->src0 = a;
-    view->src1 = b;
-    return view;
-}
-
-struct ggml_tensor * rwkv_exp(struct ggml_context * ctx, struct ggml_tensor * x) {
+struct ggml_tensor * rwkv_exp(ggml_context * ctx, struct ggml_tensor * x) {
     return ggml_map_unary_f32(ctx, x, rwkv_exp_impl);
 }
 
-struct ggml_tensor * rwkv_1_minus_x(struct ggml_context * ctx, struct ggml_tensor * x) {
+struct ggml_tensor * rwkv_1_minus_x(ggml_context * ctx, struct ggml_tensor * x) {
     return ggml_map_unary_f32(ctx, x, rwkv_1_minus_x_impl);
 }
 
-struct ggml_tensor * rwkv_sigmoid(struct ggml_context * ctx, struct ggml_tensor * x) {
+struct ggml_tensor * rwkv_sigmoid(ggml_context * ctx, struct ggml_tensor * x) {
     return ggml_map_unary_f32(ctx, x, rwkv_sigmoid_impl);
 }
 
-struct ggml_tensor * rwkv_max(struct ggml_context * ctx, struct ggml_tensor * x, struct ggml_tensor * y) {
+struct ggml_tensor * rwkv_max(ggml_context * ctx, struct ggml_tensor * x, struct ggml_tensor * y) {
     return ggml_map_binary_f32(ctx, x, y, rwkv_max_impl);
 }
 
-struct ggml_tensor * rwkv_layer_norm(struct ggml_context * ctx, struct ggml_tensor * x, struct ggml_tensor * weight, struct ggml_tensor * bias) {
+struct ggml_tensor * rwkv_layer_norm(ggml_context * ctx, struct ggml_tensor * x, struct ggml_tensor * weight, struct ggml_tensor * bias) {
     // LayerNorm in RWKV is `x = (x - mean(x)) / sqrt(variance(x) + 1e-5) * weight + bias`
     // Looks like ggml_norm does the first part, we only need to apply weight & bias.
-    return ggml_add_inplace(ctx, rwkv_op_inplace(ctx, GGML_OP_MUL, ggml_norm(ctx, x), weight), bias);
-}
-
-struct ggml_tensor * rwkv_layer_norm_inplace(struct ggml_context * ctx, struct ggml_tensor * x, struct ggml_tensor * weight, struct ggml_tensor * bias) {
-    return ggml_add_inplace(ctx, rwkv_op_inplace(ctx, GGML_OP_MUL, rwkv_op_inplace(ctx, GGML_OP_NORM, x, NULL), weight), bias);
+    return ggml_add_inplace(ctx, ggml_mul(ctx, ggml_norm(ctx, x), weight), bias);
 }
 
 // --- Implementation ---
@@ -582,7 +570,7 @@ struct ctx_size rwkv_single_att_size(const size_t n_embed = 0) {
 
     struct ctx_size ctx_size;
 
-    /*  x0 */ ctx_size_add_tensor(ctx_size, 1, 2, GGML_TYPE_F32, n_embed);
+    /*  x0 */ ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed);
 
     /*  xk */ ctx_size_add_tensor(ctx_size, 3, 1, GGML_TYPE_F32, n_embed);
     /*  xk */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
@@ -620,7 +608,7 @@ struct ctx_size rwkv_single_att_size(const size_t n_embed = 0) {
     /*  bb */ ctx_size_add_tensor(ctx_size, 1, 1, GGML_TYPE_F32, n_embed);
     /*  pp */ ctx_size_add_tensor(ctx_size, 0, 0, GGML_TYPE_F32, n_embed);
 
-    /* wkv */ ctx_size_add_tensor(ctx_size, 0, 1, GGML_TYPE_F32, n_embed);
+    /* wkv */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed);
     /*   x */ ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed);
 
     return ctx_size;
@@ -689,7 +677,7 @@ struct ggml_tensor * rwkv_single_att(struct ggml_context * ctx, struct ggml_tens
     layer.att_pp = qq;
 
     // wkv = a / b
-    struct ggml_tensor * wkv = rwkv_op_inplace(ctx, GGML_OP_DIV, a, b);
+    struct ggml_tensor * wkv = ggml_div(ctx, a, b);
 
     // ow @ (r * wkv)
     return ggml_add_inplace(ctx, x, ggml_mul_mat(ctx, layer.att_output, ggml_mul(ctx, r, wkv)));
@@ -700,7 +688,7 @@ struct ctx_size rwkv_single_ffn_size(const size_t n_embed = 0, const size_t ffn_
 
     struct ctx_size ctx_size;
 
-    /* x0 */ ctx_size_add_tensor(ctx_size, 1, 2, GGML_TYPE_F32, n_embed);
+    /* x0 */ ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed);
 
     /* xk */ ctx_size_add_tensor(ctx_size, 3, 1, GGML_TYPE_F32, n_embed);
     /* xk */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
@@ -713,7 +701,7 @@ struct ctx_size rwkv_single_ffn_size(const size_t n_embed = 0, const size_t ffn_
     /*  r */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, ptr_nelem);
     /*  k */ ctx_size_add_tensor(ctx_size, 3, 0, GGML_TYPE_F32, ffn_key);
 
-    /*  x */ ctx_size_add_tensor(ctx_size, 1, 2, GGML_TYPE_F32, n_embed);
+    /*  x */ ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed);
 
     return ctx_size;
 }
@@ -746,7 +734,7 @@ struct ggml_tensor * rwkv_single_ffn(struct ggml_context * ctx, struct ggml_tens
     struct ggml_tensor * k = ggml_sqr(ctx, ggml_relu(ctx, ggml_mul_mat(ctx, layer.ffn_key, xk)));
 
     // r * (vw @ k)
-    return ggml_add_inplace(ctx, x, rwkv_op_inplace(ctx, GGML_OP_MUL, r, ggml_mul_mat(ctx, layer.ffn_value, k)));
+    return ggml_add_inplace(ctx, x, ggml_mul(ctx, r, ggml_mul_mat(ctx, layer.ffn_value, k)));
 }
 
 struct ctx_size rwkv_single_graph_size(const size_t n_vocab = 0, const size_t n_embed = 0, const size_t n_layer = 0, const size_t ffn_key = 0) {
@@ -757,7 +745,7 @@ struct ctx_size rwkv_single_graph_size(const size_t n_vocab = 0, const size_t n_
     /*  state */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_layer * 5 * n_embed);
     /*  token */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, 1);
     /*      x */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed);
-    /*      x */ ctx_size_add_tensor(ctx_size, 0, 3, GGML_TYPE_F32, n_embed);
+    /*      x */ ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed);
 
     /* ffn_xx */ ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed);
     /* att_xx */ ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed);
@@ -768,7 +756,7 @@ struct ctx_size rwkv_single_graph_size(const size_t n_vocab = 0, const size_t n_
     /*    att */ ctx_size_add(ctx_size, n_layer, rwkv_single_att_size(n_embed));
     /*    ffn */ ctx_size_add(ctx_size, n_layer, rwkv_single_ffn_size(n_embed, ffn_key));
 
-    /*      x */ ctx_size_add_tensor(ctx_size, 0, 3, GGML_TYPE_F32, n_embed);
+    /*      x */ ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed);
     /* logits */ ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_vocab);
 
     return ctx_size;
@@ -793,7 +781,7 @@ bool rwkv_single_graph(struct ggml_context * ctx, struct rwkv_model & model, con
     struct ggml_tensor * x = ggml_get_rows(ctx, model.emb, token_index);
 
     // x = self.layer_norm(x, self.w.blocks[0].ln0)
-    x = rwkv_layer_norm_inplace(ctx, x, model.ln0_weight, model.ln0_bias);
+    x = rwkv_layer_norm(ctx, x, model.ln0_weight, model.ln0_bias);
 
     for (size_t i = 0; i < n_layer; i++) {
         struct rwkv_layer layer = model.layers[i];
@@ -816,7 +804,7 @@ bool rwkv_single_graph(struct ggml_context * ctx, struct rwkv_model & model, con
     }
 
     // x = self.layer_norm(x, self.w.ln_out)
-    x = rwkv_layer_norm_inplace(ctx, x, model.ln_out_weight, model.ln_out_bias);
+    x = rwkv_layer_norm(ctx, x, model.ln_out_weight, model.ln_out_bias);
 
     // x = (self.w.head.weight @ x).float()
     struct ggml_tensor * logits = ggml_mul_mat(ctx, model.head, x);
