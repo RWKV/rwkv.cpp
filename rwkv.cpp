@@ -1,6 +1,10 @@
 #include "rwkv.h"
 #include "ggml.h"
 
+#ifdef GGML_USE_CUBLAS
+#include "ggml/src/ggml-cuda.h"
+#endif
+
 #include <string>
 #include <vector>
 #include <cstring>
@@ -485,6 +489,8 @@ struct rwkv_context {
     struct rwkv_graph graph;
     enum rwkv_error_flags last_error;
     bool print_errors;
+    size_t gpu_layers;
+    size_t vram_total;
 };
 
 bool fread_ggml_tensor_data(FILE * file, const struct tensor_header & header, struct ggml_context * ctx, std::string & name, struct ggml_tensor *& tensor) {
@@ -875,6 +881,10 @@ enum rwkv_error_flags rwkv_get_last_error(struct rwkv_context * ctx) {
 }
 
 struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads) {
+    return rwkv_init_from_file(file_path, n_threads, 0);
+}
+
+struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads, const uint32_t n_gpu_layers) {
     global_last_error = RWKV_ERROR_NONE;
 
     FILE * file = fopen(file_path, "rb");
@@ -944,6 +954,29 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
         return true;
     }));
 
+    size_t n_gpu = 0;
+    size_t vram_total = 0;
+
+#ifdef GGML_USE_CUBLAS
+    {
+        n_gpu = std::min(n_gpu_layers, model->n_layer);
+
+        for (size_t i = 0; i < n_gpu; i++) {
+            const struct rwkv_layer & layer = model.layers[i];
+
+            // Use cuBLAS only for heavy matrices; other operations are not supported for GPU at the moment
+            ggml_cuda_transform_tensor(layer.att_key); vram_total += ggml_nbytes(layer.att_key);
+            ggml_cuda_transform_tensor(layer.att_value); vram_total += ggml_nbytes(layer.att_value);
+            ggml_cuda_transform_tensor(layer.att_receptance); vram_total += ggml_nbytes(layer.att_receptance);
+            ggml_cuda_transform_tensor(layer.att_output); vram_total += ggml_nbytes(layer.att_output);
+
+            ggml_cuda_transform_tensor(layer.ffn_key); vram_total += ggml_nbytes(layer.ffn_key);
+            ggml_cuda_transform_tensor(layer.ffn_value); vram_total += ggml_nbytes(layer.ffn_value);
+            ggml_cuda_transform_tensor(layer.ffn_receptance); vram_total += ggml_nbytes(layer.ffn_receptance);
+        }
+    }
+#endif
+
     // Verify order of dimensions
     struct ggml_tensor * emb = model.emb;
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_SHAPE, emb->n_dims == 2, "unexpected dimension count of embedding matrix %d", emb->n_dims);
@@ -965,6 +998,8 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     rwkv_ctx->graph = std::move(graph);
     rwkv_ctx->last_error = RWKV_ERROR_NONE;
     rwkv_ctx->print_errors = global_print_errors;
+    rwkv_ctx->gpu_layers = n_gpu;
+    rwkv_ctx->vram_total = vram_total;
 
     ggml_set_scratch(ctx, { 0, 0, NULL });
 

@@ -83,6 +83,10 @@ extern "C" {
     // Returns NULL on any error. Error messages would be printed to stderr.
     // - model_file_path: path to model file in ggml format.
     // - n_threads: count of threads to use, must be positive.
+    // - n_gpu_layer: count of layers need to load to gpu (only works when cuBLAS is on)
+    RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, const uint32_t n_threads, const uint32_t n_gpu_layers);
+
+    // this has to be in the header file for some reason or else the built dll will not export it (??)
     RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, const uint32_t n_threads);
 
     // Evaluates the model for a single token.

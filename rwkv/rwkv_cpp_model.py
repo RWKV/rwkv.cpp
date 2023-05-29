@@ -13,7 +13,8 @@ class RWKVModel:
             self,
             shared_library: rwkv_cpp_shared_library.RWKVSharedLibrary,
             model_path: str,
-            thread_count: int = max(1, multiprocessing.cpu_count() // 2)
+            thread_count: int = max(1, multiprocessing.cpu_count() // 2),
+            gpu_layers_count: int = 4,
     ):
         """
         Loads the model and prepares it for inference.
@@ -31,10 +32,11 @@ class RWKVModel:
 
         assert os.path.isfile(model_path), f'{model_path} is not a file'
         assert thread_count > 0, 'Thread count must be positive'
+        assert gpu_layers_count > 0, 'GPU layers count must be positive'
 
         self._library = shared_library
 
-        self._ctx = self._library.rwkv_init_from_file(model_path, thread_count)
+        self._ctx = self._library.rwkv_init_from_file(model_path, thread_count, gpu_layers_count)
 
         self._state_buffer_element_count = self._library.rwkv_get_state_buffer_element_count(self._ctx)
         self._logits_buffer_element_count = self._library.rwkv_get_logits_buffer_element_count(self._ctx)

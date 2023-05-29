@@ -13,6 +13,7 @@ import rwkv_cpp_model
 import rwkv_cpp_shared_library
 import json
 from typing import List, Dict, Optional
+import time
 
 # ======================================== Script settings ========================================
 
@@ -108,10 +109,13 @@ def split_last_end_of_line(tokens):
     return tokens
 
 # =================================================================================================
-
+T1 = time.time()
 print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
 process_tokens(split_last_end_of_line(tokenizer.encode(init_prompt).ids))
+T2 = time.time()
+print(f'Process time :{((T2 - T1)*1000)} ms')
+print(f'Process time per token :{(((T2 - T1)*1000)) / prompt_token_count} ms')
 
 save_thread_state('chat_init')
 save_thread_state('chat')

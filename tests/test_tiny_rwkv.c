@@ -21,12 +21,12 @@
 
 #define N_VOCAB 256
 #define N_THREADS 2
+#define N_GPU_LAYERS 1
 
 void test_model(const char * model_path, const float * expected_logits, const float max_diff) {
     fprintf(stderr, "Testing %s\n", model_path);
 
-    struct rwkv_context * model = rwkv_init_from_file(model_path, N_THREADS);
-
+    struct rwkv_context * model = rwkv_init_from_file(model_path, N_THREADS, N_GPU_LAYERS);
     enum rwkv_error_flags error = rwkv_get_last_error(NULL);
     ASSERT(error == 0, "Unexpected error %d", error);
 
@@ -72,18 +72,27 @@ int main(void) {
     ASSERT(elements_read == N_VOCAB, "Failed to read expected_logits.bin, read %zd elements", elements_read);
     fclose(file);
 
+    // Somehow when using cuBLAS the calculation of Q4_1 may different from cpu only
     float expected_difference_sum[14] = {
         0.000000F,
         -0.005320F,
 
         -0.160030F,
+#ifdef GGML_USE_CUBLAS
+        -0.412408F,
+#else
         -0.370606F,
+#endif
         -0.170404F,
         0.278034F,
         0.071216F,
 
         0.154614F,
+#ifdef GGML_USE_CUBLAS
+        -0.405527F,
+#else
         -0.372169F,
+#endif
         -0.170043F,
         0.294953F,
         0.065571F,
