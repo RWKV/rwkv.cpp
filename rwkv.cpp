@@ -518,7 +518,7 @@ struct ctx_size {
 
 void ctx_size_add_objects(struct ctx_size & ctx_size, size_t objects, size_t object_size = sizeof(struct ggml_tensor)) {
     ctx_size.objects_count += objects;
-    ctx_size.objects_size += object_size * objects;
+    ctx_size.objects_size += ((object_size + 15) & ~15) * objects;
 }
 
 void ctx_size_add_scratch(struct ctx_size & ctx_size, size_t length, size_t count = 1) {
@@ -836,8 +836,6 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, file, "failed to open file %s", file_path);
     rwkv_file_guard file_guard { file };
 
-    setvbuf(file, NULL, _IONBF, 0);
-
     // Be very careful when changing this code. It must support files larger than 2 GB by using 64-bit functions to the get file length.
     struct stat file_stat;
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(file), &file_stat) == 0, "failed to stat file %s", file_path);
@@ -866,7 +864,8 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 
     ctx_size_add(ctx_size, 1, rwkv_single_graph_size(header.n_vocab, header.n_embed, header.n_layer, ffn_key));
     // and finally to end it all off: the graph work tensor
-    ctx_size_add_objects(ctx_size, 1, sizeof(struct ggml_tensor) + tensor_bytes(GGML_TYPE_I8, tensor_bytes(type_to_ggml[header.data_type], ffn_key) * n_threads + 64 * (n_threads - 1), 1));
+    enum ggml_type mul_mat_type = ggml_is_quantized(type_to_ggml[header.data_type]) ? GGML_TYPE_Q8_1 : type_to_ggml[header.data_type];
+    ctx_size_add_objects(ctx_size, 1, sizeof(struct ggml_tensor) + tensor_bytes(GGML_TYPE_I8, tensor_bytes(mul_mat_type, ffn_key) * n_threads + 64 * (n_threads - 1)));
 
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, tensors_start, SEEK_SET) == 0, "failed to seek in file");
 
@@ -995,9 +994,6 @@ bool rwkv_quantize_model_file(const char * input_path, const char * output_path,
     FILE * output = fopen(output_path, "wb");
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, output, "failed to open %s for writing", output_path);
     rwkv_file_guard output_guard { output };
-
-    setvbuf(input, NULL, _IONBF, 0);
-    setvbuf(output, NULL, _IONBF, 0);
 
     struct file_header file_header;
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, fread_file_header(input, file_header), "invalid file header");
