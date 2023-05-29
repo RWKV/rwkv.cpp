@@ -1,6 +1,10 @@
 #include "rwkv.h"
 #include "ggml.h"
 
+#ifdef GGML_USE_CUBLAS
+#include "ggml/src/ggml-cuda.h"
+#endif
+
 #include <string>
 #include <vector>
 #include <thread>
@@ -274,6 +278,8 @@ struct rwkv_context {
     struct rwkv_graph graph;
     enum rwkv_error_flags last_error;
     bool print_errors;
+    size_t vram_total;
+    int gpu_layers;
 };
 
 void rwkv_set_print_errors(struct rwkv_context * ctx, bool print_errors) {
@@ -461,6 +467,10 @@ struct rwkv_ggml_guard {
 };
 
 struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads) {
+    return rwkv_init_from_file(file_path, n_threads, 0);
+}
+
+struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads, const uint32_t n_gpu_layers) {
     global_last_error = RWKV_ERROR_NONE;
 
     FILE * file = fopen(file_path, "rb");
@@ -481,7 +491,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 
     std::unique_ptr<rwkv_model> model(new(std::nothrow) struct rwkv_model());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL | RWKV_ERROR_ALLOC, model.get(), "Failed to allocate model");
- 
+
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL, read_uint32(file, &model->n_vocab, "n_vocab"));
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL, read_uint32(file, &model->n_embed, "n_embed"));
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL, read_uint32(file, &model->n_layer, "n_layer"));
@@ -600,6 +610,29 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
         RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS, set_block_parameter(&parameters, i, "ffn.receptance.weight", &layer->ffn_receptance));
     }
 
+    int n_gpu = 0;
+    size_t vram_total = 0;
+
+#ifdef GGML_USE_CUBLAS
+    {
+        n_gpu = std::min(n_gpu_layers, model->n_layer);
+
+        for (int i = 0; i < n_gpu; ++i) {
+            const auto & layer = model->layers[i];
+
+            // Use cuBLAS only for heavy matrices; other operations are not supported for GPU at the moment
+            ggml_cuda_transform_tensor(layer.att_key); vram_total += ggml_nbytes(layer.att_key);
+            ggml_cuda_transform_tensor(layer.att_value); vram_total += ggml_nbytes(layer.att_value);
+            ggml_cuda_transform_tensor(layer.att_receptance); vram_total += ggml_nbytes(layer.att_receptance);
+            ggml_cuda_transform_tensor(layer.att_output); vram_total += ggml_nbytes(layer.att_output);
+
+            ggml_cuda_transform_tensor(layer.ffn_key); vram_total += ggml_nbytes(layer.ffn_key);
+            ggml_cuda_transform_tensor(layer.ffn_value); vram_total += ggml_nbytes(layer.ffn_value);
+            ggml_cuda_transform_tensor(layer.ffn_receptance); vram_total += ggml_nbytes(layer.ffn_receptance);
+        }
+    }
+#endif
+
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS, set_parameter(&parameters, "ln_out.weight", &model->ln_out_weight));
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS, set_parameter(&parameters, "ln_out.bias", &model->ln_out_bias));
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS, set_parameter(&parameters, "head.weight", &model->head));
@@ -621,6 +654,8 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     rwkv_ctx->graph = std::move(graph);
     rwkv_ctx->last_error = RWKV_ERROR_NONE;
     rwkv_ctx->print_errors = global_print_errors;
+    rwkv_ctx->gpu_layers = n_gpu;
+    rwkv_ctx->vram_total = vram_total;
     // Don't free ggml context
     ggml_guard.ctx = NULL;
     return rwkv_ctx.release();

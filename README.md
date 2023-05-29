@@ -26,6 +26,21 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 | `FP16`    | **15.623**        | 117                | 2.82                 |
 | `FP32`    | **15.623**        | 198                | 5.64                 |
 
+#### With cuBLAS
+
+Measurements were made on 3060Ti 8G + i7 13700K. Latency per token shown.
+
+| Model                 | Layers on GPU | Format | 24 Threads  | 8 Threads  | 4 Threads  | 2 Threads  | 1 Threads  |
+|-----------------------|---------------|--------|-------------|------------|------------|------------|------------|
+| `RWKV-4-Pile-169M`    | 12            | `Q4_0` | 20.6 ms     | 8.6 ms     | 6.9 ms     | 6.2 ms     | 7.9 ms     |
+| `RWKV-4-Pile-169M`    | 12            | `Q4_1` | 21.4 ms     | 8.6 ms     | 6.9 ms     | 6.7 ms     | 7.8 ms     |
+| `RWKV-4-Pile-169M`    | 12            | `Q5_1` | 22.2 ms     | 9.0 ms     | 6.9 ms     | 6.7 ms     | 8.1 ms     |
+| `RWKV-4-Raven-7B-v11` | 32            | `Q4_0` | 94.9 ms     | 54.3 ms    | 50.2 ms    | 51.6 ms    | 59.2 ms    |
+| `RWKV-4-Raven-7B-v11` | 32            | `Q4_1` | 94.5 ms     | 54.3 ms    | 49.7 ms    | 51.8 ms    | 59.2 ms    |
+| `RWKV-4-Raven-7B-v11` | 32            | `Q5_1` | 101.6 ms    | 72.3 ms    | 67.2 ms    | 69.3 ms    | 77.0 ms    |
+
+Note: since there is only `ggml_mul_mat()` supported with cuBLAS, we still need to assign few CPU resources to execute remaining operations.
+
 ## How to use
 
 ### 1. Clone the repo
@@ -62,6 +77,17 @@ cmake --build . --config Release
 
 If everything went OK, `bin\Release\rwkv.dll` file should appear.
 
+##### Windows + cuBLAS
+
+**Important**: Since there is no cuBLAS static libraries for Windows, after compiling with dynamic libraries following DLLs should be copied from `{CUDA}/bin` into `build/bin/Release`: `cudart64_12.dll`, `cublas64_12.dll`, `cublasLt64_12.dll`.
+
+```commandline
+mkdir build
+cd build
+cmake .. -DRWKV_CUBLAS=ON
+cmake --build . --config Release
+```
+
 ##### Linux / MacOS
 
 **Requirements**: CMake (Linux: `sudo apt install cmake`, MacOS: `brew install cmake`, anaconoda: [cmake package](https://anaconda.org/conda-forge/cmake)).
@@ -75,6 +101,16 @@ cmake --build . --config Release
 
 If everything went OK, `librwkv.so` (Linux) or `librwkv.dylib` (MacOS) file should appear in the base repo folder.
 
+##### Linux / MacOS + cuBLAS
+
+```commandline
+mkdir build
+cd build
+cmake .. -DRWKV_CUBLAS=ON
+cmake --build . --config Release
+```
+
+If everything went OK, `librwkv.so` (Linux) or `librwkv.dylib` (MacOS) file should appear in the base repo folder.
 
 ### 3. Get an RWKV model
 
@@ -152,14 +188,16 @@ model_path = r'C:\rwkv.cpp-169M.bin'
 
 model = rwkv_cpp_model.RWKVModel(
     rwkv_cpp_shared_library.load_rwkv_shared_library(),
-    model_path
+    model_path,
+    thread_count=4,    #need to adjust when use cuBLAS
+    gpu_layers_count=5 #only enabled when use cuBLAS
 )
 
 logits, state = None, None
 
 for token in [1, 2, 3]:
     logits, state = model.eval(token, state)
-    
+
     print(f'Output logits: {logits}')
 
 # Don't forget to free the memory after you've done working with the model

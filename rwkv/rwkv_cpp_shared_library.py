@@ -37,7 +37,7 @@ class RWKVSharedLibrary:
 
         self.library = ctypes.cdll.LoadLibrary(shared_library_path)
 
-        self.library.rwkv_init_from_file.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
+        self.library.rwkv_init_from_file.argtypes = [ctypes.c_char_p, ctypes.c_uint32, ctypes.c_uint32]
         self.library.rwkv_init_from_file.restype = ctypes.c_void_p
 
         self.library.rwkv_eval.argtypes = [
@@ -67,7 +67,7 @@ class RWKVSharedLibrary:
         self.library.rwkv_get_system_info_string.argtypes = []
         self.library.rwkv_get_system_info_string.restype = ctypes.c_char_p
 
-    def rwkv_init_from_file(self, model_file_path: str, thread_count: int) -> RWKVContext:
+    def rwkv_init_from_file(self, model_file_path: str, thread_count: int, gpu_layers_count: int) -> RWKVContext:
         """
         Loads the model from a file and prepares it for inference.
         Throws an exception in case of any error. Error messages would be printed to stderr.
@@ -78,9 +78,13 @@ class RWKVSharedLibrary:
             Path to model file in ggml format.
         thread_count : int
             Count of threads to use, must be positive.
+        gpu_layers_count : int
+            Count of layers to load on gpu, must be positive only enabled with cuBLAS.
         """
 
-        ptr = self.library.rwkv_init_from_file(model_file_path.encode('utf-8'), ctypes.c_uint32(thread_count))
+        ptr = self.library.rwkv_init_from_file(model_file_path.encode('utf-8'),
+                                               ctypes.c_uint32(thread_count),
+                                               ctypes.c_uint32(gpu_layers_count))
         assert ptr is not None, 'rwkv_init_from_file failed, check stderr'
         return RWKVContext(ptr)
 
@@ -186,6 +190,7 @@ class RWKVSharedLibrary:
 
         return self.library.rwkv_get_system_info_string().decode('utf-8')
 
+
 def load_rwkv_shared_library() -> RWKVSharedLibrary:
     """
     Attempts to find rwkv.cpp shared library and load it.
@@ -208,6 +213,10 @@ def load_rwkv_shared_library() -> RWKVSharedLibrary:
         f'../bin/Release/{file_name}',
         # If we are in repo root directory
         f'bin/Release/{file_name}',
+        # If we compiled in build directory
+        f'build/bin/Release/{file_name}',
+        # If we compiled in build directory
+        f'build/{file_name}',
         # Search relative to this file
         str(repo_root_dir / 'bin' / 'Release' / file_name),
         # Fallback
