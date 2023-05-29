@@ -51,8 +51,13 @@ inline enum rwkv_error_flags operator|=(enum rwkv_error_flags & a, enum rwkv_err
 #define RWKV_CTX_MSG(ctx, ...) do { if ((ctx)->print_errors) fprintf(stderr, __VA_ARGS__); } while (0)
 
 // If the condition x is false, adds ERR_VAL to the last error, and returns RET_VAL.
-#define RWKV_ASSERT(ERR_VAL, RET_VAL, x) \
-    do { if (!(x)) { global_last_error |= ERR_VAL; RWKV_MAYBE_BREAK; return RET_VAL; } } while (0)
+#define RWKV_ASSERT(ERR_VAL, RET_VAL, x) do { \
+    if (!(x)) { \
+        global_last_error |= ERR_VAL; \
+        RWKV_MSG("\n%s:%d: %s\n", __FILE__, __LINE__, #x); \
+        RWKV_MAYBE_BREAK; \
+        return RET_VAL; \
+    } } while (0)
 
 // If the condition x is false, adds ERR_VAL to the last error, prints a message to stderr, and returns RET_VAL.
 #define RWKV_ASSERT_MSG(ERR_VAL, RET_VAL, x, ...) do { \
@@ -75,12 +80,21 @@ inline enum rwkv_error_flags operator|=(enum rwkv_error_flags & a, enum rwkv_err
     } } while (0)
 
 // If the condition x is false, adds ERR_VAL to the ctx's last error, and returns RET_VAL.
-#define RWKV_CTX_ASSERT(ctx, ERR_VAL, RET_VAL, x) \
-    do { if (!(x)) { ((struct rwkv_context *) ctx)->last_error |= ERR_VAL; RWKV_MAYBE_BREAK; return RET_VAL; } } while (0)
+#define RWKV_CTX_ASSERT(ctx, ERR_VAL, RET_VAL, x) do { \
+    if (!(x)) { \
+        ((struct rwkv_context *) ctx)->last_error |= ERR_VAL; \
+        RWKV_CTX_MSG(ctx, "\n%s:%d: %s\n", __FILE__, __LINE__, #x); \
+        RWKV_MAYBE_BREAK; \
+        return RET_VAL; \
+    } } while (0)
 
 // If the condition x is false, returns RET_VAL.
-#define RWKV_ENSURE(RET_VAL, x) \
-    do { if (!(x)) { RWKV_MAYBE_BREAK; return RET_VAL; } } while (0)
+#define RWKV_ENSURE(RET_VAL, x) do { \
+    if (!(x)) { \
+        RWKV_MSG("\n%s:%d: %s\n", __FILE__, __LINE__, #x); \
+        RWKV_MAYBE_BREAK; \
+        return RET_VAL; \
+    } } while (0)
 
 // If the condition x is false, prints a message to stderr, and returns RET_VAL.
 #define RWKV_ENSURE_MSG(RET_VAL, x, ...) do { \
