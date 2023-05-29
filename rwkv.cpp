@@ -226,7 +226,7 @@ static const enum rwkv_type type_from_ggml[GGML_TYPE_COUNT + 1] = {
     TYPE_COUNT,  /* COUNT */
 };
 
-static const char * type_to_string[TYPE_COUNT] = {"f32", "f16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0"};
+static const char * type_to_string[TYPE_COUNT + 1] = {"float32", "float16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "unknown"};
 
 static enum rwkv_type type_from_string(const char * str) {
     for (int ord = 0; ord < TYPE_COUNT; ord++)
