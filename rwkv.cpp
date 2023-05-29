@@ -645,7 +645,7 @@ struct ggml_tensor * rwkv_single_att(struct ggml_context * ctx, struct ggml_tens
     struct ggml_tensor * e1 = rwkv_exp(ctx, ggml_sub(ctx, layer.att_pp, qq));
     // e2 = torch.exp(ww - qq)
     struct ggml_tensor * e2 = rwkv_exp(ctx, ggml_sub(ctx, ww, qq));
-            
+
     // a = e1 * aa + e2 * v
     struct ggml_tensor * a = ggml_add_inplace(ctx, ggml_mul(ctx, e1, layer.att_aa), ggml_mul(ctx, e2, v));
     // b = e1 * bb + e2
