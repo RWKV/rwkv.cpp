@@ -37,8 +37,11 @@ class RWKVSharedLibrary:
 
         self.library = ctypes.cdll.LoadLibrary(shared_library_path)
 
-        self.library.rwkv_init_from_file.argtypes = [ctypes.c_char_p, ctypes.c_uint32, ctypes.c_uint32]
+        self.library.rwkv_init_from_file.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
         self.library.rwkv_init_from_file.restype = ctypes.c_void_p
+
+        self.library.rwkv_cublas_offload_layers.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        self.library.rwkv_cublas_offload_layers.restype = ctypes.c_bool
 
         self.library.rwkv_eval.argtypes = [
             ctypes.c_void_p, # ctx
@@ -67,7 +70,7 @@ class RWKVSharedLibrary:
         self.library.rwkv_get_system_info_string.argtypes = []
         self.library.rwkv_get_system_info_string.restype = ctypes.c_char_p
 
-    def rwkv_init_from_file(self, model_file_path: str, thread_count: int, gpu_layers_count: int) -> RWKVContext:
+    def rwkv_init_from_file(self, model_file_path: str, thread_count: int) -> RWKVContext:
         """
         Loads the model from a file and prepares it for inference.
         Throws an exception in case of any error. Error messages would be printed to stderr.
@@ -83,10 +86,12 @@ class RWKVSharedLibrary:
         """
 
         ptr = self.library.rwkv_init_from_file(model_file_path.encode('utf-8'),
-                                               ctypes.c_uint32(thread_count),
-                                               ctypes.c_uint32(gpu_layers_count))
+                                               ctypes.c_uint32(thread_count))
         assert ptr is not None, 'rwkv_init_from_file failed, check stderr'
         return RWKVContext(ptr)
+
+    def rwkv_cublas_offload_layers(self, ctx: RWKVContext, gpu_layers_count: int) -> None:
+        assert self.library.rwkv_cublas_offload_layers(ctx.ptr, ctypes.c_uint32(gpu_layers_count)), 'rwkv_cublas_offload_layers failed, check stderr'
 
     def rwkv_eval(
             self,
