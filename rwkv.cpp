@@ -293,6 +293,12 @@ struct tensor_header {
     uint32_t height;
 };
 
+struct tensor {
+    struct tensor_header header;
+    std::string name;
+    uint8_t * data;
+};
+
 static bool fread_tensor_header(FILE * file, struct tensor_header & header) {
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_data(file, sizeof(struct tensor_header) - sizeof(uint32_t), &header));
     header.height = 1;
@@ -328,6 +334,39 @@ static size_t tensor_bytes(const struct tensor_header & header) {
 
 static bool fskip_tensor_data(FILE * file, const struct tensor_header & header) {
     return fseek(file, header.key_length + tensor_bytes(header), SEEK_CUR) == 0;
+}
+
+static bool fread_tensor_header_and_skip(FILE * file, struct tensor_header & header) {
+    RWKV_ENSURE_OR_FALSE(fread_tensor_header(file, header));
+    RWKV_ASSERT_FALSE(RWKV_ERROR_DATA, fskip_tensor_data(file, header));
+    return true;
+}
+
+static bool fread_tensor_data(FILE * file, struct tensor & output, void * buffer = NULL) {
+    size_t data_size = tensor_bytes(output.header);
+    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_string(file, output.header.key_length, output.name));
+
+    if (buffer) {
+        RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_data(file, data_size, buffer));
+    } else {
+        output.data = NULL;
+        RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fskip_tensor_data(file, output.header));
+    }
+
+    return true;
+}
+
+static bool fread_tensor(FILE * file, struct tensor & output, void * buffer = NULL) {
+    RWKV_ENSURE_OR_FALSE(fread_tensor_header(file, output.header));
+    RWKV_ENSURE_OR_FALSE(fread_tensor_data(file, output, buffer));
+    return true;
+}
+
+static bool fwrite_tensor(FILE * file, const struct tensor & tensor) {
+    RWKV_ENSURE_OR_FALSE(fwrite_tensor_header(file, tensor.header));
+    RWKV_ENSURE_OR_FALSE(fwrite_string(file, tensor.name));
+    RWKV_ENSURE_OR_FALSE(fwrite_data(file, tensor.data, tensor_bytes(tensor.header)));
+    return true;
 }
 
 // --- Model definition ---
@@ -447,14 +486,6 @@ struct rwkv_context {
     enum rwkv_error_flags last_error;
     bool print_errors;
 };
-
-bool fread_tensor_key(FILE * file, const struct tensor_header & header, const char * dest) {
-    return fread_data(file, header.key_length, (void *) dest);
-}
-
-bool fread_tensor_data(FILE * file, const struct tensor_header & header, void * dest) {
-    return fread_data(file, tensor_bytes(header), dest);
-}
 
 bool fread_ggml_tensor_data(FILE * file, const struct tensor_header & header, struct ggml_context * ctx, std::string & name, struct ggml_tensor *& tensor) {
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_READ, fread_string(file, header.key_length, name), "failed to read tensor name");
@@ -986,40 +1017,36 @@ void rwkv_free(struct rwkv_context * ctx) {
     ggml_free(ctx->ctx);
 }
 
-bool rwkv_quantize_model_file(const char * input_path, const char * output_path, const char * target_name) {
+bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const char * type_name) {
     global_last_error = RWKV_ERROR_NONE;
 
-    int32_t target_type = type_from_string(target_name);
-    enum ggml_type target_ggml = type_to_ggml[target_type];
+    enum ggml_type out_type = type_to_ggml[type_from_string(type_name)];
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ARGS | RWKV_ERROR_DATA_TYPE, ggml_is_quantized(out_type), "unsupported output data type (%s)", type_to_string[type_from_ggml[out_type]]);
 
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ARGS | RWKV_ERROR_DATA_TYPE, target_type != TYPE_UNKNOWN, "invalid target data type (%s)", target_name);
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ARGS | RWKV_ERROR_DATA_TYPE, target_ggml != GGML_TYPE_UNKNOWN, "unsupported target data type (%s)", type_to_string[target_type]);
+    RWKV_MSG("Loading model from '%s'\n", in_path);
 
-    RWKV_MSG("Loading model from '%s'\n", input_path);
+    struct stat in_stat;
+    FILE * in_file = fopen(in_path, "rb");
+    rwkv_file_guard in_guard { in_file };
 
-    FILE * input = fopen(input_path, "rb");
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, input, "failed to open %s for reading", input_path);
-    rwkv_file_guard input_guard { input };
+    FILE * out_file = fopen(out_path, "wb");
+    rwkv_file_guard out_guard { out_file };
 
     // Be very careful when changing this code. It must support files larger than 2 GB by using 64-bit functions to the get file length.
-    struct stat stat;
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(input), &stat) == 0, "failed to stat file %s", input_path);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, in_file, "failed to open %s for reading", in_path);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, out_file, "failed to open %s for writing", out_path);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(in_file), &in_stat) == 0, "failed to stat file %s", in_path);
 
-    FILE * output = fopen(output_path, "wb");
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, output, "failed to open %s for writing", output_path);
-    rwkv_file_guard output_guard { output };
+    struct file_header in_header;
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, fread_file_header(in_file, in_header), "invalid file header");
 
-    struct file_header file_header;
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, fread_file_header(input, file_header), "invalid file header");
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, file_header.data_type == TYPE_F32 || file_header.data_type == TYPE_F16, "unsupported source data type (%s); needs to be f32 or f16", type_to_string[file_header.data_type]);
+    enum ggml_type in_type = type_to_ggml[in_header.data_type];
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, in_type == GGML_TYPE_F32 || in_type == GGML_TYPE_F16, "unsupported input data type (%s); needs to be f32 or f16", type_to_string[type_from_ggml[in_type]]);
 
-    file_header.version = RWKV_FILE_VERSION;
-    file_header.data_type = target_type;
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, fwrite_file_header(output, file_header), "failed to write file header");
-
-    // required to init the fp16 tables
-    // doesn't crash if ggml_init fails
-    ggml_free(ggml_init({ 0, NULL, true }));
+    struct file_header out_header = in_header;
+    out_header.version = RWKV_FILE_VERSION;
+    out_header.data_type = type_from_ggml[out_type];
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, fwrite_file_header(out_file, out_header), "failed to write file header");
 
     // Process parameters
     size_t orig_total_size = 0;
@@ -1027,51 +1054,71 @@ bool rwkv_quantize_model_file(const char * input_path, const char * output_path,
 
     int64_t hist_all[16] {};
 
-    std::vector<uint8_t> a;
-    std::vector<uint8_t> b;
+    // required to init the fp16 tables
+    // doesn't crash if ggml_init fails
+    ggml_free(ggml_init({ 0, NULL, true }));
 
-    std::vector<uint8_t> * container = &a;
-    std::vector<uint8_t> * scratch = &b;
+    size_t max_in_size = 0;
+    size_t max_out_size = 0;
+    size_t max_key_length = 0;
 
-    while (ftell(input) < stat.st_size) {
+    while (ftell(in_file) < in_stat.st_size) {
         struct tensor_header header;
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, fread_tensor_header(input, header), "invalid tensor header");
+        RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, fread_tensor_header_and_skip(in_file, header));
 
-        std::string name((size_t) header.key_length, '\0');
+        size_t in_size = tensor_bytes(header);
+        if (in_size > max_in_size) max_in_size = in_size;
+
+        // f16 type tensors get relocated to out and then converted into f32 at in
+        if (header.data_type == TYPE_F16) {
+            if (in_size > max_out_size) max_out_size = in_size;
+            size_t f32_size = tensor_bytes(GGML_TYPE_F32, header.width, header.height);
+            if (f32_size > max_in_size) max_in_size = f32_size;
+        }
+
+        size_t out_size = tensor_bytes(out_type, header.width, header.height);
+        if (out_size > max_out_size) max_out_size = out_size;
+
+        if (header.key_length > max_key_length) max_key_length = header.key_length;
+    }
+
+    rewind(in_file);
+    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(in_file, sizeof(struct file_header), SEEK_CUR) == 0);
+
+    std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [max_in_size + max_out_size]);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, scratch.get(), "failed to allocate buffer");
+
+    uint8_t * in_buf = scratch.get();
+    uint8_t * out_buf = in_buf + max_in_size;
+
+    struct tensor tensor;
+    struct tensor_header & header = tensor.header;
+    std::string & name = tensor.name;
+    uint8_t *& data = tensor.data;
+
+    while (ftell(in_file) < in_stat.st_size) {
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, fread_tensor_header(in_file, header), "failed to read tensor header");
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, fread_string(in_file, header.key_length, name), "failed to read tensor name");
+
         const char * name_str = name.c_str();
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_KEY, fread_tensor_key(input, header, name.c_str()), "failed to read tensor name");
+        RWKV_MSG("%*s - [%5" PRId32 ", %5" PRId32 "], type = %6s ", (int) max_key_length, name_str, header.width, header.height, type_to_string[header.data_type]);
 
-        container->resize(tensor_bytes(header));
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA, fread_tensor_data(input, header, container->data()), "failed to read tensor data of %s", name_str);
+        data = header.data_type == TYPE_F16 ? out_buf : in_buf;
+        size_t orig_size = tensor_bytes(header), new_size = orig_size;
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, fread_data(in_file, orig_size, data), "\nfailed to read tensor data of %s", name_str);
 
-        RWKV_MSG("%48s - [%5" PRId32 ", %5" PRId32 "], type = %6s ", name_str, header.width, header.height, type_to_string[header.data_type]);
-        
-        int32_t orig_type = header.data_type;
-        size_t orig_size = tensor_bytes(header);
-        size_t new_size = orig_size;
-
-        if ((orig_type == TYPE_F32 || orig_type == TYPE_F16) && header.dim_count == 2 && name != "emb.weight" && name != "head.weight") {
+        if ((header.data_type == TYPE_F32 || header.data_type == TYPE_F16) && header.dim_count == 2 && name != "emb.weight" && name != "head.weight") {
             RWKV_MSG("quantizing... ");
 
             size_t nelements = (size_t) header.width * (size_t) header.height;
 
-            if (orig_type == TYPE_F16) {
-                header.data_type = TYPE_F32;
-                scratch->resize(new_size = tensor_bytes(header));
-                ggml_fp16_to_fp32_row((const ggml_fp16_t *) container->data(), (float *) scratch->data(), nelements);
-                std::swap(container, scratch);
+            if (header.data_type == TYPE_F16) {
+                ggml_fp16_to_fp32_row((const ggml_fp16_t *) out_buf, (float *) in_buf, nelements);
             }
 
-            header.data_type = target_type;
-            scratch->resize(new_size = tensor_bytes(header));
-
             int64_t hist_cur[16] {};
-
-            ggml_quantize_chunk(target_ggml, (const float *) container->data(), scratch->data(), 0, nelements, hist_cur);
-            std::swap(container, scratch);
-
-            orig_total_size += orig_size;
-            new_total_size += new_size;
+            new_size = ggml_quantize_chunk(out_type, (const float *) in_buf, out_buf, 0, nelements, hist_cur);
+            header.data_type = type_from_ggml[out_type];
 
             RWKV_MSG("size = %8.2f MB -> %8.2f MB | hist: ", orig_size / 1024.0 / 1024.0, new_size / 1024.0 / 1024.0);
 
@@ -1082,15 +1129,12 @@ bool rwkv_quantize_model_file(const char * input_path, const char * output_path,
 
             RWKV_MSG("\n");
         } else {
-
             RWKV_MSG("size = %8.3f MB\n", orig_size / 1024.0 / 1024.0);
-            orig_total_size += orig_size;
-            new_total_size += orig_size;
         }
 
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_WRITE, fwrite_tensor_header(output, header), "failed to write tensor header of %s", name_str);
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_WRITE, fwrite_string(output, name), "failed to write tensor name of %s", name_str);
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_WRITE, fwrite_data(output, container->data(), new_size), "failed to write tensor data of %s", name_str);
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_WRITE, fwrite_tensor(out_file, tensor), "failed to write tensor %s", name_str);
+        orig_total_size += orig_size;
+        new_total_size += orig_size;
     }
 
     RWKV_MSG("original size     = %8.2f MB\n", orig_total_size / 1024.0 / 1024.0);
