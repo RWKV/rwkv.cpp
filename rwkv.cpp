@@ -236,14 +236,9 @@ static bool is_file_version_in_range(uint32_t version) {
 }
 
 static bool fread_file_header(FILE * file, struct file_header & header, bool verify_data_type = true) {
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.magic));
+    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_data(file, sizeof(struct file_header), &header));
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_MAGIC, header.magic == RWKV_FILE_MAGIC);
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.version));
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_VERSION, is_file_version_in_range(header.version), "unsupported file version %" PRId32, header.version);
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.n_vocab));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.n_embed));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.n_layer));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.data_type));
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, header.data_type < TYPE_COUNT, "model data type out of range (%" PRId32 " > %" PRId32 ")", header.data_type, TYPE_COUNT - 1);
 
     if (verify_data_type) {
@@ -272,12 +267,7 @@ static bool fread_file_header(FILE * file, struct file_header & header, bool ver
 }
 
 static bool fwrite_file_header(FILE * file, const struct file_header & header) {
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_uint32(file, header.magic));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_uint32(file, header.version));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_uint32(file, header.n_vocab));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_uint32(file, header.n_embed));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_uint32(file, header.n_layer));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_uint32(file, header.data_type));
+    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_data(file, &header, sizeof(struct file_header)));
     return true;
 }
 
@@ -290,31 +280,21 @@ struct tensor_header {
 };
 
 static bool fread_tensor_header(FILE * file, struct tensor_header & header) {
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.dim_count));
+    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_data(file, sizeof(struct tensor_header) - sizeof(uint32_t), &header));
+    header.height = 1;
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_SHAPE, header.dim_count == 1 || header.dim_count == 2, "tensor has an invalid shape (%" PRId32 " dimensions)", header.dim_count);
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.key_length));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.data_type));
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, header.data_type < TYPE_COUNT, "tensor data type out of range (%" PRId32 " > %" PRId32 ")", header.data_type, TYPE_COUNT - 1);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, type_to_ggml[header.data_type] != GGML_TYPE_UNKNOWN, "tensor data type (%s) is no longer supported", type_to_string[header.data_type]);
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.width));
 
-    if (header.dim_count == 2)
+    if (header.dim_count == 2) {
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_uint32(file, header.height));
-    else
-        header.height = 1;
+    }
 
     return true;
 }
 
 static bool fwrite_tensor_header(FILE * file, const struct tensor_header & header) {
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_uint32(file, header.dim_count));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_uint32(file, header.key_length));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_uint32(file, header.data_type));
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_uint32(file, header.width));
-
-    if (header.dim_count == 2)
-        RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_uint32(file, header.height));
-
+    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_data(file, &header, sizeof(struct tensor_header) - (header.dim_count == 1 ? sizeof(uint32_t) : 0)));
     return true;
 }
 
@@ -856,6 +836,8 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, file, "failed to open file %s", file_path);
     rwkv_file_guard file_guard { file };
 
+    setvbuf(file, NULL, _IONBF, 0);
+
     // Be very careful when changing this code. It must support files larger than 2 GB by using 64-bit functions to the get file length.
     struct stat file_stat;
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(file), &file_stat) == 0, "failed to stat file %s", file_path);
@@ -1013,6 +995,9 @@ bool rwkv_quantize_model_file(const char * input_path, const char * output_path,
     FILE * output = fopen(output_path, "wb");
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, output, "failed to open %s for writing", output_path);
     rwkv_file_guard output_guard { output };
+
+    setvbuf(input, NULL, _IONBF, 0);
+    setvbuf(output, NULL, _IONBF, 0);
 
     struct file_header file_header;
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, fread_file_header(input, file_header), "invalid file header");
