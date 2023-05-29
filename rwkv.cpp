@@ -388,7 +388,6 @@ bool rwkv_build_graph(struct ggml_context * ctx, struct rwkv_model * model, cons
             // state[5 * i + 2] = e1 * aa + e2 * v
             // state[5 * i + 3] = e1 * bb + e2
             // state[5 * i + 4] = qq
-
             state_parts[part_index + 1] = x0;
             state_parts[part_index + 2] = ggml_add_inplace(ctx, ggml_mul(ctx, e1, aa), ggml_mul(ctx, e2, v));
             state_parts[part_index + 3] = ggml_add_inplace(ctx, ggml_mul(ctx, e1, bb), e2);
@@ -621,25 +620,12 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
         for (int i = 0; i < n_gpu; ++i) {
             const auto & layer = model->layers[i];
 
-            // Since there is only ggml_mul_mat() support cuBlas, so transform the tensors which only neccessary
-            //ggml_cuda_transform_tensor(layer.ln1_weight); vram_total += ggml_nbytes(layer.ln1_weight);
-            //ggml_cuda_transform_tensor(layer.ln1_bias); vram_total += ggml_nbytes(layer.ln1_bias);
-
-            //ggml_cuda_transform_tensor(layer.att_time_mix_k); vram_total += ggml_nbytes(layer.att_time_mix_k);
-            //ggml_cuda_transform_tensor(layer.att_time_mix_v); vram_total += ggml_nbytes(layer.att_time_mix_v);
-            //ggml_cuda_transform_tensor(layer.att_time_mix_r); vram_total += ggml_nbytes(layer.att_time_mix_r);
-            //ggml_cuda_transform_tensor(layer.att_time_first); vram_total += ggml_nbytes(layer.att_time_first);
-            //ggml_cuda_transform_tensor(layer.att_time_decay); vram_total += ggml_nbytes(layer.att_time_decay);
+            // Use cuBLAS only for heavy matrices; other operations are not supported for GPU at the moment
             ggml_cuda_transform_tensor(layer.att_key); vram_total += ggml_nbytes(layer.att_key);
             ggml_cuda_transform_tensor(layer.att_value); vram_total += ggml_nbytes(layer.att_value);
             ggml_cuda_transform_tensor(layer.att_receptance); vram_total += ggml_nbytes(layer.att_receptance);
             ggml_cuda_transform_tensor(layer.att_output); vram_total += ggml_nbytes(layer.att_output);
 
-            //ggml_cuda_transform_tensor(layer.ln2_weight); vram_total += ggml_nbytes(layer.ln2_weight);
-            //ggml_cuda_transform_tensor(layer.ln2_bias); vram_total += ggml_nbytes(layer.ln2_bias);
-
-            //ggml_cuda_transform_tensor(layer.ffn_time_mix_k); vram_total += ggml_nbytes(layer.ffn_time_mix_k);
-            //ggml_cuda_transform_tensor(layer.ffn_time_mix_r); vram_total += ggml_nbytes(layer.ffn_time_mix_r);
             ggml_cuda_transform_tensor(layer.ffn_key); vram_total += ggml_nbytes(layer.ffn_key);
             ggml_cuda_transform_tensor(layer.ffn_value); vram_total += ggml_nbytes(layer.ffn_value);
             ggml_cuda_transform_tensor(layer.ffn_receptance); vram_total += ggml_nbytes(layer.ffn_receptance);
