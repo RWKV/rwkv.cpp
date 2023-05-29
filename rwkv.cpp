@@ -1156,6 +1156,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
             int64_t hist_cur[16] {};
             new_size = ggml_quantize_chunk(out_type, (const float *) in_buf, out_buf, 0, nelements, hist_cur);
             header.data_type = type_from_ggml[out_type];
+            data = out_buf;
 
             RWKV_MSG("size = %8.2f MB -> %8.2f MB | hist: ", orig_size / 1024.0 / 1024.0, new_size / 1024.0 / 1024.0);
 
