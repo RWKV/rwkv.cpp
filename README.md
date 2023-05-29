@@ -26,17 +26,20 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 | `FP16`    | **15.623**        | 117                | 2.82                 |
 | `FP32`    | **15.623**        | 198                | 5.64                 |
 
-### cuBLAS's performance on 3060Ti(8G) + i7 13700K, time cost per token
-| Model                 | Layers on GPU | Format | 24 Threads | 8 Threads | 4 Threads | 2 Threads | 1 Threads |
-|-----------------------|---------------|--------|------------|-----------|-----------|-----------|-----------|
-| `RWKV-4-Pile-169M`    | 12            | `Q4_0` | 20.6ms     | 8.6ms     | 6.9ms     | 6.2ms     | 7.9ms     |
-| `RWKV-4-Pile-169M`    | 12            | `Q4_1` | 21.4ms     | 8.6ms     | 6.9ms     | 6.7ms     | 7.8ms     |
-| `RWKV-4-Pile-169M`    | 12            | `Q5_1` | 22.2ms     | 9.0ms     | 6.9ms     | 6.7ms     | 8.1ms     |
-| `RWKV-4-Raven-7B-v11` | 32            | `Q4_0` | 94.9ms     | 54.3ms    | 50.2ms    | 51.6ms    | 59.2ms    |
-| `RWKV-4-Raven-7B-v11` | 32            | `Q4_1` | 94.5ms     | 54.3ms    | 49.7ms    | 51.8ms    | 59.2ms    |
-| `RWKV-4-Raven-7B-v11` | 32            | `Q5_1` | 101.6ms    | 72.3ms    | 67.2ms    | 69.3ms    | 77.0ms    |
+#### With cuBLAS
 
-##### Since there is only `ggml_mul_mat()` supported with cuBLAS, so we still need to assign few cpu resources to process with the left computation
+Measurements were made on 3060Ti 8G + i7 13700K. Latency per token shown.
+
+| Model                 | Layers on GPU | Format | 24 Threads  | 8 Threads  | 4 Threads  | 2 Threads  | 1 Threads  |
+|-----------------------|---------------|--------|-------------|------------|------------|------------|------------|
+| `RWKV-4-Pile-169M`    | 12            | `Q4_0` | 20.6 ms     | 8.6 ms     | 6.9 ms     | 6.2 ms     | 7.9 ms     |
+| `RWKV-4-Pile-169M`    | 12            | `Q4_1` | 21.4 ms     | 8.6 ms     | 6.9 ms     | 6.7 ms     | 7.8 ms     |
+| `RWKV-4-Pile-169M`    | 12            | `Q5_1` | 22.2 ms     | 9.0 ms     | 6.9 ms     | 6.7 ms     | 8.1 ms     |
+| `RWKV-4-Raven-7B-v11` | 32            | `Q4_0` | 94.9 ms     | 54.3 ms    | 50.2 ms    | 51.6 ms    | 59.2 ms    |
+| `RWKV-4-Raven-7B-v11` | 32            | `Q4_1` | 94.5 ms     | 54.3 ms    | 49.7 ms    | 51.8 ms    | 59.2 ms    |
+| `RWKV-4-Raven-7B-v11` | 32            | `Q5_1` | 101.6 ms    | 72.3 ms    | 67.2 ms    | 69.3 ms    | 77.0 ms    |
+
+Note: since there is only `ggml_mul_mat()` supported with cuBLAS, we still need to assign few CPU resources to execute remaining operations.
 
 ## How to use
 
@@ -75,13 +78,15 @@ cmake --build . --config Release
 If everything went OK, `bin\Release\rwkv.dll` file should appear.
 
 ##### Windows + cuBLAS
+
+**Important**: Since there is no cuBLAS static libraries for Windows, after compiling with dynamic libraries following DLLs should be copied from `{CUDA}/bin` into `build/bin/Release`: `cudart64_12.dll`, `cublas64_12.dll`, `cublasLt64_12.dll`.
+
 ```commandline
 mkdir build
 cd build
 cmake .. -DRWKV_CUBLAS=ON
 cmake --build . --config Release
 ```
-**Important** Since there is no cublas static libraries for windows, after compiled with dynamic libraries the below dll: `cudart64_12.dll`, `cublas64_12.dll`, `cublasLt64_12.dll` should be copied from `{CUDA}/bin` into `build/bin/Release`
 
 ##### Linux / MacOS
 
@@ -94,7 +99,10 @@ cmake --build . --config Release
 
 **Anaconda & M1 users**: please verify that `CMAKE_SYSTEM_PROCESSOR: arm64` after running `cmake .` — if it detects `x86_64`, edit the `CMakeLists.txt` file under the `# Compile flags` to add `set(CMAKE_SYSTEM_PROCESSOR "arm64")`.
 
+If everything went OK, `librwkv.so` (Linux) or `librwkv.dylib` (MacOS) file should appear in the base repo folder.
+
 ##### Linux / MacOS + cuBLAS
+
 ```commandline
 mkdir build
 cd build
@@ -103,7 +111,6 @@ cmake --build . --config Release
 ```
 
 If everything went OK, `librwkv.so` (Linux) or `librwkv.dylib` (MacOS) file should appear in the base repo folder.
-
 
 ### 3. Get an RWKV model
 
