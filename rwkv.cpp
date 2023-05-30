@@ -52,7 +52,7 @@ inline enum rwkv_error_flags operator|=(enum rwkv_error_flags & a, enum rwkv_err
 }
 
 #define RWKV_MSG(...) do { if (global_print_errors) fprintf(stderr, __VA_ARGS__); } while (0)
-#define RWKV_CTX_MSG(ctx, ...) do { if ((ctx)->print_errors) fprintf(stderr, __VA_ARGS__); } while (0)
+#define RWKV_CTX_MSG(ctx, ...) do { if (ctx->print_errors) fprintf(stderr, __VA_ARGS__); } while (0)
 
 // If the condition x is false, adds ERR_VAL to the last error, and returns RET_VAL.
 #define RWKV_ASSERT(ERR_VAL, RET_VAL, x) do { \
@@ -223,9 +223,11 @@ static const enum rwkv_type type_from_ggml[GGML_TYPE_COUNT + 1] = {
 static const char * type_to_string[TYPE_COUNT + 1] = {"float32", "float16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "unknown"};
 
 enum rwkv_type type_from_string(const char * str) {
-    for (int ord = 0; ord < TYPE_COUNT; ord++)
-        if (strcmp(str, type_to_string[ord]) == 0)
+    for (int ord = 0; ord < TYPE_COUNT; ord++) {
+        if (strcmp(str, type_to_string[ord]) == 0) {
             return (enum rwkv_type) ord;
+        }
+    }
 
     return TYPE_UNKNOWN;
 }
@@ -846,12 +848,12 @@ bool rwkv_single_graph(struct ggml_context * ctx, struct rwkv_model & model, con
 
 struct rwkv_file_guard {
     FILE * file;
-    ~rwkv_file_guard() { if (file) fclose(file); }
+    ~rwkv_file_guard() { if (file) { fclose(file); } }
 };
 
 struct rwkv_ggml_guard {
     struct ggml_context * ctx;
-    ~rwkv_ggml_guard() { if (ctx) ggml_free(ctx); }
+    ~rwkv_ggml_guard() { if (ctx) { ggml_free(ctx); } }
 };
 
 void rwkv_set_print_errors(struct rwkv_context * ctx, bool print_errors) {
@@ -1025,8 +1027,9 @@ bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const floa
         memcpy(state_out + i * header.n_embed, part->data, ggml_nbytes(part));
     }
 
-    if (logits_out)
+    if (logits_out) {
         memcpy(logits_out, graph.logits->data, ggml_nbytes(graph.logits));
+    }
 
     return true;
 }
@@ -1094,19 +1097,33 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, fread_tensor_header_and_skip(in_file, header));
 
         size_t in_size = tensor_bytes(header);
-        if (in_size > max_in_size) max_in_size = in_size;
+
+        if (in_size > max_in_size) {
+            max_in_size = in_size;
+        }
 
         // f16 type tensors get relocated to out and then converted into f32 at in
         if (header.data_type == TYPE_F16) {
-            if (in_size > max_out_size) max_out_size = in_size;
+            if (in_size > max_out_size) {
+                max_out_size = in_size;
+            }
+
             size_t f32_size = tensor_bytes(GGML_TYPE_F32, header.width, header.height);
-            if (f32_size > max_in_size) max_in_size = f32_size;
+
+            if (f32_size > max_in_size) {
+                max_in_size = f32_size;
+            }
         }
 
         size_t out_size = tensor_bytes(out_type, header.width, header.height);
-        if (out_size > max_out_size) max_out_size = out_size;
 
-        if (header.key_length > max_key_length) max_key_length = header.key_length;
+        if (out_size > max_out_size) {
+            max_out_size = out_size;
+        }
+
+        if (header.key_length > max_key_length) {
+            max_key_length = header.key_length;
+        }
     }
 
     rewind(in_file);
@@ -1171,13 +1188,15 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
 
     int64_t sum_all = 0;
 
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i < 16; i++) {
         sum_all += hist_all[i];
+    }
 
     RWKV_MSG("hist: ");
 
-    for (int i = 0; i < 16; ++i)
+    for (int i = 0; i < 16; ++i) {
         printf("%5.3f ", hist_all[i] / float(sum_all));
+    }
 
     RWKV_MSG("\n");
 
