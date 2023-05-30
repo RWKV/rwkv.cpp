@@ -23,6 +23,9 @@
 #ifdef WIN32
 #define stat64 _stat64
 #define fstat64 _fstat64
+#elif __APPLE__
+#define stat64 stat
+#define fstat64 fstat
 #endif
 
 // --- Error handling ---
