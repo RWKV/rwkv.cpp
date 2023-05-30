@@ -35,8 +35,8 @@
 #endif
 #endif
 
-static_assert(sizeof(stat::st_size) >= 8, "file offsets should be 64-bit");
-static_assert(sizeof(decltype(ftell(NULL))) >= 8, "file offsets should be 64-bit");
+static_assert(sizeof(stat::st_size) >= 8, "File offsets should be 64-bit or else rwkv.cpp will not be able to load model files over 2GB");
+static_assert(sizeof(decltype(ftell(NULL))) >= 8, "File offsets should be 64-bit or else rwkv.cpp will not be able to load model files over 2GB");
 
 // --- Error handling ---
 
@@ -248,8 +248,8 @@ bool rwkv_is_file_version_in_range(uint32_t version) {
 bool rwkv_fread_file_header(FILE * file, struct rwkv_file_header & header, bool verify_data_type = true) {
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, rwkv_fread_data(file, sizeof(struct rwkv_file_header), &header));
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_MAGIC, header.magic == RWKV_FILE_MAGIC);
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_VERSION, rwkv_is_file_version_in_range(header.version), "unsupported file version %" PRId32, header.version);
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, header.data_type < TYPE_COUNT, "model data type out of range (%" PRId32 " > %" PRId32 ")", header.data_type, TYPE_COUNT - 1);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_VERSION, rwkv_is_file_version_in_range(header.version), "Unsupported file version %" PRId32, header.version);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, header.data_type < TYPE_COUNT, "Model data type out of range (%" PRId32 " > %" PRId32 ")", header.data_type, TYPE_COUNT - 1);
 
     if (verify_data_type) {
         enum ggml_type ggml_type = rwkv_type_to_ggml[header.data_type];
@@ -298,9 +298,9 @@ struct rwkv_tensor {
 bool rwkv_fread_tensor_header(FILE * file, struct rwkv_tensor_header & header) {
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, rwkv_fread_data(file, sizeof(struct rwkv_tensor_header) - sizeof(uint32_t), &header));
     header.height = 1;
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_SHAPE, header.dim_count == 1 || header.dim_count == 2, "tensor has an invalid shape (%" PRId32 " dimensions)", header.dim_count);
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, header.data_type < TYPE_COUNT, "tensor data type out of range (%" PRId32 " > %" PRId32 ")", header.data_type, TYPE_COUNT - 1);
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, rwkv_type_to_ggml[header.data_type] != GGML_TYPE_UNKNOWN, "tensor data type (%s) is no longer supported", rwkv_type_to_string[header.data_type]);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_SHAPE, header.dim_count == 1 || header.dim_count == 2, "Tensor has an invalid shape (%" PRId32 " dimensions)", header.dim_count);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, header.data_type < TYPE_COUNT, "Tensor data type out of range (%" PRId32 " > %" PRId32 ")", header.data_type, TYPE_COUNT - 1);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, rwkv_type_to_ggml[header.data_type] != GGML_TYPE_UNKNOWN, "Tensor data type (%s) is no longer supported", rwkv_type_to_string[header.data_type]);
 
     if (header.dim_count == 2) {
         RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, rwkv_fread_uint32(file, header.height));
@@ -486,25 +486,25 @@ struct rwkv_context {
 };
 
 bool rwkv_fread_ggml_tensor_data(FILE * file, const struct rwkv_tensor_header & header, struct ggml_context * ctx, std::string & name, struct ggml_tensor *& tensor) {
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_READ, rwkv_fread_string(file, header.key_length, name), "failed to read tensor name");
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_READ, rwkv_fread_string(file, header.key_length, name), "Failed to read tensor name");
 
     enum ggml_type ggml_type = rwkv_type_to_ggml[header.data_type];
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_UNSUPPORTED, ggml_type != GGML_TYPE_UNKNOWN, "unsupported tensor data type %s from %s", rwkv_type_to_string[header.data_type], name.c_str());
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_UNSUPPORTED, ggml_type != GGML_TYPE_UNKNOWN, "Unsupported tensor data type %s from %s", rwkv_type_to_string[header.data_type], name.c_str());
 
     tensor = header.dim_count == 1
         ? ggml_new_tensor_1d(ctx, ggml_type, header.width)
         : ggml_new_tensor_2d(ctx, ggml_type, header.width, header.height);
 
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, tensor, "failed to allocate tensor");
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, tensor, "Failed to allocate tensor");
     ggml_set_name(tensor, name.c_str());
 
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_READ, rwkv_fread_data(file, ggml_nbytes(tensor), tensor->data), "failed to read tensor data from %s", name.c_str());
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_READ, rwkv_fread_data(file, ggml_nbytes(tensor), tensor->data), "Failed to read tensor data from %s", name.c_str());
     return true;
 }
 
 bool rwkv_fread_ggml_tensor(FILE * file, struct ggml_context * ctx, std::string & name, struct ggml_tensor *& tensor) {
     struct rwkv_tensor_header header;
-    RWKV_ENSURE_OR_FALSE_MSG(rwkv_fread_tensor_header(file, header), "invalid tensor header");
+    RWKV_ENSURE_OR_FALSE_MSG(rwkv_fread_tensor_header(file, header), "Invalid tensor header");
     return rwkv_fread_ggml_tensor_data(file, header, ctx, name, tensor);
 }
 
@@ -516,7 +516,7 @@ bool rwkv_set_params(struct rwkv_model & model, F callback) {
 
     uint32_t n_layer = model.header.n_layer;
     std::unique_ptr<struct rwkv_layer []> layers(new(std::nothrow) struct rwkv_layer [n_layer]);
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, layers.get(), "failed to allocate model layers");
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, layers.get(), "Failed to allocate model layers");
     model.layers = std::move(layers);
 
     for (uint32_t i = 0; i < n_layer; i++) {
@@ -875,15 +875,15 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     global_last_error = RWKV_ERROR_NONE;
 
     FILE * file = fopen(file_path, "rb");
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, file, "failed to open file %s", file_path);
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, file, "Failed to open file %s", file_path);
     rwkv_file_guard file_guard { file };
 
     // Be very careful when changing this code. It must support files larger than 2 GB by using 64-bit functions to the get file length.
     struct stat file_stat;
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(file), &file_stat) == 0, "failed to stat file %s", file_path);
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(file), &file_stat) == 0, "Failed to stat file %s", file_path);
 
     struct rwkv_file_header header;
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE, rwkv_fread_file_header(file, header), "invalid file header");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE, rwkv_fread_file_header(file, header), "Fnvalid file header");
 
     size_t tensors_start = ftell(file);
     struct rwkv_ctx_size ctx_size;
@@ -892,9 +892,9 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     std::string name;
     while ((size_t) ftell(file) < (size_t) file_stat.st_size) {
         struct rwkv_tensor_header header;
-        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_tensor_header(file, header), "invalid tensor header");
-        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_string(file, header.key_length, name), "failed to read tensor name");
-        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, rwkv_tensor_size(header), SEEK_CUR) == 0, "failed to read tensor data");
+        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_tensor_header(file, header), "Invalid tensor header");
+        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_string(file, header.key_length, name), "Failed to read tensor name");
+        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, rwkv_tensor_size(header), SEEK_CUR) == 0, "Failed to read tensor data");
         rwkv_ctx_size_add_tensor(ctx_size, 1, 0, header);
 
         if (ffn_key == 0 && name == "blocks.0.ffn.key.weight") {
@@ -902,20 +902,20 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
         }
     }
 
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, ffn_key, "model is missing parameter blocks.0.ffn.key.weight");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, ffn_key, "Model is missing parameter blocks.0.ffn.key.weight");
 
     rwkv_ctx_size_add(ctx_size, 1, rwkv_single_graph_size(header.n_vocab, header.n_embed, header.n_layer, ffn_key));
     // And finally to end it all off: the graph work tensor
     enum ggml_type mul_mat_type = ggml_is_quantized(rwkv_type_to_ggml[header.data_type]) ? GGML_TYPE_Q8_1 : rwkv_type_to_ggml[header.data_type];
     rwkv_ctx_size_add_objects(ctx_size, 1, sizeof(struct ggml_tensor) + rwkv_tensor_size(GGML_TYPE_I8, rwkv_tensor_size(mul_mat_type, ffn_key) * n_threads + 64 * (n_threads - 1)));
 
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, tensors_start, SEEK_SET) == 0, "failed to seek in file");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, tensors_start, SEEK_SET) == 0, "Failed to seek in file");
 
     std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [ctx_size.scratch_size]);
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, scratch.get(), "failed to allocate model scratch space");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, scratch.get(), "Failed to allocate model scratch space");
 
     struct ggml_context * ctx = ggml_init({ ctx_size.objects_size + ctx_size.objects_count * GGML_OBJECT_SIZE, NULL, false});
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, ctx, "failed to create GGML context");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, ctx, "Failed to create GGML context");
     rwkv_ggml_guard ggml_guard { ctx };
 
     std::unordered_map<std::string, struct ggml_tensor *> parameters;
@@ -924,7 +924,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     while ((size_t) ftell(file) < (size_t) file_stat.st_size) {
         std::string name;
         struct ggml_tensor * tensor;
-        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_ggml_tensor(file, ctx, name, tensor), "failed to read model params");
+        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_ggml_tensor(file, ctx, name, tensor), "Failed to read model params");
         parameters[std::move(name)] = tensor;
     }
 
@@ -936,23 +936,23 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     std::unordered_map<std::string, struct ggml_tensor *> & parameters_ref = parameters;
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, rwkv_set_params(model, [&](const char * key, struct ggml_tensor *& dest) {
         struct ggml_tensor * tensor = parameters_ref[key];
-        RWKV_ENSURE_OR_FALSE_MSG(tensor, "parameter %s not found", key);
+        RWKV_ENSURE_OR_FALSE_MSG(tensor, "Model parameter %s not found", key);
         dest = tensor;
         return true;
     }));
 
     // Verify order of dimensions
     struct ggml_tensor * emb = model.emb;
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_SHAPE, emb->n_dims == 2, "unexpected dimension count of embedding matrix %d", emb->n_dims);
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DIMENSION, emb->ne[0] == header.n_embed, "unexpected dimension of embedding matrix %" PRId64, emb->ne[0]);
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DIMENSION, emb->ne[1] == header.n_vocab, "unexpected dimension of embedding matrix %" PRId64, emb->ne[1]);
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_SHAPE, emb->n_dims == 2, "Unexpected dimension count of embedding matrix %d", emb->n_dims);
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DIMENSION, emb->ne[0] == header.n_embed, "Unexpected dimension of embedding matrix %" PRId64, emb->ne[0]);
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DIMENSION, emb->ne[1] == header.n_vocab, "Unexpected dimension of embedding matrix %" PRId64, emb->ne[1]);
 
     // Build graph
     struct rwkv_graph graph;
     RWKV_ASSERT_NULL(RWKV_ERROR_GRAPH, rwkv_single_graph(ctx, model, n_threads, graph));
 
     std::unique_ptr<struct rwkv_context> rwkv_ctx(new(std::nothrow) struct rwkv_context());
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, rwkv_ctx.get(), "failed to allocate context");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, rwkv_ctx.get(), "Failed to allocate context");
 
     // Don't free ggml context
     ggml_guard.ctx = NULL;
@@ -1002,7 +1002,7 @@ bool rwkv_gpu_offload_layers(const struct rwkv_context * ctx, const uint32_t n_g
 bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const float * state_in, float * state_out, float * logits_out) {
     ((struct rwkv_context *) ctx)->last_error = RWKV_ERROR_NONE;
     const struct rwkv_file_header& header = ctx->model.header;
-    RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, state_out != NULL, "state_out is NULL");
+    RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, state_out != NULL, "Parameter state_out to rwkv_eval is NULL");
     RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, token < header.n_vocab, "Token is out of range 0..%d", header.n_vocab - 1);
 
     const struct rwkv_graph & graph = ctx->graph;
@@ -1050,32 +1050,32 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     global_last_error = RWKV_ERROR_NONE;
 
     enum ggml_type out_type = rwkv_type_to_ggml[rwkv_type_from_string(type_name)];
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ARGS | RWKV_ERROR_DATA_TYPE, ggml_is_quantized(out_type), "unsupported output data type (%s)", rwkv_type_to_string[rwkv_type_from_ggml[out_type]]);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ARGS | RWKV_ERROR_DATA_TYPE, ggml_is_quantized(out_type), "Unsupported output data type (%s)", rwkv_type_to_string[rwkv_type_from_ggml[out_type]]);
 
     RWKV_MSG("Loading model from '%s'\n", in_path);
 
     struct stat in_stat;
     FILE * in_file = fopen(in_path, "rb");
     rwkv_file_guard in_guard { in_file };
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, in_file, "failed to open %s for reading", in_path);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, in_file, "Failed to open %s for reading", in_path);
 
     FILE * out_file = fopen(out_path, "wb");
     rwkv_file_guard out_guard { out_file };
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, out_file, "failed to open %s for writing", out_path);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, out_file, "Failed to open %s for writing", out_path);
 
     // Be very careful when changing this code. It must support files larger than 2 GB by using 64-bit functions to the get file length.
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(in_file), &in_stat) == 0, "failed to stat file %s", in_path);
 
     struct rwkv_file_header in_header;
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, rwkv_fread_file_header(in_file, in_header), "invalid file header");
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, rwkv_fread_file_header(in_file, in_header), "Invalid file header");
 
     enum ggml_type in_type = rwkv_type_to_ggml[in_header.data_type];
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, in_type == GGML_TYPE_F32 || in_type == GGML_TYPE_F16, "unsupported input data type (%s); needs to be f32 or f16", rwkv_type_to_string[rwkv_type_from_ggml[in_type]]);
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, in_type == GGML_TYPE_F32 || in_type == GGML_TYPE_F16, "Unsupported input data type (%s); needs to be f32 or f16", rwkv_type_to_string[rwkv_type_from_ggml[in_type]]);
 
     struct rwkv_file_header out_header = in_header;
     out_header.version = RWKV_FILE_VERSION;
     out_header.data_type = rwkv_type_from_ggml[out_type];
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, rwkv_fwrite_file_header(out_file, out_header), "failed to write file header");
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, rwkv_fwrite_file_header(out_file, out_header), "Failed to write file header");
 
     // Process parameters
     size_t orig_total_size = 0;
@@ -1130,7 +1130,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     int64_t hist_all[16] {};
 
     std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [max_in_size + max_out_size]);
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, scratch.get(), "failed to allocate buffer");
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, scratch.get(), "Failed to allocate buffer");
 
     uint8_t * in_buf = scratch.get();
     uint8_t * out_buf = in_buf + max_in_size;
@@ -1141,15 +1141,15 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     uint8_t *& data = tensor.data;
 
     while (ftell(in_file) < in_stat.st_size) {
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_tensor_header(in_file, header), "failed to read tensor header");
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_string(in_file, header.key_length, name), "failed to read tensor name");
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_tensor_header(in_file, header), "Failed to read tensor header");
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_string(in_file, header.key_length, name), "Failed to read tensor name");
 
         const char * name_str = name.c_str();
         RWKV_MSG("%*s - [%5" PRId32 ", %5" PRId32 "], type = %6s ", (int) max_key_length, name_str, header.width, header.height, rwkv_type_to_string[header.data_type]);
 
         data = header.data_type == TYPE_F16 ? out_buf : in_buf;
         size_t orig_size = rwkv_tensor_size(header), new_size = orig_size;
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_data(in_file, orig_size, data), "\nfailed to read tensor data of %s", name_str);
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_data(in_file, orig_size, data), "\nFailed to read tensor data of %s", name_str);
 
         // Quantize only 2D tensors, except embedding and head matrices.
         // Embedding and head take not too much space, especially in bigger models;
@@ -1180,7 +1180,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
             RWKV_MSG("size = %8.3f MB\n", orig_size / 1024.0 / 1024.0);
         }
 
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_WRITE, rwkv_fwrite_tensor(out_file, tensor), "failed to write tensor %s", name_str);
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_WRITE, rwkv_fwrite_tensor(out_file, tensor), "Failed to write tensor %s", name_str);
         orig_total_size += orig_size;
         new_total_size += orig_size;
     }
