@@ -1081,8 +1081,6 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     size_t orig_total_size = 0;
     size_t new_total_size = 0;
 
-    int64_t hist_all[16] {};
-
     // Required to init the fp16 tables
     // Doesn't crash if ggml_init fails
     ggml_free(ggml_init({ 0, NULL, true }));
@@ -1127,6 +1125,9 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
 
     rewind(in_file);
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(in_file, sizeof(struct rwkv_file_header), SEEK_CUR) == 0);
+
+    // This is a histogram of quantized values. If it shows single 1.0, then all 0.0, something went very wrong!
+    int64_t hist_all[16] {};
 
     std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [max_in_size + max_out_size]);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, scratch.get(), "failed to allocate buffer");
