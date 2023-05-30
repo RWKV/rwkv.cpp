@@ -51,7 +51,7 @@ class AskRWKV:
         print(f'System info: {library.rwkv_get_system_info_string()}')
 
         print('Loading RWKV model')
-        model = rwkv_cpp_model.RWKVModel(library, 'raven.bin')
+        model = rwkv_cpp_model.RWKVModel(library, f'Raven.bin')
 
         prompt_tokens = tokenizer.encode(self.init_prompt).ids
         prompt_token_count = len(prompt_tokens)
