@@ -979,7 +979,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     return rwkv_ctx.release();
 }
 
-bool rwkv_cublas_offload_layers(const struct rwkv_context * ctx, const uint32_t n_gpu_layers) {
+bool rwkv_gpu_offload_layers(const struct rwkv_context * ctx, const uint32_t n_gpu_layers) {
 #ifdef GGML_USE_CUBLAS
     {
         size_t n_gpu = std::min(n_gpu_layers, ctx->model.header.n_layer);

@@ -30,7 +30,7 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     enum rwkv_error_flags error = rwkv_get_last_error(NULL);
     ASSERT(error == 0, "Unexpected error %d", error);
 #ifdef GGML_USE_CUBLAS
-    ASSERT(rwkv_cublas_offload_layers(model, N_GPU_LAYERS), "Unexpected error %d", rwkv_get_last_error(model));
+    ASSERT(rwkv_gpu_offload_layers(model, N_GPU_LAYERS), "Unexpected error %d", rwkv_get_last_error(model));
 #endif
 
     uint32_t n_vocab = rwkv_get_logits_buffer_element_count(model);

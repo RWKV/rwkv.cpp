@@ -40,8 +40,8 @@ class RWKVSharedLibrary:
         self.library.rwkv_init_from_file.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
         self.library.rwkv_init_from_file.restype = ctypes.c_void_p
 
-        self.library.rwkv_cublas_offload_layers.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
-        self.library.rwkv_cublas_offload_layers.restype = ctypes.c_bool
+        self.library.rwkv_gpu_offload_layers.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        self.library.rwkv_gpu_offload_layers.restype = ctypes.c_bool
 
         self.library.rwkv_eval.argtypes = [
             ctypes.c_void_p, # ctx
@@ -90,8 +90,8 @@ class RWKVSharedLibrary:
         assert ptr is not None, 'rwkv_init_from_file failed, check stderr'
         return RWKVContext(ptr)
 
-    def rwkv_cublas_offload_layers(self, ctx: RWKVContext, gpu_layers_count: int) -> None:
-        assert self.library.rwkv_cublas_offload_layers(ctx.ptr, ctypes.c_uint32(gpu_layers_count)), 'rwkv_cublas_offload_layers failed, check stderr'
+    def rwkv_gpu_offload_layers(self, ctx: RWKVContext, gpu_layers_count: int) -> None:
+        assert self.library.rwkv_gpu_offload_layers(ctx.ptr, ctypes.c_uint32(gpu_layers_count)), 'rwkv_gpu_offload_layers failed, check stderr'
 
     def rwkv_eval(
             self,

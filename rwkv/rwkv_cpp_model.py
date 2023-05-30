@@ -37,7 +37,7 @@ class RWKVModel:
         self._library = shared_library
 
         self._ctx = self._library.rwkv_init_from_file(model_path, thread_count)
-        self._library.rwkv_cublas_offload_layers(self._ctx, gpu_layers_count)
+        self._library.rwkv_gpu_offload_layers(self._ctx, gpu_layers_count)
 
         self._state_buffer_element_count = self._library.rwkv_get_state_buffer_element_count(self._ctx)
         self._logits_buffer_element_count = self._library.rwkv_get_logits_buffer_element_count(self._ctx)
