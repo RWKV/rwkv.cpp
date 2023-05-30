@@ -138,11 +138,6 @@ inline enum rwkv_error_flags operator|=(enum rwkv_error_flags & a, enum rwkv_err
 
 // --- Utilities ---
 
-// Reads a single int32 value from a file.
-bool fread_int32(FILE * file, int32_t & dest) {
-    return fread((void *) &dest, sizeof(int32_t), 1, file) == 1;
-}
-
 // Reads a single uint32 value from a file.
 bool fread_uint32(FILE * file, uint32_t & dest) {
     return fread((void *) &dest, sizeof(uint32_t), 1, file) == 1;
@@ -157,11 +152,6 @@ bool fread_string(FILE * file, size_t length, std::string & dest) {
 // Reads a single data buffer from a file.
 bool fread_data(FILE * file, size_t length, void * dest) {
     return fread(dest, length, 1, file) == 1;
-}
-
-// Writes a single int32 value to a file.
-bool fwrite_int32(FILE * file, const int32_t value) {
-    return fwrite((const void *) &value, sizeof(int32_t), 1, file);
 }
 
 // Writes a single uint32 value to a file.
