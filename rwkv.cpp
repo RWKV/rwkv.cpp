@@ -905,7 +905,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, ffn_key, "model is missing parameter blocks.0.ffn.key.weight");
 
     rwkv_ctx_size_add(ctx_size, 1, rwkv_single_graph_size(header.n_vocab, header.n_embed, header.n_layer, ffn_key));
-    // and finally to end it all off: the graph work tensor
+    // And finally to end it all off: the graph work tensor
     enum ggml_type mul_mat_type = ggml_is_quantized(rwkv_type_to_ggml[header.data_type]) ? GGML_TYPE_Q8_1 : rwkv_type_to_ggml[header.data_type];
     rwkv_ctx_size_add_objects(ctx_size, 1, sizeof(struct ggml_tensor) + rwkv_tensor_size(GGML_TYPE_I8, rwkv_tensor_size(mul_mat_type, ffn_key) * n_threads + 64 * (n_threads - 1)));
 
@@ -954,7 +954,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     std::unique_ptr<struct rwkv_context> rwkv_ctx(new(std::nothrow) struct rwkv_context());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, rwkv_ctx.get(), "failed to allocate context");
 
-    // don't free ggml context
+    // Don't free ggml context
     ggml_guard.ctx = NULL;
     rwkv_ctx->model = std::move(model);
     rwkv_ctx->ctx = ctx;
@@ -1083,8 +1083,8 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
 
     int64_t hist_all[16] {};
 
-    // required to init the fp16 tables
-    // doesn't crash if ggml_init fails
+    // Required to init the fp16 tables
+    // Doesn't crash if ggml_init fails
     ggml_free(ggml_init({ 0, NULL, true }));
 
     size_t max_in_size = 0;
