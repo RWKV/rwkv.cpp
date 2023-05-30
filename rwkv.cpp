@@ -693,7 +693,6 @@ struct ggml_tensor * rwkv_single_att(struct ggml_context * ctx, struct ggml_tens
     // state[5 * i + 2] = e1 * aa + e2 * v
     // state[5 * i + 3] = e1 * bb + e2
     // state[5 * i + 4] = qq
-
     layer.att_xx = x0;
     layer.att_aa = ggml_add_inplace(ctx, ggml_mul(ctx, e1, layer.att_aa), ggml_mul(ctx, e2, v));
     layer.att_bb = ggml_add_inplace(ctx, ggml_mul(ctx, e1, layer.att_bb), e2);
