@@ -189,7 +189,7 @@ enum rwkv_type {
 
 #define GGML_TYPE_UNKNOWN GGML_TYPE_COUNT
 
-static const enum ggml_type rwkv_type_to_ggml[TYPE_COUNT + 1] = {
+extern const enum ggml_type rwkv_type_to_ggml[TYPE_COUNT + 1] = {
     GGML_TYPE_F32,     /* F32    */
     GGML_TYPE_F16,     /* F16    */
     GGML_TYPE_Q4_0,    /* Q4_0   */
@@ -203,7 +203,7 @@ static const enum ggml_type rwkv_type_to_ggml[TYPE_COUNT + 1] = {
     GGML_TYPE_COUNT    /* COUNT  */
 };
 
-static const enum rwkv_type rwkv_type_from_ggml[GGML_TYPE_COUNT + 1] = {
+extern const enum rwkv_type rwkv_type_from_ggml[GGML_TYPE_COUNT + 1] = {
     TYPE_F32,    /* F32   */
     TYPE_F16,    /* F16   */
     TYPE_Q4_0,   /* Q4_0  */
@@ -220,7 +220,7 @@ static const enum rwkv_type rwkv_type_from_ggml[GGML_TYPE_COUNT + 1] = {
     TYPE_COUNT,  /* COUNT */
 };
 
-static const char * rwkv_type_to_string[TYPE_COUNT + 1] = {"float32", "float16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "unknown"};
+extern const char * rwkv_type_to_string[TYPE_COUNT + 1] = {"float32", "float16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "unknown"};
 
 enum rwkv_type rwkv_type_from_string(const char * str) {
     for (int ord = 0; ord < TYPE_COUNT; ord++) {
