@@ -1150,6 +1150,9 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         size_t orig_size = rwkv_tensor_size(header), new_size = orig_size;
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_data(in_file, orig_size, data), "\nfailed to read tensor data of %s", name_str);
 
+        // Quantize only 2D tensors, except embedding and head matrices.
+        // Embedding and head take not too much space, especially in bigger models;
+        // but they significantly increase perplexity when quantized.
         if ((header.data_type == TYPE_F32 || header.data_type == TYPE_F16) && header.dim_count == 2 && name != "emb.weight" && name != "head.weight") {
             RWKV_MSG("quantizing... ");
 
