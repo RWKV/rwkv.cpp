@@ -222,7 +222,7 @@ static const enum rwkv_type type_from_ggml[GGML_TYPE_COUNT + 1] = {
 
 static const char * type_to_string[TYPE_COUNT + 1] = {"float32", "float16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "unknown"};
 
-static enum rwkv_type type_from_string(const char * str) {
+enum rwkv_type type_from_string(const char * str) {
     for (int ord = 0; ord < TYPE_COUNT; ord++)
         if (strcmp(str, type_to_string[ord]) == 0)
             return (enum rwkv_type) ord;
@@ -239,11 +239,11 @@ struct file_header {
     uint32_t data_type;
 };
 
-static bool is_file_version_in_range(uint32_t version) {
+bool is_file_version_in_range(uint32_t version) {
     return version >= RWKV_FILE_VERSION_MIN && version <= RWKV_FILE_VERSION_MAX;
 }
 
-static bool fread_file_header(FILE * file, struct file_header & header, bool verify_data_type = true) {
+bool fread_file_header(FILE * file, struct file_header & header, bool verify_data_type = true) {
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_data(file, sizeof(struct file_header), &header));
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_MAGIC, header.magic == RWKV_FILE_MAGIC);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_VERSION, is_file_version_in_range(header.version), "unsupported file version %" PRId32, header.version);
@@ -274,7 +274,7 @@ static bool fread_file_header(FILE * file, struct file_header & header, bool ver
     return true;
 }
 
-static bool fwrite_file_header(FILE * file, const struct file_header & header) {
+bool fwrite_file_header(FILE * file, const struct file_header & header) {
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_data(file, &header, sizeof(struct file_header)));
     return true;
 }
@@ -293,7 +293,7 @@ struct tensor {
     uint8_t * data;
 };
 
-static bool fread_tensor_header(FILE * file, struct tensor_header & header) {
+bool fread_tensor_header(FILE * file, struct tensor_header & header) {
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_data(file, sizeof(struct tensor_header) - sizeof(uint32_t), &header));
     header.height = 1;
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_SHAPE, header.dim_count == 1 || header.dim_count == 2, "tensor has an invalid shape (%" PRId32 " dimensions)", header.dim_count);
@@ -307,13 +307,13 @@ static bool fread_tensor_header(FILE * file, struct tensor_header & header) {
     return true;
 }
 
-static bool fwrite_tensor_header(FILE * file, const struct tensor_header & header) {
+bool fwrite_tensor_header(FILE * file, const struct tensor_header & header) {
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, fwrite_data(file, &header, sizeof(struct tensor_header) - (header.dim_count == 1 ? sizeof(uint32_t) : 0)));
     return true;
 }
 
-static size_t tensor_bytes(enum ggml_type type, const int64_t width, const int64_t height = 1) {
-    static struct ggml_tensor decoy {};
+size_t tensor_bytes(enum ggml_type type, const int64_t width, const int64_t height = 1) {
+    struct ggml_tensor decoy {};
     decoy.type = type;
     decoy.ne[0] = width;
     decoy.ne[1] = height;
@@ -322,21 +322,21 @@ static size_t tensor_bytes(enum ggml_type type, const int64_t width, const int64
     return ggml_nbytes(&decoy);
 }
 
-static size_t tensor_bytes(const struct tensor_header & header) {
+size_t tensor_bytes(const struct tensor_header & header) {
     return tensor_bytes(type_to_ggml[header.data_type], header.width, header.height);
 }
 
-static bool fskip_tensor_data(FILE * file, const struct tensor_header & header) {
+bool fskip_tensor_data(FILE * file, const struct tensor_header & header) {
     return fseek(file, header.key_length + tensor_bytes(header), SEEK_CUR) == 0;
 }
 
-static bool fread_tensor_header_and_skip(FILE * file, struct tensor_header & header) {
+bool fread_tensor_header_and_skip(FILE * file, struct tensor_header & header) {
     RWKV_ENSURE_OR_FALSE(fread_tensor_header(file, header));
     RWKV_ASSERT_FALSE(RWKV_ERROR_DATA, fskip_tensor_data(file, header));
     return true;
 }
 
-static bool fread_tensor_data(FILE * file, struct tensor & output, void * buffer = NULL) {
+bool fread_tensor_data(FILE * file, struct tensor & output, void * buffer = NULL) {
     size_t data_size = tensor_bytes(output.header);
     RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, fread_string(file, output.header.key_length, output.name));
 
@@ -350,13 +350,13 @@ static bool fread_tensor_data(FILE * file, struct tensor & output, void * buffer
     return true;
 }
 
-static bool fread_tensor(FILE * file, struct tensor & output, void * buffer = NULL) {
+bool fread_tensor(FILE * file, struct tensor & output, void * buffer = NULL) {
     RWKV_ENSURE_OR_FALSE(fread_tensor_header(file, output.header));
     RWKV_ENSURE_OR_FALSE(fread_tensor_data(file, output, buffer));
     return true;
 }
 
-static bool fwrite_tensor(FILE * file, const struct tensor & tensor) {
+bool fwrite_tensor(FILE * file, const struct tensor & tensor) {
     RWKV_ENSURE_OR_FALSE(fwrite_tensor_header(file, tensor.header));
     RWKV_ENSURE_OR_FALSE(fwrite_string(file, tensor.name));
     RWKV_ENSURE_OR_FALSE(fwrite_data(file, tensor.data, tensor_bytes(tensor.header)));
