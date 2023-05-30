@@ -1065,13 +1065,13 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     struct stat in_stat;
     FILE * in_file = fopen(in_path, "rb");
     rwkv_file_guard in_guard { in_file };
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, in_file, "failed to open %s for reading", in_path);
 
     FILE * out_file = fopen(out_path, "wb");
     rwkv_file_guard out_guard { out_file };
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, out_file, "failed to open %s for writing", out_path);
 
     // Be very careful when changing this code. It must support files larger than 2 GB by using 64-bit functions to the get file length.
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, in_file, "failed to open %s for reading", in_path);
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, out_file, "failed to open %s for writing", out_path);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(in_file), &in_stat) == 0, "failed to stat file %s", in_path);
 
     struct file_header in_header;
