@@ -1,31 +1,25 @@
 # The set of languages for which implicit dependencies are needed:
 set(CMAKE_DEPENDS_LANGUAGES
-  "CXX"
+  "C"
   )
 # The set of files for implicit dependencies of each language:
-set(CMAKE_DEPENDS_CHECK_CXX
-  "/home/ubuntu/repos/mvp3/src/rwkv_cpp/rwkv.cpp" "/home/ubuntu/repos/mvp3/src/rwkv_cpp/CMakeFiles/rwkv.dir/rwkv.cpp.o"
+set(CMAKE_DEPENDS_CHECK_C
+  "/home/ubuntu/repos/mvp3/src/rwkv_cpp/tests/test_tiny_rwkv.c" "/home/ubuntu/repos/mvp3/src/rwkv_cpp/tests/CMakeFiles/test_tiny_rwkv.dir/test_tiny_rwkv.c.o"
   )
-set(CMAKE_CXX_COMPILER_ID "GNU")
-
-# Preprocessor definitions for this target.
-set(CMAKE_TARGET_DEFINITIONS_CXX
-  "RWKV_BUILD"
-  "RWKV_SHARED"
-  "rwkv_EXPORTS"
-  )
+set(CMAKE_C_COMPILER_ID "GNU")
 
 # The include file search paths:
-set(CMAKE_CXX_TARGET_INCLUDE_PATH
-  "."
+set(CMAKE_C_TARGET_INCLUDE_PATH
   "ggml/src/."
   "ggml/src/../include"
   "ggml/src/../include/ggml"
+  "."
   )
 
 # Targets to which this target links.
 set(CMAKE_TARGET_LINKED_INFO_FILES
   "/home/ubuntu/repos/mvp3/src/rwkv_cpp/ggml/src/CMakeFiles/ggml.dir/DependInfo.cmake"
+  "/home/ubuntu/repos/mvp3/src/rwkv_cpp/CMakeFiles/rwkv.dir/DependInfo.cmake"
   )
 
 # Fortran module output directory.

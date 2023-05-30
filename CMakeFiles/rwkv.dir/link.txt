@@ -1,1 +1,1 @@
-/usr/bin/c++ -fPIC -O3 -DNDEBUG -shared -Wl,-soname,librwkv.so -o librwkv.so CMakeFiles/rwkv.dir/rwkv.cpp.o  ggml/src/libggml.a -lm -pthread 
+/usr/bin/c++ -fPIC -O3 -DNDEBUG  -shared -Wl,-soname,librwkv.so -o librwkv.so CMakeFiles/rwkv.dir/rwkv.cpp.o  ggml/src/libggml.a -lm -pthread 

@@ -1,6 +1,5 @@
 file(REMOVE_RECURSE
   "CMakeFiles/rwkv.dir/rwkv.cpp.o"
-  "CMakeFiles/rwkv.dir/rwkv.cpp.o.d"
   "librwkv.pdb"
   "librwkv.so"
 )

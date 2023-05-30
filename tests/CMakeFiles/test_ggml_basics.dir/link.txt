@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG   CMakeFiles/test_ggml_basics.dir/test_ggml_basics.c.o  -o ../bin/test_ggml_basics  -Wl,-rpath,/home/ubuntu/repos/mvp3/src/rwkv_cpp ../ggml/src/libggml.a ../librwkv.so -lm -pthread 

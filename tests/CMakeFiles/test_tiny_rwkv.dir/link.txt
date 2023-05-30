@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG   CMakeFiles/test_tiny_rwkv.dir/test_tiny_rwkv.c.o  -o ../bin/test_tiny_rwkv  -Wl,-rpath,/home/ubuntu/repos/mvp3/src/rwkv_cpp ../ggml/src/libggml.a ../librwkv.so -lm -pthread 

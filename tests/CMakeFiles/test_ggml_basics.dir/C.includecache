@@ -1,0 +1,26 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/ubuntu/repos/mvp3/src/rwkv_cpp/tests/test_ggml_basics.c
+ggml.h
+/home/ubuntu/repos/mvp3/src/rwkv_cpp/tests/ggml.h
+stdio.h
+-
+stdlib.h
+-
+math.h
+-
+
+ggml/include/ggml/ggml.h
+stdint.h
+-
+stddef.h
+-
+stdbool.h
+-
+
