@@ -893,7 +893,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(file), &file_stat) == 0, "Failed to stat file %s", file_path);
 
     struct rwkv_file_header header;
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE, rwkv_fread_file_header(file, header), "Fnvalid file header");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE, rwkv_fread_file_header(file, header), "Invalid file header");
 
     size_t tensors_start = ftell(file);
     struct rwkv_ctx_size ctx_size;
