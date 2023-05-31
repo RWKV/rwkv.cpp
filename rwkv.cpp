@@ -476,8 +476,15 @@ struct rwkv_graph {
     std::unique_ptr<struct ggml_cgraph> cgraph;
 };
 
-struct rwkv_context {
+struct rwkv_instance {
     struct rwkv_model model;
+    struct ggml_context * ctx;
+    std::unique_ptr<uint8_t []> scratch;
+    size_t ffn_key_size;
+};
+
+struct rwkv_context {
+    std::shared_ptr<struct rwkv_instance> instance;
     struct ggml_context * ctx;
     std::unique_ptr<uint8_t []> scratch;
     struct rwkv_graph graph;
@@ -881,14 +888,12 @@ enum rwkv_error_flags rwkv_get_last_error(struct rwkv_context * ctx) {
     return value;
 }
 
-struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads) {
-    global_last_error = RWKV_ERROR_NONE;
-
+bool rwkv_instance_from_file(const char * file_path, struct rwkv_instance & instance) {
     FILE * file = fopen(file_path, "rb");
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_OPEN, file, "Failed to open file %s", file_path);
     rwkv_file_guard file_guard { file };
 
-    // Be very careful when changing this code. It must support files larger than 2 GB by using 64-bit functions to the get file length.
+    // Be very careful when changing this code. It must support files larger than 2 GB by using 64-bit functions to get the file length.
     struct stat file_stat;
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_STAT, fstat(fileno(file), &file_stat) == 0, "Failed to stat file %s", file_path);
 
@@ -897,9 +902,10 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 
     size_t tensors_start = ftell(file);
     struct rwkv_ctx_size ctx_size;
-    size_t ffn_key = 0;
 
     std::string name;
+    instance.ffn_key_size = 0;
+
     while ((size_t) ftell(file) < (size_t) file_stat.st_size) {
         struct rwkv_tensor_header header;
         RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_tensor_header(file, header), "Invalid tensor header");
@@ -907,18 +913,12 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
         RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, rwkv_tensor_size(header), SEEK_CUR) == 0, "Failed to read tensor data");
         rwkv_ctx_size_add_tensor(ctx_size, 1, 0, header);
 
-        if (ffn_key == 0 && name == "blocks.0.ffn.key.weight") {
-            ffn_key = header.height;
+        if (instance.ffn_key_size == 0 && name == "blocks.0.ffn.key.weight") {
+            instance.ffn_key_size = header.height;
         }
     }
 
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, ffn_key, "Model is missing parameter blocks.0.ffn.key.weight");
-
-    rwkv_ctx_size_add(ctx_size, 1, rwkv_single_graph_size(header.n_vocab, header.n_embed, header.n_layer, ffn_key));
-    // And finally to end it all off: the graph work tensor
-    enum ggml_type mul_mat_type = ggml_is_quantized(rwkv_type_to_ggml[header.data_type]) ? GGML_TYPE_Q8_1 : rwkv_type_to_ggml[header.data_type];
-    rwkv_ctx_size_add_objects(ctx_size, 1, sizeof(struct ggml_tensor) + rwkv_tensor_size(GGML_TYPE_I8, rwkv_tensor_size(mul_mat_type, ffn_key) * n_threads + 64 * (n_threads - 1)));
-
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, instance.ffn_key_size, "Model is missing parameter blocks.0.ffn.key.weight");
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file, tensors_start, SEEK_SET) == 0, "Failed to seek in file");
 
     std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [ctx_size.scratch_size]);
@@ -957,16 +957,46 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DIMENSION, emb->ne[0] == header.n_embed, "Unexpected dimension of embedding matrix %" PRId64, emb->ne[0]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DIMENSION, emb->ne[1] == header.n_vocab, "Unexpected dimension of embedding matrix %" PRId64, emb->ne[1]);
 
+    // Don't free ggml context
+    ggml_guard.ctx = NULL;
+
+    instance.ctx = ctx;
+    instance.model = std::move(model);
+    instance.scratch = std::move(scratch);
+    return true;
+}
+
+struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance> instance, const uint32_t n_threads) {
+    global_last_error = RWKV_ERROR_NONE;
+
+    struct rwkv_file_header & header = instance->model.header;
+
+    rwkv_ctx_size ctx_size;
+    rwkv_ctx_size_add(ctx_size, 1, rwkv_single_graph_size(header.n_vocab, header.n_embed, header.n_layer, instance->ffn_key_size));
+    // And finally to end it all off: the graph work tensor
+    enum ggml_type mul_mat_type = ggml_is_quantized(rwkv_type_to_ggml[header.data_type]) ? GGML_TYPE_Q8_1 : rwkv_type_to_ggml[header.data_type];
+    rwkv_ctx_size_add(ctx_size, 1, rwkv_tensor_size(GGML_TYPE_I8, rwkv_tensor_size(mul_mat_type, instance->ffn_key_size) * n_threads + 64 * (n_threads - 1)));
+
+    std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [ctx_size.scratch_size]);
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, scratch.get(), "Failed to allocate graph scratch space (%d)", ctx_size.scratch_size);
+
+    struct ggml_context * ctx = ggml_init({ ctx_size.objects_size + ctx_size.objects_count * GGML_OBJECT_SIZE, NULL, false});
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, ctx, "Failed to create GGML context");
+    rwkv_ggml_guard ggml_guard { ctx };
+
+    ggml_set_scratch(ctx, { 0, ctx_size.scratch_size, scratch.get() });
+
     // Build graph
     struct rwkv_graph graph;
-    RWKV_ASSERT_NULL(RWKV_ERROR_GRAPH, rwkv_single_graph(ctx, model, n_threads, graph));
+    RWKV_ASSERT_NULL(RWKV_ERROR_GRAPH, rwkv_single_graph(ctx, instance->model, n_threads, graph));
 
     std::unique_ptr<struct rwkv_context> rwkv_ctx(new(std::nothrow) struct rwkv_context());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, rwkv_ctx.get(), "Failed to allocate context");
 
     // Don't free ggml context
     ggml_guard.ctx = NULL;
-    rwkv_ctx->model = std::move(model);
+
+    rwkv_ctx->instance = std::move(instance);
     rwkv_ctx->ctx = ctx;
     rwkv_ctx->scratch = std::move(scratch);
     rwkv_ctx->graph = std::move(graph);
@@ -975,9 +1005,21 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     rwkv_ctx->gpu_layers = 0;
     rwkv_ctx->vram_total = 0;
 
-    ggml_set_scratch(ctx, { 0, 0, NULL });
-
     return rwkv_ctx.release();
+}
+
+struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads) {
+    global_last_error = RWKV_ERROR_NONE;
+
+    std::shared_ptr<struct rwkv_instance> instance(new(std::nothrow) struct rwkv_instance);
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, instance.get(), "Failed to allocate instance");
+    RWKV_ENSURE_OR_NULL(rwkv_instance_from_file(file_path, *instance.get()));
+
+    return rwkv_new_context_impl(instance, n_threads);
+}
+
+struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32_t n_threads) {
+    return rwkv_new_context_impl(ctx->instance, n_threads);
 }
 
 bool rwkv_gpu_offload_layers(const struct rwkv_context * ctx, const uint32_t n_gpu_layers) {
@@ -1012,7 +1054,7 @@ bool rwkv_gpu_offload_layers(const struct rwkv_context * ctx, const uint32_t n_g
 bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const float * state_in, float * state_out, float * logits_out) {
     ((struct rwkv_context *) ctx)->last_error = RWKV_ERROR_NONE;
 
-    const struct rwkv_file_header & header = ctx->model.header;
+    const struct rwkv_file_header & header = ctx->instance->model.header;
     RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, token < header.n_vocab, "Token is out of range 0..%d", header.n_vocab - 1);
 
     const struct rwkv_graph & graph = ctx->graph;
@@ -1055,11 +1097,11 @@ bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const floa
 }
 
 uint32_t rwkv_get_state_buffer_element_count(const struct rwkv_context * ctx) {
-    return ctx->model.header.n_layer * 5 * ctx->model.header.n_embed;
+    return ctx->instance->model.header.n_layer * 5 * ctx->instance->model.header.n_embed;
 }
 
 uint32_t rwkv_get_logits_buffer_element_count(const struct rwkv_context * ctx) {
-    return ctx->model.header.n_vocab;
+    return ctx->instance->model.header.n_vocab;
 }
 
 void rwkv_free(struct rwkv_context * ctx) {

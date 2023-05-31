@@ -85,6 +85,12 @@ extern "C" {
     // - n_threads: count of threads to use, must be positive.
     RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, const uint32_t n_threads);
 
+    // Creates a new context from an existing one.
+    // This can allow you to run multiple rwkv_eval's in parallel, without having to load a single model multiple times.
+    // Each rwkv_context can have one eval running at a time.
+    // Every rwkv_context must be freed using rwkv_free.
+    RWKV_API struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32_t n_threads);
+
     // Offloads specified layers of context onto GPU using cuBLAS, if it is enabled.
     // If rwkv.cpp was compiled without cuBLAS support, this function is a no-op.
     RWKV_API bool rwkv_gpu_offload_layers(const struct rwkv_context * ctx, const uint32_t n_gpu_layers);
