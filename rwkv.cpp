@@ -1025,13 +1025,13 @@ struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32
 bool rwkv_gpu_offload_layers(const struct rwkv_context * ctx, const uint32_t n_gpu_layers) {
 #ifdef GGML_USE_CUBLAS
     {
-        size_t n_gpu = std::min(n_gpu_layers, ctx->model.header.n_layer);
+        size_t n_gpu = std::min(n_gpu_layers, ctx->instance->model.header.n_layer);
 
         size_t gpu_layers = ((struct rwkv_context *) ctx)->gpu_layers;
         size_t vram_total = ((struct rwkv_context *) ctx)->vram_total;
 
         for (size_t i = 0; i < n_gpu; i++) {
-            const struct rwkv_layer & layer = ctx->model.layers[i];
+            const struct rwkv_layer & layer = ctx->instance->model.layers[i];
 
             // Use cuBLAS only for heavy matrices; other operations are not supported for GPU at the moment
             ggml_cuda_transform_tensor(layer.att_key); vram_total += ggml_nbytes(layer.att_key);
