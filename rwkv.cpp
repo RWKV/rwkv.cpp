@@ -1021,7 +1021,13 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 }
 
 struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32_t n_threads) {
-    return rwkv_new_context_impl(ctx->instance, n_threads);
+    struct rwkv_context * clone = rwkv_new_context_impl(ctx->instance, n_threads);
+
+    if (clone) {
+        clone->print_errors = ctx->print_errors;
+    }
+
+    return clone;
 }
 
 bool rwkv_gpu_offload_layers(const struct rwkv_context * ctx, const uint32_t n_gpu_layers) {
