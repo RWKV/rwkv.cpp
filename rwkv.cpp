@@ -476,6 +476,8 @@ struct rwkv_graph {
     std::unique_ptr<struct ggml_cgraph> cgraph;
 };
 
+// An instance of RWKV model loaded into the memory.
+// Can be shared between multiple contexts.
 struct rwkv_instance {
     struct rwkv_model model;
     struct ggml_context * ctx;
