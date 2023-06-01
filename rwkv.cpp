@@ -476,11 +476,16 @@ struct rwkv_graph {
     std::unique_ptr<struct ggml_cgraph> cgraph;
 };
 
+struct rwkv_ggml_guard {
+    struct ggml_context * ctx;
+    ~rwkv_ggml_guard() { if (ctx) { ggml_free(ctx); } }
+};
+
 // An instance of RWKV model loaded into the memory.
 // Can be shared between multiple contexts.
 struct rwkv_instance {
     struct rwkv_model model;
-    struct ggml_context * ctx;
+    struct rwkv_ggml_guard ctx;
     std::unique_ptr<uint8_t []> scratch;
     size_t ffn_key_size;
 };
@@ -869,11 +874,6 @@ struct rwkv_file_guard {
     ~rwkv_file_guard() { if (file) { fclose(file); } }
 };
 
-struct rwkv_ggml_guard {
-    struct ggml_context * ctx;
-    ~rwkv_ggml_guard() { if (ctx) { ggml_free(ctx); } }
-};
-
 void rwkv_set_print_errors(struct rwkv_context * ctx, bool print_errors) {
     bool * ptr = ctx ? &ctx->print_errors : &global_print_errors;
     *ptr = print_errors;
@@ -959,10 +959,10 @@ bool rwkv_instance_from_file(const char * file_path, struct rwkv_instance & inst
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DIMENSION, emb->ne[0] == header.n_embed, "Unexpected dimension of embedding matrix %" PRId64, emb->ne[0]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DIMENSION, emb->ne[1] == header.n_vocab, "Unexpected dimension of embedding matrix %" PRId64, emb->ne[1]);
 
-    // Don't free ggml context
+    // Don't free ggml context now
     ggml_guard.ctx = NULL;
-
-    instance.ctx = ctx;
+    // Attach ggml context to instance
+    instance.ctx.ctx = ctx;
     instance.model = std::move(model);
     instance.scratch = std::move(scratch);
     return true;
