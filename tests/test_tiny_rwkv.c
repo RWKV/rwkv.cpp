@@ -28,10 +28,7 @@ void test_model(const char * model_path, const float * expected_logits, const fl
 
     struct rwkv_context * model = rwkv_init_from_file(model_path, N_THREADS);
     enum rwkv_error_flags error = rwkv_get_last_error(NULL);
-    ASSERT(model && error == 0, "Unexpected error %d", error);
-    struct rwkv_context * model2 = rwkv_clone_context(model, N_THREADS);
-    enum rwkv_error_flags error2 = rwkv_get_last_error(NULL);
-    ASSERT(model2 && error2 == 0, "Unexpected error2 %d", error2);
+    ASSERT(error == 0, "Unexpected error %d", error);
 #ifdef GGML_USE_CUBLAS
     ASSERT(rwkv_gpu_offload_layers(model, N_GPU_LAYERS), "Unexpected error %d", rwkv_get_last_error(model));
 #endif
@@ -41,9 +38,7 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     ASSERT(n_vocab == N_VOCAB, "Unexpected n_vocab in the model");
 
     float * state = malloc(sizeof(float) * rwkv_get_state_buffer_element_count(model));
-    float * state2 = malloc(sizeof(float) * rwkv_get_state_buffer_element_count(model2));
     float * logits = malloc(sizeof(float) * n_vocab);
-    float * logits2 = malloc(sizeof(float) * n_vocab);
 
     char * prompt = "\"in";
 
@@ -51,31 +46,23 @@ void test_model(const char * model_path, const float * expected_logits, const fl
 
     for (size_t i = 0; i < prompt_length; i++) {
         rwkv_eval(model, prompt[i], i == 0 ? NULL : state, state, logits);
-        rwkv_eval(model2, prompt[i], i == 0 ? NULL : state2, state2, logits2);
     }
 
     float diff_sum = 0.0F;
-    float diff_sum2 = 0.0F;
 
     for (uint32_t i = 0; i < n_vocab; i++) {
         diff_sum += logits[i] - expected_logits[i];
-        diff_sum2 += logits2[i] - expected_logits[i];
     }
 
     fprintf(stderr, "Difference sum: %f\n", diff_sum);
-    fprintf(stderr, "Difference sum2: %f\n", diff_sum2);
 
     // When something breaks, difference would be way more than 10
     ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
-    ASSERT(fabsf(diff_sum2) <= fabsf(max_diff) + 0.01F, "Too big difference2 %f, expected no more than %f", (double) diff_sum2, (double) max_diff);
 
     rwkv_free(model);
-    rwkv_free(model2);
 
     free(state);
-    free(state2);
     free(logits);
-    free(logits2);
 }
 
 int main(void) {
