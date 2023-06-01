@@ -89,6 +89,8 @@ extern "C" {
     // This can allow you to run multiple rwkv_eval's in parallel, without having to load a single model multiple times.
     // Each rwkv_context can have one eval running at a time.
     // Every rwkv_context must be freed using rwkv_free.
+    // - ctx: context to be cloned.
+    // - n_threads: count of threads to use, must be positive.
     RWKV_API struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32_t n_threads);
 
     // Offloads specified layers of context onto GPU using cuBLAS, if it is enabled.
