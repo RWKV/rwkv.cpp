@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-void main() {
+int main() {
 	struct rwkv_context * ctx = rwkv_init_from_file("tiny-rwkv-660K-FP32.bin", 2);
 
 	if (!ctx) {
