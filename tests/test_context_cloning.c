@@ -53,4 +53,11 @@ void main() {
 		fprintf(stdout, "Results identical, success!\n");
 		return EXIT_SUCCESS;
 	}
+
+	rwkv_free(ctx);
+	rwkv_free(ctx2);
+
+	free(expected_logits);
+	free(logits);
+	free(state);
 }
