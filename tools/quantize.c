@@ -1,3 +1,4 @@
+#include "ggml.h"
 #include "rwkv.h"
 
 #include <stdlib.h>
