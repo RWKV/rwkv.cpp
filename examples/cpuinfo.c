@@ -1,4 +1,4 @@
-#include <rwkv.h>
+#include "rwkv.h"
 
 #include <stdio.h>
 
