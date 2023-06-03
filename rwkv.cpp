@@ -487,6 +487,14 @@ struct rwkv_instance {
     struct rwkv_model model;
     struct rwkv_ggml_guard ctx;
     std::unique_ptr<uint8_t []> scratch;
+
+    // TODO come up with a better solution to estimate "work tensor" size.
+    // The ggml_cgraph allocates a "work tensor" the first time it is used.
+    // Currently, the height of blocks.0.ffn.key.weight is the bottleneck in our implementation of RWKV.
+    // Since it is the largest dimension used in any matrix multiply, it is the size used for the "work tensor".
+    // However, if ggml changes its implementation, or rwkv.cpp changes its own implementation, at any point,
+    // this may become outdated. We need to find a way not to hardcode a specific tensor, but to calculate accurately.
+    // This may come out of a ggml issue: https://github.com/ggerganov/ggml/issues/214
     size_t ffn_key_size;
 };
 
