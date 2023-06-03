@@ -14,3 +14,4 @@ file(COPY expected_logits.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 rwkv_add_test(test_ggml_basics.c)
 rwkv_add_test(test_tiny_rwkv.c)
+rwkv_add_test(test_context_cloning.c)
