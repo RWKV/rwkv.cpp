@@ -34,7 +34,7 @@ bool QueryPerformanceCounter(uint64_t* lpPerformanceCount);
 int main(int argc, char* argv[]) {
     if (argc != 4 || type_from_string(argv[3]) == GGML_TYPE_COUNT) {
         fprintf(stderr, "usage: %s INPUT OUTPUT FORMAT\n       available formats: Q4_0 Q4_1 Q5_0 Q5_1 Q8_0\n", argv[0]);
-        return EXIT_SUCCESS;
+        return EXIT_FAILURE;
     }
 
     time_t freq, start, end;
