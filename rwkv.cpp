@@ -499,7 +499,7 @@ struct rwkv_instance {
     size_t ffn_key_size;
 };
 
-// An RWKV context for a specific instance.
+// RWKV context for a specific instance.
 // Contains the computation graph and is used for inference.
 struct rwkv_context {
     std::shared_ptr<struct rwkv_instance> instance;
