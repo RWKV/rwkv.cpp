@@ -481,8 +481,9 @@ struct rwkv_ggml_guard {
     ~rwkv_ggml_guard() { if (ctx) { ggml_free(ctx); } }
 };
 
-// An instance of RWKV model loaded into the memory.
-// Can be shared between multiple contexts.
+// An instance of an RWKV model loaded into memory:
+// Contains all the model weights.
+// Shared by one or more contexts.
 struct rwkv_instance {
     struct rwkv_model model;
     struct rwkv_ggml_guard ctx;
@@ -498,6 +499,8 @@ struct rwkv_instance {
     size_t ffn_key_size;
 };
 
+// An RWKV context for a specific instance.
+// Contains the computation graph and is used for inference.
 struct rwkv_context {
     std::shared_ptr<struct rwkv_instance> instance;
     struct ggml_context * ctx;
