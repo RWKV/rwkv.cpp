@@ -33,14 +33,14 @@ bool QueryPerformanceCounter(uint64_t* lpPerformanceCount);
 
 int main(int argc, char* argv[]) {
     if (argc != 4 || type_from_string(argv[3]) == GGML_TYPE_COUNT) {
-        fprintf(stderr, "usage: %s INPUT OUTPUT FORMAT\n       available formats: Q4_0 Q4_1 Q5_0 Q5_1 Q8_0\n", argv[0]);
+        fprintf(stderr, "Usage: %s INPUT OUTPUT FORMAT\nn\nAailable formats: Q4_0 Q4_1 Q5_0 Q5_1 Q8_0\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     time_t freq, start, end;
     time_calibrate(freq);
 
-    fprintf(stderr, "quantizing ...\n");
+    fprintf(stderr, "Quantizing ...\n");
 
     time_measure(start);
     bool success = rwkv_quantize_model_file(argv[1], argv[2], argv[3]);
@@ -49,10 +49,10 @@ int main(int argc, char* argv[]) {
     double diff = TIME_DIFF(freq, start, end);
 
     if (success) {
-        fprintf(stderr, "succeeded in %.3fs\n", diff);
+        fprintf(stderr, "Succeeded in %.3fs\n", diff);
         return EXIT_SUCCESS;
     } else {
-        fprintf(stderr, "error in %.3fs: 0x%.8X\n", diff, rwkv_get_last_error(NULL));
+        fprintf(stderr, "Error in %.3fs: 0x%.8X\n", diff, rwkv_get_last_error(NULL));
         return EXIT_FAILURE;
     }
 }
