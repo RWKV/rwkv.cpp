@@ -890,7 +890,11 @@ struct rwkv_ctx_size rwkv_graph_size(const size_t n_vocab = 0, const size_t n_em
     /*  token */ rwkv_ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, sequence_len);
     /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed, sequence_len);
 
-    /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 4, 1, GGML_TYPE_F32, n_embed, sequence_len);
+    if (sequence_len == 1) {
+        /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed, sequence_len);
+    } else {
+        /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 4, 1, GGML_TYPE_F32, n_embed, sequence_len);
+    }
 
     /* ffn_xx */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed);
     /* att_xx */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed);
@@ -903,8 +907,13 @@ struct rwkv_ctx_size rwkv_graph_size(const size_t n_vocab = 0, const size_t n_em
     /*    ffn */ rwkv_ctx_size_add(ctx_size, n_layer, rwkv_ffn_size(n_embed, ffn_key, sequence_len));
     /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed, sequence_len);
 
-    /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 3, 1, GGML_TYPE_F32, n_embed);
-    /*      x */ rwkv_ctx_size_add_objects(ctx_size, 1, sizeof(struct ggml_tensor) + sizeof(uint32_t));
+    if (sequence_len == 1) {
+        /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed);
+    } else {
+        /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 3, 1, GGML_TYPE_F32, n_embed);
+        /*      x */ rwkv_ctx_size_add_objects(ctx_size, 1, sizeof(struct ggml_tensor) + sizeof(uint32_t));
+    }
+
     /* logits */ rwkv_ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_vocab);
 
     return ctx_size;
@@ -934,7 +943,11 @@ bool rwkv_graph(struct ggml_context * ctx, struct rwkv_model & model, const uint
     struct ggml_tensor * x = ggml_get_rows(ctx, model.emb, token_index);
 
     // x = self.layer_norm(x, self.w.blocks[0].ln0)
-    x = rwkv_layer_norm(ctx, x, ggml_repeat(ctx, model.ln0_weight, x), ggml_repeat(ctx, model.ln0_bias, x));
+    if (sequence_len == 1) {
+        x = rwkv_layer_norm(ctx, x, model.ln0_weight, model.ln0_bias);
+    } else {
+        x = rwkv_layer_norm(ctx, x, ggml_repeat(ctx, model.ln0_weight, x), ggml_repeat(ctx, model.ln0_bias, x));
+    }
 
     for (size_t i = 0; i < n_layer; i++) {
         struct rwkv_layer & layer = model.layers[i];
@@ -954,7 +967,11 @@ bool rwkv_graph(struct ggml_context * ctx, struct rwkv_model & model, const uint
     }
 
     // x = self.layer_norm(x[-1,:], self.w.ln_out)
-    x = rwkv_layer_norm(ctx, ggml_get_rows(ctx, x, ggml_new_i32(ctx, sequence_len - 1)), model.ln_out_weight, model.ln_out_bias);
+    if (sequence_len == 1) {
+        x = rwkv_layer_norm(ctx, x, model.ln_out_weight, model.ln_out_bias);
+    } else {
+        x = rwkv_layer_norm(ctx, ggml_get_rows(ctx, x, ggml_new_i32(ctx, sequence_len - 1)), model.ln_out_weight, model.ln_out_bias);
+    }
 
     // x = (self.w.head.weight @ x).float()
     struct ggml_tensor * logits = ggml_mul_mat(ctx, model.head, x);
