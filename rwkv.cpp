@@ -474,6 +474,7 @@ struct rwkv_graph {
     struct ggml_tensor * token_index;
     struct ggml_tensor * logits;
     std::unique_ptr<struct ggml_cgraph> cgraph;
+    std::unique_ptr<struct ggml_cgraph> cgraph_seq;
 };
 
 struct rwkv_ggml_guard {
@@ -686,7 +687,7 @@ struct rwkv_ctx_size rwkv_att_rkv_size(const size_t n_embed = 0, const size_t se
     return ctx_size;
 }
 
-void rwkv_att_rkv(struct ggml_context * ctx, struct rwkv_layer & layer, struct ggml_tensor * x0, struct ggml_tensor * xx, struct ggml_tensor *& r, struct ggml_tensor *& k, struct ggml_tensor *& v) {
+void rwkv_att_rkv(struct ggml_context * ctx, struct rwkv_layer layer, struct ggml_tensor * x0, struct ggml_tensor * xx, struct ggml_tensor *& r, struct ggml_tensor *& k, struct ggml_tensor *& v) {
     // xk = x * time_mix_k + state[5 * i + 1] * (1 - time_mix_k)
     struct ggml_tensor * xk = ggml_add_inplace(ctx,
         ggml_mul(ctx, x0, layer.att_time_mix_k),
@@ -746,7 +747,7 @@ struct rwkv_ctx_size rwkv_att_wkv_size(const size_t n_embed = 0, const size_t se
     return ctx_size;
 }
 
-struct ggml_tensor * rwkv_att_wkv(struct ggml_context * ctx, struct rwkv_layer & layer, struct ggml_tensor * k, struct ggml_tensor * v, struct ggml_tensor *& aa, struct ggml_tensor *& bb, struct ggml_tensor *& pp) {
+struct ggml_tensor * rwkv_att_wkv(struct ggml_context * ctx, struct rwkv_layer layer, struct ggml_tensor * k, struct ggml_tensor * v, struct ggml_tensor *& aa, struct ggml_tensor *& bb, struct ggml_tensor *& pp) {
     // ww = time_first + k
     struct ggml_tensor * ww = ggml_add(ctx, layer.att_time_first, k);
     // qq = torch.maximum(pp, ww)
@@ -805,7 +806,7 @@ struct rwkv_ctx_size rwkv_att_size(const size_t n_embed = 0, const size_t sequen
     return ctx_size;
 }
 
-struct ggml_tensor * rwkv_att(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer & layer, struct rwkv_layer_state & state) {
+struct ggml_tensor * rwkv_att(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
     struct ggml_tensor * x0 = x, * xx;
     rwkv_xx(ctx, layer.ln1_weight, layer.ln1_bias, x0, xx, state.att_xx);
 
@@ -853,7 +854,7 @@ struct rwkv_ctx_size rwkv_ffn_size(const size_t n_embed = 0, const size_t ffn_ke
     return ctx_size;
 }
 
-struct ggml_tensor * rwkv_ffn(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer & layer, struct rwkv_layer_state & state) {
+struct ggml_tensor * rwkv_ffn(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
     struct ggml_tensor * x0 = x, * xx;
     rwkv_xx(ctx, layer.ln2_weight, layer.ln2_bias, x0, xx, state.ffn_xx);
 
@@ -923,7 +924,10 @@ struct rwkv_ctx_size rwkv_graph_size(const size_t n_vocab = 0, const size_t n_em
 bool rwkv_graph(struct ggml_context * ctx, struct rwkv_model & model, const uint32_t sequence_len, const uint32_t n_threads, struct rwkv_graph & out) {
     std::unique_ptr<struct ggml_cgraph> cgraph(new(std::nothrow) struct ggml_cgraph());
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, cgraph.get(), "Failed to allocate graph");
+    std::unique_ptr<struct ggml_cgraph> cgraph_seq(new(std::nothrow) struct ggml_cgraph());
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, cgraph_seq.get(), "Failed to allocate sequence graph");
     cgraph->n_threads = n_threads;
+    cgraph_seq->n_threads = n_threads;
 
     size_t n_embed = model.header.n_embed;
     size_t n_layer = model.header.n_layer;
@@ -994,6 +998,7 @@ bool rwkv_graph(struct ggml_context * ctx, struct rwkv_model & model, const uint
     out.token_index = token_index;
     out.logits = logits;
     out.cgraph = std::move(cgraph);
+    out.cgraph_seq = std::move(cgraph_seq);
     return true;
 }
 
@@ -1195,56 +1200,86 @@ bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const floa
     ((struct rwkv_context *) ctx)->last_error = RWKV_ERROR_NONE;
 
     const struct rwkv_file_header & header = ctx->instance->model.header;
-    RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, token < header.n_vocab, "Token is out of range 0..%d", header.n_vocab - 1);
+    const size_t n_vocab = header.n_vocab;
+    const size_t n_embed = header.n_embed;
+    const size_t n_layer = header.n_layer;
+
+    RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, token < n_vocab, "Token is out of range 0..%zu", n_vocab - 1);
 
     const struct rwkv_graph & graph = ctx->graph;
-    ggml_set_i32_1d(graph.token_index, 0, token);
+    struct ggml_cgraph & cgraph = *graph.cgraph.get();
 
-    if (state_in == NULL) {
+    if (state_in) {
+        memcpy(graph.input_state->data, state_in, ggml_nbytes(graph.input_state));
+    } else {
         ggml_set_f32(graph.input_state, 0.0F);
 
-        for (size_t i = 0; i < header.n_layer; i++) {
-            ggml_set_f32(graph.input_layers[i].att_pp, -1e30F);
+        for (size_t layer = 0; layer < n_layer; layer++) {
+            ggml_set_f32(graph.input_layers[layer].att_pp, -1e30F);
         }
-    } else {
-        memcpy(graph.input_state->data, state_in, ggml_nbytes(graph.input_state));
     }
 
-    ggml_graph_compute(ctx->ctx, graph.cgraph.get());
+    ggml_set_i32_1d(graph.token_index, 0, token);
+    ggml_graph_compute(ctx->ctx, &cgraph);
 
     if (state_out) {
-        size_t part_size = rwkv_tensor_size(GGML_TYPE_F32, header.n_embed);
-        for (size_t i = 0; i < header.n_layer; i++) {
-            struct rwkv_layer_state & layer = graph.output_layers[i];
-
-            float * dest = state_out + i * header.n_embed * 5;
-            memcpy(dest + header.n_embed * 0, layer.ffn_xx->data, part_size);
-            memcpy(dest + header.n_embed * 1, layer.att_xx->data, part_size);
-            memcpy(dest + header.n_embed * 2, layer.att_aa->data, part_size);
-            memcpy(dest + header.n_embed * 3, layer.att_bb->data, part_size);
-            memcpy(dest + header.n_embed * 4, layer.att_pp->data, part_size);
+        size_t state_part_size = n_embed * sizeof(float);
+        for (size_t layer = 0; layer < n_layer; layer++) {
+            const struct rwkv_layer_state & state = graph.output_layers[layer];
+            memcpy(state_out + n_embed * 0, state.ffn_xx->data, state_part_size);
+            memcpy(state_out + n_embed * 1, state.att_xx->data, state_part_size);
+            memcpy(state_out + n_embed * 2, state.att_aa->data, state_part_size);
+            memcpy(state_out + n_embed * 3, state.att_bb->data, state_part_size);
+            memcpy(state_out + n_embed * 4, state.att_pp->data, state_part_size);
+            state_out += n_embed * 5;
         }
     }
 
     if (logits_out) {
-        memcpy(logits_out, graph.logits->data, ggml_nbytes(graph.logits));
+        memcpy(logits_out, graph.logits->data, n_vocab * sizeof(float));
     }
 
     return true;
 }
 
-bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * tokens, size_t sequence_len, const float * state_in, float * state_out, float * logits_out) {
+bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequence, size_t sequence_len, const float * state_in, float * state_out, float * logits_out) {
     ((struct rwkv_context *) ctx)->last_error = RWKV_ERROR_NONE;
 
-    const struct rwkv_file_header & header = ctx->instance->model.header;
+    const struct rwkv_model & model = ctx->instance->model;
 
-    // TODO don't create a new cgraph every time
-    const uint32_t n_threads = ctx->n_threads;
+    const struct rwkv_file_header & header = model.header;
+    const uint32_t n_vocab = header.n_vocab;
+    const uint32_t n_embed = header.n_embed;
+    const uint32_t n_layer = header.n_layer;
+    const uint32_t ffn_key_size = ctx->instance->ffn_key_size;
 
     rwkv_ctx_size ctx_size;
-    rwkv_ctx_size_add(ctx_size, 1, rwkv_graph_size(header.n_vocab, header.n_embed, header.n_layer, ctx->instance->ffn_key_size, sequence_len));
 
-    rwkv_ctx_size_add(ctx_size, 1, rwkv_estimate_graph_work(rwkv_type_to_ggml[header.data_type], ctx->instance->ffn_key_size, sequence_len, n_threads));
+    /* tokens */ rwkv_ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, sequence_len);
+    /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed, sequence_len);
+    /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 4, 1, GGML_TYPE_F32, n_embed, sequence_len);
+
+    /*     xx */ rwkv_ctx_size_add(ctx_size, n_layer, rwkv_xx_size(n_embed, sequence_len));
+    /*    rkv */ rwkv_ctx_size_add(ctx_size, n_layer, rwkv_att_rkv_size(n_embed, sequence_len));
+
+    /*     kt */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed);
+    /*     vt */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed);
+
+    /*    wkv */ rwkv_ctx_size_add(ctx_size, n_layer * sequence_len, rwkv_att_wkv_size(n_embed, sequence_len));
+    /*     xx */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed, sequence_len);
+    /*     xx */ rwkv_ctx_size_add_objects(ctx_size, n_layer * sequence_len, sizeof(struct ggml_tensor) + rwkv_tensor_size(GGML_TYPE_I32, 5));
+
+    /*      x */ rwkv_ctx_size_add_tensor(ctx_size, n_layer * 2, 0, GGML_TYPE_F32, n_embed, sequence_len);
+
+    /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed, sequence_len);
+    /*    ffn */ rwkv_ctx_size_add(ctx_size, n_layer, rwkv_ffn_size(n_embed, ffn_key_size, sequence_len));
+    /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer, GGML_TYPE_F32, n_embed, sequence_len);
+    /* output */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * 5, GGML_TYPE_F32, n_embed);
+
+    /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 2, 2, GGML_TYPE_F32, n_embed);
+    /* logits */ rwkv_ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_vocab);
+
+    rwkv_ctx_size_add(ctx_size, 1, rwkv_estimate_graph_work(rwkv_type_to_ggml[header.data_type], ffn_key_size, sequence_len, ctx->n_threads));
 
     std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [ctx_size.scratch_size]);
     RWKV_ENSURE_OR_FALSE(scratch.get());
@@ -1255,39 +1290,87 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * tokens
 
     ggml_set_scratch(ggml, { 0, ctx_size.scratch_size, scratch.get() });
 
-    struct rwkv_graph graph;
-    RWKV_ENSURE_OR_FALSE(rwkv_graph(ggml, ctx->instance->model, sequence_len, n_threads, graph));
+    const struct rwkv_graph & graph = ctx->graph;
+    struct ggml_cgraph & cgraph = *graph.cgraph_seq.get();
+    cgraph.n_nodes = 0;
+    cgraph.n_leafs = 0;
+    cgraph.n_threads = ctx->n_threads;
+    cgraph.work_size = 0;
+    cgraph.work = NULL;
 
-    memcpy(graph.token_index->data, tokens, sequence_len * sizeof(uint32_t));
-
-    if (state_in == NULL) {
+    if (state_in) {
+        memcpy(graph.input_state->data, state_in, ggml_nbytes(graph.input_state));
+    } else {
         ggml_set_f32(graph.input_state, 0.0F);
 
         for (size_t i = 0; i < header.n_layer; i++) {
             ggml_set_f32(graph.input_layers[i].att_pp, -1e30F);
         }
-    } else {
-        memcpy(graph.input_state->data, state_in, ggml_nbytes(graph.input_state));
     }
 
-    ggml_graph_compute(ggml, graph.cgraph.get());
+    struct ggml_tensor * tokens = ggml_new_tensor_1d(ggml, GGML_TYPE_I32, sequence_len);
+    memcpy(tokens->data, sequence, sequence_len * sizeof(uint32_t));
+
+    struct ggml_tensor * x = ggml_get_rows(ggml, model.emb, tokens);
+    x = rwkv_layer_norm(ggml, x, ggml_repeat(ggml, model.ln0_weight, x), ggml_repeat(ggml, model.ln0_bias, x));
+
+    for (uint32_t layer_idx = 0; layer_idx < n_layer; layer_idx++) {
+        struct rwkv_layer & layer = model.layers[layer_idx];
+        struct rwkv_layer_state inputs = graph.input_layers[layer_idx];
+
+        struct ggml_tensor * x0 = x, * xx;
+        rwkv_xx(ggml, layer.ln1_weight, layer.ln1_bias, x0, xx, inputs.att_xx);
+
+        struct ggml_tensor * r, * k, * v;
+        rwkv_att_rkv(ggml, layer, x0, xx, r, k, v);
+
+        for (uint32_t t = 0; t < sequence_len; t++) {
+            struct ggml_tensor * kt = ggml_view_1d(ggml, k, n_embed, n_embed * sizeof(float) * t);
+            struct ggml_tensor * vt = ggml_view_1d(ggml, v, n_embed, n_embed * sizeof(float) * t);
+            struct ggml_tensor * wkv = rwkv_att_wkv(ggml, layer, kt, vt, inputs.att_aa, inputs.att_bb, inputs.att_pp);
+            xx = ggml_set_1d_inplace(ggml, xx, wkv, n_embed * sizeof(float) * t);
+        }
+
+        x = ggml_add_inplace(ggml, x, ggml_mul_mat(ggml, layer.att_output, ggml_mul(ggml, r, xx)));
+        x = ggml_add_inplace(ggml, x, rwkv_ffn(ggml, x, layer, inputs));
+
+        if (state_out) {
+            struct rwkv_layer_state & outputs = graph.output_layers[layer_idx];
+            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, inputs.ffn_xx, outputs.ffn_xx));
+            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, inputs.att_xx, outputs.att_xx));
+            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, inputs.att_aa, outputs.att_aa));
+            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, inputs.att_bb, outputs.att_bb));
+            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, inputs.att_pp, outputs.att_pp));
+        }
+    }
+
+    // x = self.layer_norm(x[-1,:], self.w.ln_out)
+    x = rwkv_layer_norm(ggml, ggml_view_1d(ggml, x, n_embed, n_embed * sizeof(float) * (sequence_len - 1)), model.ln_out_weight, model.ln_out_bias);
+
+    // x = (self.w.head.weight @ x).float()
+    struct ggml_tensor * logits = ggml_mul_mat(ggml, model.head, x);
+
+    if (logits_out) {
+        ggml_build_forward_expand(&cgraph, logits);
+    }
+
+    ggml_graph_compute(ggml, &cgraph);
 
     if (state_out) {
-        size_t part_size = rwkv_tensor_size(GGML_TYPE_F32, header.n_embed);
-        for (size_t i = 0; i < header.n_layer; i++) {
-            struct rwkv_layer_state & layer = graph.output_layers[i];
-
-            float * dest = state_out + i * header.n_embed * 5;
-            memcpy(dest + header.n_embed * 0, layer.ffn_xx->data, part_size);
-            memcpy(dest + header.n_embed * 1, layer.att_xx->data, part_size);
-            memcpy(dest + header.n_embed * 2, layer.att_aa->data, part_size);
-            memcpy(dest + header.n_embed * 3, layer.att_bb->data, part_size);
-            memcpy(dest + header.n_embed * 4, layer.att_pp->data, part_size);
+        size_t state_part_size = n_embed * sizeof(float);
+        for (size_t layer = 0; layer < n_layer; layer++) {
+            const struct rwkv_layer_state & state = graph.output_layers[layer];
+            memcpy(state_out + n_embed * 0, state.ffn_xx->data, state_part_size);
+            memcpy(state_out + n_embed * 1, state.att_xx->data, state_part_size);
+            memcpy(state_out + n_embed * 2, state.att_aa->data, state_part_size);
+            memcpy(state_out + n_embed * 3, state.att_bb->data, state_part_size);
+            memcpy(state_out + n_embed * 4, state.att_pp->data, state_part_size);
+            state_out += n_embed * 5;
         }
     }
 
     if (logits_out) {
-        memcpy(logits_out, graph.logits->data, ggml_nbytes(graph.logits));
+        memcpy(logits_out, logits->data, n_vocab * sizeof(float));
     }
 
     return true;

@@ -34,7 +34,7 @@ int main() {
     time_t start_load, end_load;
     fprintf(stderr, "Load model ...");
     time_measure(start_load);
-    struct rwkv_context * ctx = rwkv_init_from_file("C:\\Users\\LoganDark\\Documents\\RWKV\\fp32-rwkv-4-world-0.4b-v1-20230529-ctx4096.bin", 12);
+    struct rwkv_context * ctx = rwkv_init_from_file("C:\\Users\\LoganDark\\Documents\\RWKV\\fp32-rwkv-4-world-0.4b-v1-20230529-ctx4096.bin", 6);
     time_measure(end_load);
     fprintf(stderr, " %.3fs\n", TIME_DIFF(freq, start_load, end_load));
 
@@ -51,6 +51,7 @@ int main() {
     size_t logits_nelems = rwkv_get_logits_buffer_element_count(ctx);
 
     float * state = calloc(state_nelems, sizeof(float));
+    float * state_seq = calloc(state_nelems, sizeof(float));
     float * logits = calloc(logits_nelems, sizeof(float));
     float * logits_seq = calloc(logits_nelems, sizeof(float));
 
@@ -65,9 +66,12 @@ int main() {
     time_t start_seq, end_seq;
     fprintf(stderr, "Sequence mode to process %" PRId32 " tokens ...", num_tokens);
     time_measure(start_seq);
-    rwkv_eval_sequence(ctx, tokens, num_tokens, NULL, NULL, logits_seq);
+    rwkv_eval_sequence(ctx, tokens, num_tokens, NULL, state_seq, logits_seq);
     time_measure(end_seq);
     fprintf(stderr, " %.3fs\n", TIME_DIFF(freq, start_seq, end_seq));
+
+    fprintf(stderr, "State identical = %s\n", memcmp(state, state_seq, state_nelems * sizeof(float)) == 0 ? "TRUE" : "FALSE");
+    fprintf(stderr, "Logits identical = %s\n", memcmp(logits, logits_seq, logits_nelems * sizeof(float)) == 0 ? "TRUE" : "FALSE");
 
     float logits_diff = 0;
 
@@ -75,7 +79,6 @@ int main() {
         logits_diff += logits[i] - logits_seq[i];
 
     fprintf(stderr, "Logits total diff = %.5f\n", logits_diff);
-    fprintf(stderr, "Logits identical = %s\n", memcmp(logits, logits_seq, logits_nelems * sizeof(float)) == 0 ? "TRUE" : "FALSE");
 
     return EXIT_SUCCESS;
 }
