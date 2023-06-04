@@ -41,6 +41,7 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     float * logits = malloc(sizeof(float) * n_vocab);
 
     char * prompt = "\"in";
+    uint32_t prompt_seq[] = { '"', 'i', 'n' };
 
     const size_t prompt_length = strlen(prompt);
 
@@ -58,6 +59,19 @@ void test_model(const char * model_path, const float * expected_logits, const fl
 
     // When something breaks, difference would be way more than 10
     ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
+
+    rwkv_eval_sequence(model, prompt_seq, prompt_length, NULL, state, logits);
+
+    diff_sum = 0.0F;
+
+    for (uint32_t i = 0; i < n_vocab; i++) {
+        diff_sum += logits[i] - expected_logits[i];
+    }
+
+    fprintf(stderr, "Sequence difference sum: %f\n", diff_sum);
+
+    // When something breaks, difference would be way more than 10
+    ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big sequence difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
 
     rwkv_free(model);
 
