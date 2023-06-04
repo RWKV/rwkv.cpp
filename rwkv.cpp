@@ -510,6 +510,7 @@ struct rwkv_context {
     bool print_errors;
     size_t gpu_layers;
     size_t vram_total;
+    uint32_t n_threads;
 };
 
 bool rwkv_fread_ggml_tensor_data(FILE * file, const struct rwkv_tensor_header & header, struct ggml_context * ctx, std::string & name, struct ggml_tensor *& tensor) {
@@ -996,6 +997,11 @@ bool rwkv_graph(struct ggml_context * ctx, struct rwkv_model & model, const uint
     return true;
 }
 
+size_t rwkv_estimate_graph_work(const enum ggml_type type, const size_t ffn_key_size, const size_t sequence_len, const uint32_t n_threads) {
+    enum ggml_type mul_mat_type = ggml_is_quantized(type) ? GGML_TYPE_Q8_1 : type;
+    return rwkv_tensor_size(GGML_TYPE_I8, rwkv_tensor_size(mul_mat_type, ffn_key_size, sequence_len) * n_threads + 64 * (n_threads - 1));
+}
+
 struct rwkv_file_guard {
     FILE * file;
     ~rwkv_file_guard() { if (file) { fclose(file); } }
@@ -1102,9 +1108,7 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
 
     rwkv_ctx_size ctx_size;
     rwkv_ctx_size_add(ctx_size, 1, rwkv_graph_size(header.n_vocab, header.n_embed, header.n_layer, instance->ffn_key_size));
-    // And finally to end it all off: the graph work tensor
-    enum ggml_type mul_mat_type = ggml_is_quantized(rwkv_type_to_ggml[header.data_type]) ? GGML_TYPE_Q8_1 : rwkv_type_to_ggml[header.data_type];
-    rwkv_ctx_size_add(ctx_size, 1, rwkv_tensor_size(GGML_TYPE_I8, rwkv_tensor_size(mul_mat_type, instance->ffn_key_size) * n_threads + 64 * (n_threads - 1)));
+    rwkv_ctx_size_add(ctx_size, 1, rwkv_estimate_graph_work(rwkv_type_to_ggml[header.data_type], instance->ffn_key_size, 1, n_threads));
 
     std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [ctx_size.scratch_size]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, scratch.get(), "Failed to allocate graph scratch space (%d)", ctx_size.scratch_size);
@@ -1133,6 +1137,7 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
     rwkv_ctx->print_errors = global_print_errors;
     rwkv_ctx->gpu_layers = 0;
     rwkv_ctx->vram_total = 0;
+    rwkv_ctx->n_threads = n_threads;
 
     return rwkv_ctx.release();
 }
@@ -1234,13 +1239,12 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * tokens
     const struct rwkv_file_header & header = ctx->instance->model.header;
 
     // TODO don't create a new cgraph every time
-    const uint32_t n_threads = ctx->graph.cgraph.get()->n_threads;
+    const uint32_t n_threads = ctx->n_threads;
 
     rwkv_ctx_size ctx_size;
     rwkv_ctx_size_add(ctx_size, 1, rwkv_graph_size(header.n_vocab, header.n_embed, header.n_layer, ctx->instance->ffn_key_size, sequence_len));
 
-    enum ggml_type mul_mat_type = ggml_is_quantized(rwkv_type_to_ggml[header.data_type]) ? GGML_TYPE_Q8_1 : rwkv_type_to_ggml[header.data_type];
-    rwkv_ctx_size_add(ctx_size, 1, rwkv_tensor_size(GGML_TYPE_I8, rwkv_tensor_size(mul_mat_type, ctx->instance->ffn_key_size, sequence_len) * n_threads + 64 * (n_threads - 1)));
+    rwkv_ctx_size_add(ctx_size, 1, rwkv_estimate_graph_work(rwkv_type_to_ggml[header.data_type], ctx->instance->ffn_key_size, sequence_len, n_threads));
 
     std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [ctx_size.scratch_size]);
     RWKV_ENSURE_OR_FALSE(scratch.get());
