@@ -29,6 +29,8 @@ int main() {
 
     rwkv_set_print_errors(NULL, false);
 
+    fprintf(stderr, "%s\n\n", rwkv_get_system_info_string());
+
     time_t start_load, end_load;
     fprintf(stderr, "Load model ...");
     time_measure(start_load);
