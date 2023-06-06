@@ -1277,7 +1277,8 @@ bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const floa
     ((struct rwkv_context *) ctx)->last_error = RWKV_ERROR_NONE;
 
     const struct rwkv_file_header & header = ctx->instance->model.header;
-    RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, token < header.n_vocab, "Token (%" PRId32 ") is out of range (0 ..= %zu)", token, header.n_vocab - 1);
+    const size_t n_vocab = header.n_vocab;
+    RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, token < n_vocab, "Token (%" PRId32 ") is out of range (0 ..= %zu)", token, n_vocab - 1);
 
     rwkv_set_inputs(ctx, state_in);
     ggml_set_i32(ctx->graph.tokens, token);
