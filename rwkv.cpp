@@ -1279,10 +1279,10 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
 
     for (uint32_t layer_idx = 0; layer_idx < n_layer; layer_idx++) {
         struct rwkv_layer & layer = model.layers[layer_idx];
-        struct rwkv_layer_state inputs = graph.input_layers[layer_idx];
+        struct rwkv_layer_state state = graph.input_layers[layer_idx];
 
         struct ggml_tensor * x0 = x, * xx;
-        rwkv_xx(ggml, layer.ln1_weight, layer.ln1_bias, x0, xx, inputs.att_xx);
+        rwkv_xx(ggml, layer.ln1_weight, layer.ln1_bias, x0, xx, state.att_xx);
 
         struct ggml_tensor * r, * k, * v;
         rwkv_att_rkv(ggml, layer, x0, xx, r, k, v);
@@ -1293,20 +1293,20 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
             struct ggml_tensor * kt = ggml_view_1d(ggml, k, n_embed, n_embed * sizeof(float) * t);
             struct ggml_tensor * vt = ggml_view_1d(ggml, v, n_embed, n_embed * sizeof(float) * t);
             struct ggml_tensor * xt = ggml_view_1d(ggml, xx, n_embed, n_embed * sizeof(float) * t);
-            struct ggml_tensor * wkv = rwkv_att_wkv(ggml, layer.att_time_first, layer.att_time_decay, kt, vt, inputs.att_aa, inputs.att_bb, inputs.att_pp);
+            struct ggml_tensor * wkv = rwkv_att_wkv(ggml, layer.att_time_first, layer.att_time_decay, kt, vt, state.att_aa, state.att_bb, state.att_pp);
             ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, wkv, xt));
         }
 
         x = ggml_add_inplace(ggml, x, ggml_mul_mat(ggml, layer.att_output, ggml_mul(ggml, r, xx)));
-        x = ggml_add_inplace(ggml, x, rwkv_ffn(ggml, x, layer, inputs));
+        x = ggml_add_inplace(ggml, x, rwkv_ffn(ggml, x, layer, state));
 
         if (state_out) {
             struct rwkv_layer_state & outputs = graph.output_layers[layer_idx];
-            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, inputs.ffn_xx, outputs.ffn_xx));
-            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, inputs.att_xx, outputs.att_xx));
-            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, inputs.att_aa, outputs.att_aa));
-            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, inputs.att_bb, outputs.att_bb));
-            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, inputs.att_pp, outputs.att_pp));
+            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, state.ffn_xx, outputs.ffn_xx));
+            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, state.att_xx, outputs.att_xx));
+            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, state.att_aa, outputs.att_aa));
+            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, state.att_bb, outputs.att_bb));
+            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, state.att_pp, outputs.att_pp));
         }
     }
 
