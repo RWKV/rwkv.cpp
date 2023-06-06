@@ -742,7 +742,7 @@ void rwkv_att_rkv(struct ggml_context * ctx, struct rwkv_layer layer, struct ggm
     v = ggml_mul_mat(ctx, layer.att_value, xv);
 }
 
-struct rwkv_ctx_size rwkv_att_wkv_size(const size_t n_embed = 0, const size_t sequence_len = 1) {
+struct rwkv_ctx_size rwkv_att_wkv_size(const size_t n_embed = 0) {
     size_t ptr_nelem = sizeof(void *) / sizeof(uint32_t);
 
     struct rwkv_ctx_size ctx_size;
@@ -956,7 +956,7 @@ struct rwkv_ctx_size rwkv_seq_graph_size(const size_t n_vocab, const size_t n_em
     /*     kt */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed);
     /*     vt */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed);
     /*     xt */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed);
-    /*    wkv */ rwkv_ctx_size_add(ctx_size, n_layer * sequence_len, rwkv_att_wkv_size(n_embed, sequence_len));
+    /*    wkv */ rwkv_ctx_size_add(ctx_size, n_layer * sequence_len, rwkv_att_wkv_size(n_embed));
     /*     xt */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed);
     /*      x */ rwkv_ctx_size_add_tensor(ctx_size, n_layer * 2, 0, GGML_TYPE_F32, n_embed, sequence_len);
 
