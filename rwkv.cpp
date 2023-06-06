@@ -744,9 +744,9 @@ struct rwkv_ctx_size rwkv_att_wkv_size(const size_t n_embed = 0, const size_t se
     return ctx_size;
 }
 
-struct ggml_tensor * rwkv_att_wkv(struct ggml_context * ctx, struct rwkv_layer layer, struct ggml_tensor * k, struct ggml_tensor * v, struct ggml_tensor *& aa, struct ggml_tensor *& bb, struct ggml_tensor *& pp) {
+struct ggml_tensor * rwkv_att_wkv(struct ggml_context * ctx, struct ggml_tensor * att_time_first, struct ggml_tensor * att_time_decay, struct ggml_tensor * k, struct ggml_tensor * v, struct ggml_tensor *& aa, struct ggml_tensor *& bb, struct ggml_tensor *& pp) {
     // ww = time_first + k
-    struct ggml_tensor * ww = ggml_add(ctx, layer.att_time_first, k);
+    struct ggml_tensor * ww = ggml_add(ctx, att_time_first, k);
     // qq = torch.maximum(pp, ww)
     struct ggml_tensor * qq = rwkv_max(ctx, pp, ww);
     // e1 = torch.exp(pp - qq)
@@ -760,7 +760,7 @@ struct ggml_tensor * rwkv_att_wkv(struct ggml_context * ctx, struct rwkv_layer l
     struct ggml_tensor * b = ggml_add_inplace(ctx, ggml_mul(ctx, e1, bb), e2);
 
     // ww = pp + time_decay
-    ww = ggml_add(ctx, pp, layer.att_time_decay);
+    ww = ggml_add(ctx, pp, att_time_decay);
     // qq = torch.maximum(ww, k)
     qq = rwkv_max(ctx, ww, k);
     // e1 = torch.exp(ww - qq)
@@ -799,7 +799,7 @@ struct ggml_tensor * rwkv_att(struct ggml_context * ctx, struct ggml_tensor * x,
     struct ggml_tensor * r, * k, * v;
     rwkv_att_rkv(ctx, layer, x0, xx, r, k, v);
 
-    struct ggml_tensor * wkv = rwkv_att_wkv(ctx, layer, k, v, state.att_aa, state.att_bb, state.att_pp);
+    struct ggml_tensor * wkv = rwkv_att_wkv(ctx, layer.att_time_first, layer.att_time_decay, k, v, state.att_aa, state.att_bb, state.att_pp);
 
     // ow @ (r * xx)
     return ggml_mul_mat(ctx, layer.att_output, ggml_mul(ctx, r, wkv));
@@ -1227,10 +1227,10 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
 
     /*     kt */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed);
     /*     vt */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed);
+    /*     xt */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed);
 
     /*    wkv */ rwkv_ctx_size_add(ctx_size, n_layer * sequence_len, rwkv_att_wkv_size(n_embed, sequence_len));
-    /*     xx */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed, sequence_len);
-    /*     xx */ rwkv_ctx_size_add_objects(ctx_size, n_layer * sequence_len, sizeof(struct ggml_tensor) + rwkv_tensor_size(GGML_TYPE_I32, 5));
+    /*     xx */ rwkv_ctx_size_add_tensor(ctx_size, 0, n_layer * sequence_len, GGML_TYPE_F32, n_embed);
 
     /*      x */ rwkv_ctx_size_add_tensor(ctx_size, n_layer * 2, 0, GGML_TYPE_F32, n_embed, sequence_len);
 
@@ -1287,11 +1287,14 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
         struct ggml_tensor * r, * k, * v;
         rwkv_att_rkv(ggml, layer, x0, xx, r, k, v);
 
+        ggml_build_forward_expand(&cgraph, r);
+
         for (uint32_t t = 0; t < sequence_len; t++) {
             struct ggml_tensor * kt = ggml_view_1d(ggml, k, n_embed, n_embed * sizeof(float) * t);
             struct ggml_tensor * vt = ggml_view_1d(ggml, v, n_embed, n_embed * sizeof(float) * t);
-            struct ggml_tensor * wkv = rwkv_att_wkv(ggml, layer, kt, vt, inputs.att_aa, inputs.att_bb, inputs.att_pp);
-            xx = ggml_set_1d_inplace(ggml, xx, wkv, n_embed * sizeof(float) * t);
+            struct ggml_tensor * xt = ggml_view_1d(ggml, xx, n_embed, n_embed * sizeof(float) * t);
+            struct ggml_tensor * wkv = rwkv_att_wkv(ggml, layer.att_time_first, layer.att_time_decay, kt, vt, inputs.att_aa, inputs.att_bb, inputs.att_pp);
+            ggml_build_forward_expand(&cgraph, ggml_cpy(ggml, wkv, xt));
         }
 
         x = ggml_add_inplace(ggml, x, ggml_mul_mat(ggml, layer.att_output, ggml_mul(ggml, r, xx)));
