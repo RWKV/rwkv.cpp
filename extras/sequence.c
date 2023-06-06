@@ -143,5 +143,7 @@ int main() {
 
     fprintf(stderr, " ]\n");
 
+    rwkv_free(ctx);
+
     return EXIT_SUCCESS;
 }
