@@ -1149,11 +1149,11 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
 
     // We collect parts of input state here. Each part is (n_embed) vector.
     std::unique_ptr<struct rwkv_layer_state []> inputs(new(std::nothrow) struct rwkv_layer_state [n_layer]);
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, inputs.get(), "Failed to allocate input state parts");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, inputs.get(), "Failed to allocate input state parts");
 
     // We collect parts of output state here. Each part is (n_embed) vector.
     std::unique_ptr<struct rwkv_layer_state []> outputs(new(std::nothrow) struct rwkv_layer_state [n_layer]);
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, outputs.get(), "Failed to allocate output state parts");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, outputs.get(), "Failed to allocate output state parts");
 
     for (size_t i = 0; i < n_layer; i++) {
         struct rwkv_layer_state & input_state = inputs[i];
@@ -1183,9 +1183,9 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, graph.ctx.ctx, "Failed to allocate serial graph context");
     graph.tokens = ggml_new_i32(graph.ctx.ctx, 0);
     graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, graph.cgraph, "Failed to allocate serial graph");
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, graph.cgraph, "Failed to allocate serial graph");
     graph.cgraph->n_threads = n_threads;
-    RWKV_ASSERT_FALSE(RWKV_ERROR_GRAPH, rwkv_build_ser_graph(graph.ctx.ctx, instance->model, graph.tokens, inputs.get(), outputs.get(), logits, graph.cgraph.get()));
+    RWKV_ASSERT_NULL(RWKV_ERROR_GRAPH, rwkv_build_ser_graph(graph.ctx.ctx, instance->model, graph.tokens, inputs.get(), outputs.get(), logits, graph.cgraph.get()));
 
     std::unique_ptr<struct rwkv_context> rwkv_ctx(new(std::nothrow) struct rwkv_context());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, rwkv_ctx, "Failed to allocate rwkv_context");
@@ -1310,7 +1310,7 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
 
         struct rwkv_graph graph;
         graph.ctx = ctx_size;
-        RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, graph.ctx.ctx, "Failed to allocate sequence graph context");
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, graph.ctx.ctx, "Failed to allocate sequence graph context");
         graph.tokens = ggml_new_tensor_1d(graph.ctx.ctx, GGML_TYPE_I32, sequence_len);
         graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, graph.cgraph, "Failed to allocate sequence graph");
