@@ -1264,7 +1264,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
 
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_WRITE, rwkv_fwrite_tensor(out_file, tensor), "Failed to write tensor %s", name_str);
         orig_total_size += orig_size;
-        new_total_size += orig_size;
+        new_total_size += new_size;
     }
 
     RWKV_MSG("original size     = %8.2f MB\n", orig_total_size / 1024.0 / 1024.0);
