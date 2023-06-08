@@ -4,13 +4,11 @@
 
 import os
 import time
-import pathlib
 import argparse
-import tokenizers
 import torch
 import rwkv_cpp_model
 import rwkv_cpp_shared_library
-from typing import List
+from rwkv_tokenizer import get_tokenizer
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Measure perplexity and per-token latency of an RWKV model on a given text file')
@@ -18,19 +16,18 @@ def parse_args():
     parser.add_argument('text_path', help='Path to text file in UTF-8 encoding', type=str)
     parser.add_argument('ignore_first_n_tokens', help='How many tokens should be skipped before loss is measured', type=int)
     parser.add_argument('token_limit', help='How many tokens to process; set to -1 to process all text', nargs='?', type=int, default=-1)
+    parser.add_argument('tokenizer', help='Which tokenizer to use', nargs='?', type=str, default="20B")
     return parser.parse_args()
 
 args = parse_args()
 
-# ---
-
-print('Loading 20B tokenizer')
-tokenizer_path: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent / '20B_tokenizer.json'
-tokenizer: tokenizers.Tokenizer = tokenizers.Tokenizer.from_file(str(tokenizer_path))
-
 print('Loading text')
 text: str = open(args.text_path, encoding='utf-8').read()
-tokens: List[int] = tokenizer.encode(text).ids
+
+tokenizer, tokenizer_encode = get_tokenizer(args.tokenizer)
+
+tokens = tokenizer_encode(text)
+
 token_count: int = len(tokens)
 print(f'{token_count} tokens in the text')
 

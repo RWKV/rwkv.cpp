@@ -8,9 +8,9 @@ import pathlib
 import copy
 import torch
 import sampling
-import tokenizers
 import rwkv_cpp_model
 import rwkv_cpp_shared_library
+from rwkv_tokenizer import get_tokenizer
 import json
 from typing import List, Dict, Optional
 import time
@@ -42,6 +42,7 @@ END_OF_TEXT_TOKEN: int = 0
 
 parser = argparse.ArgumentParser(description='Provide terminal-based chat interface for RWKV model')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
+parser.add_argument('tokenizer', help='Which tokenizer to use', nargs='?', type=str, default="20B")
 args = parser.parse_args()
 
 script_dir: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent
@@ -53,18 +54,13 @@ with open(script_dir / 'prompt' / f'{LANGUAGE}-{PROMPT_TYPE}.json', 'r', encodin
 
 assert init_prompt != '', 'Prompt must not be empty'
 
-print('Loading 20B tokenizer')
-tokenizer_path = script_dir / '20B_tokenizer.json'
-tokenizer = tokenizers.Tokenizer.from_file(str(tokenizer_path))
+tokenizer, tokenizer_encode = get_tokenizer(args.tokenizer)
 
 library = rwkv_cpp_shared_library.load_rwkv_shared_library()
 print(f'System info: {library.rwkv_get_system_info_string()}')
 
 print('Loading RWKV model')
 model = rwkv_cpp_model.RWKVModel(library, args.model_path)
-
-prompt_tokens = tokenizer.encode(init_prompt).ids
-prompt_token_count = len(prompt_tokens)
 
 # =================================================================================================
 
@@ -110,9 +106,11 @@ def split_last_end_of_line(tokens):
 
 # =================================================================================================
 T1 = time.time()
+prompt_tokens = tokenizer_encode(init_prompt)
+prompt_token_count = len(prompt_tokens)
 print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
-process_tokens(split_last_end_of_line(tokenizer.encode(init_prompt).ids))
+process_tokens(split_last_end_of_line(prompt_tokens))
 T2 = time.time()
 print(f'Process time :{((T2 - T1)*1000)} ms')
 print(f'Process time per token :{(((T2 - T1)*1000)) / prompt_token_count} ms')
@@ -164,7 +162,7 @@ while True:
             new = '\n' + msg[5:].strip()
             state = None
             processed_tokens = []
-            process_tokens(tokenizer.encode(new).ids)
+            process_tokens(tokenizer_encode(new))
             save_thread_state('gen_0')
 
         # +i YOUR INSTRUCT --> free single-round generation with any instruct. Requires Raven model.
@@ -179,7 +177,7 @@ Below is an instruction that describes a task. Write a response that appropriate
 '''
             state = None
             processed_tokens = []
-            process_tokens(tokenizer.encode(new).ids)
+            process_tokens(tokenizer_encode(new))
             save_thread_state('gen_0')
 
         # +qq YOUR QUESTION --> answer an independent question with more creativity (regardless of context).
@@ -187,7 +185,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             new = '\nQ: ' + msg[4:].strip() + '\nA:'
             state = None
             processed_tokens = []
-            process_tokens(tokenizer.encode(new).ids)
+            process_tokens(tokenizer_encode(new))
             save_thread_state('gen_0')
 
         # +qa YOUR QUESTION --> answer an independent question (regardless of context).
@@ -197,7 +195,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             real_msg = msg[4:].strip()
             new = f'{user}{separator} {real_msg}\n\n{bot}{separator}'
 
-            process_tokens(tokenizer.encode(new).ids)
+            process_tokens(tokenizer_encode(new))
             save_thread_state('gen_0')
 
         # +++ --> continue last free generation (only for +gen / +i)
@@ -230,7 +228,7 @@ Below is an instruction that describes a task. Write a response that appropriate
         else:
             load_thread_state('chat')
             new = f'{user}{separator} {msg}\n\n{bot}{separator}'
-            process_tokens(tokenizer.encode(new).ids, new_line_logit_bias=-999999999)
+            process_tokens(tokenizer_encode(new), new_line_logit_bias=-999999999)
             save_thread_state('chat_pre')
 
         thread = 'chat'

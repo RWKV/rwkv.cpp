@@ -2,13 +2,12 @@
 
 import argparse
 import os
-import pathlib
 import time
 import sampling
-import tokenizers
 import rwkv_cpp_model
 import rwkv_cpp_shared_library
-
+from rwkv_tokenizer import get_tokenizer
+from typing import List
 
 # ======================================== Script settings ========================================
 
@@ -31,13 +30,14 @@ top_p: float = 0.5
 
 parser = argparse.ArgumentParser(description='Generate completions from RWKV model based on a prompt')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
+parser.add_argument('tokenizer', help='Which tokenizer to use', nargs='?', type=str, default="20B")
 args = parser.parse_args()
 
 assert prompt != '', 'Prompt must not be empty'
 
-print('Loading 20B tokenizer')
-tokenizer_path = pathlib.Path(os.path.abspath(__file__)).parent / '20B_tokenizer.json'
-tokenizer = tokenizers.Tokenizer.from_file(str(tokenizer_path))
+tokenizer, tokenizer_encode = get_tokenizer(args.tokenizer)
+
+prompt_tokens = tokenizer_encode(prompt)
 
 library = rwkv_cpp_shared_library.load_rwkv_shared_library()
 print(f'System info: {library.rwkv_get_system_info_string()}')
@@ -45,7 +45,6 @@ print(f'System info: {library.rwkv_get_system_info_string()}')
 print('Loading RWKV model')
 model = rwkv_cpp_model.RWKVModel(library, args.model_path)
 
-prompt_tokens = tokenizer.encode(prompt).ids
 prompt_token_count = len(prompt_tokens)
 print(f'{prompt_token_count} tokens in prompt')
 
