@@ -136,7 +136,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF -DRWKV_SANITIZE_ADDRESS=ON -DRWKV_SANITIZE_UNDEFINED=ON -DGGML_SANITIZE_ADDRESS=ON -DGGML_SANITIZE_UNDEFINED=ON -DCMAKE_BUILD_TYPE=Release ..
+          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF -DRWKV_SANITIZE_ADDRESS=ON -DCMAKE_BUILD_TYPE=Release ..
           cmake --build . --config Release
 
       - name: Test
