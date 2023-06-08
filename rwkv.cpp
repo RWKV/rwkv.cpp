@@ -493,7 +493,7 @@ struct rwkv_ggml_context {
     }
 };
 
-// An instance of an RWKV model loaded into memory:
+// An instance of an RWKV model loaded into memory.
 // Contains all the model weights.
 // Shared by one or more contexts.
 struct rwkv_instance {
