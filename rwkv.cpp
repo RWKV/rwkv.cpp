@@ -474,9 +474,17 @@ struct rwkv_ggml_context {
 
     rwkv_ggml_context(struct rwkv_ctx_size size) {
         scratch.reset(new(std::nothrow) uint8_t [size.scratch_size]);
-        if (!scratch) return;
+
+        if (!scratch) {
+            return;
+        }
+
         ctx = ggml_init({ size.objects_count * GGML_OBJECT_SIZE + size.objects_size, NULL, false});
-        if (!ctx) return;
+
+        if (!ctx) {
+            return;
+        }
+
         ggml_set_scratch(ctx, { 0, size.scratch_size, scratch.get() });
     }
 
