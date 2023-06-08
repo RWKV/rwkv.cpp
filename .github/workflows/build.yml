@@ -132,10 +132,11 @@ jobs:
       - name: Build
         id: cmake_build
         # FMA disabled because it gives "Illegal instruction" in GitHub Actions runner
+        # TODO Remove sanitizer
         run: |
           mkdir build
           cd build
-          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF -DCMAKE_BUILD_TYPE=Release ..
+          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF -DRWKV_SANITIZE_ADDRESS=ON ..
           cmake --build . --config Release
 
       - name: Test
