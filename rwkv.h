@@ -111,8 +111,9 @@ extern "C" {
     RWKV_API bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const float * state_in, float * state_out, float * logits_out);
 
     // Evaluates the model for a sequence of tokens.
-    // Uses a faster algorithm than rwkv_eval if you do not need the state and logits for every token.
-    // - tokens: pointer to an array of tokens.
+    // Uses a faster algorithm than rwkv_eval if you do not need the state and logits for every token. Best used with batch sizes of 64 or so.
+    // Has to build a computation graph on the first call for a given sequence, but will use this cached graph for subsequent calls of the same sequence length.
+    // - tokens: pointer to an array of tokens. If NULL, the graph will be built and cached, but not executed. (Useful for initialization.)
     // - sequence_len: number of tokens to read from the array.
     // - state_in: FP32 buffer of size rwkv_get_state_buffer_element_count, or NULL if this is a first pass.
     // - state_out: FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to if non-NULL.
