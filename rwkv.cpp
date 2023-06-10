@@ -1322,9 +1322,11 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
     const size_t n_embed = header.n_embed;
     const size_t n_layer = header.n_layer;
 
-    for (size_t i = 0; i < sequence_len; i++) {
-        const uint32_t token = sequence[i];
-        RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, token < n_vocab, "Tokens[%zu] (%" PRId32 ") is out of range (0 ..= %zu)", i, token, n_vocab - 1);
+    if (sequence) {
+        for (size_t i = 0; i < sequence_len; i++) {
+            const uint32_t token = sequence[i];
+            RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, token < n_vocab, "Tokens[%zu] (%" PRId32 ") is out of range (0 ..= %zu)", i, token, n_vocab - 1);
+        }
     }
 
     if (ctx->sequence_len != sequence_len) {
