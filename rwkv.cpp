@@ -915,13 +915,13 @@ bool rwkv_build_ser_graph(
 ) {
     size_t n_embed = model.header.n_embed;
 
-    fprintf(stderr, "getting rows in rwkv_build_ser_graph\n");
-    fprintf(stderr, "- %d (should be 1)\n", model.emb->ne[2] == 1 && model.emb->ne[3] == 1); // ggml_is_matrix
-    fprintf(stderr, "- %d (should be 1)\n", tokens->ne[1] == 1 && tokens->ne[2] == 1 && tokens->ne[3] == 1); // ggml_is_vector
-    fprintf(stderr, "- %d (should be 12)\n", tokens->type); // type
+    //fprintf(stderr, "getting rows in rwkv_build_ser_graph\n");
+    //fprintf(stderr, "- %d (should be 1)\n", model.emb->ne[2] == 1 && model.emb->ne[3] == 1); // ggml_is_matrix
+    //fprintf(stderr, "- %d (should be 1)\n", tokens->ne[1] == 1 && tokens->ne[2] == 1 && tokens->ne[3] == 1); // ggml_is_vector
+    //fprintf(stderr, "- %d (should be 12)\n", tokens->type); // type
     // x = self.w.emb.weight[token]
     struct ggml_tensor * x = ggml_get_rows(ctx, model.emb, tokens);
-    fprintf(stderr, "got rows in rwkv_build_ser_graph\n");
+    //fprintf(stderr, "got rows in rwkv_build_ser_graph\n");
 
     // x = self.layer_norm(x, self.w.blocks[0].ln0)
     x = rwkv_layer_norm(ctx, x, model.ln0_weight, model.ln0_bias);
@@ -1322,8 +1322,24 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
         graph.ctx = ctx_size;
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, graph.ctx.ctx, "Failed to allocate sequence graph context");
         graph.tokens = ggml_new_tensor_1d(graph.ctx.ctx, GGML_TYPE_I32, sequence_len);
+
+        fprintf(stderr, "after ggml_new_tensor_1d\n");
+        fprintf(stderr, "- ne[0] %d\n", graph.tokens->ne[0]);
+        fprintf(stderr, "- ne[1] %d\n", graph.tokens->ne[1]);
+        fprintf(stderr, "- ne[2] %d\n", graph.tokens->ne[2]);
+        fprintf(stderr, "- ne[3] %d\n", graph.tokens->ne[3]);
+        fprintf(stderr, "- type %d\n", graph.tokens->type);
+
         graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, graph.cgraph, "Failed to allocate sequence graph");
+0
+        fprintf(stderr, "after graph alloc\n");
+        fprintf(stderr, "- ne[0] %d\n", graph.tokens->ne[0]);
+        fprintf(stderr, "- ne[1] %d\n", graph.tokens->ne[1]);
+        fprintf(stderr, "- ne[2] %d\n", graph.tokens->ne[2]);
+        fprintf(stderr, "- ne[3] %d\n", graph.tokens->ne[3]);
+        fprintf(stderr, "- type %d\n", graph.tokens->type);
+
         graph.cgraph->n_threads = 1;
         RWKV_ASSERT_FALSE(RWKV_ERROR_GRAPH, rwkv_build_seq_graph(graph.ctx.ctx, ctx->instance->model, graph.tokens, ctx->input_layers.get(), ctx->output_layers.get(), ctx->logits, graph.cgraph.get()));
 
