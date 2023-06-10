@@ -915,8 +915,13 @@ bool rwkv_build_ser_graph(
 ) {
     size_t n_embed = model.header.n_embed;
 
+    fprintf(stderr, "getting rows in rwkv_build_ser_graph\n");
+    fprintf(stderr, "- %d (should be 1)\n", model.emb->ne[2] == 1 && model.emb->ne[3] == 1); // ggml_is_matrix
+    fprintf(stderr, "- %d (should be 1)\n", tokens->ne[1] == 1 && tokens->ne[2] == 1 && tokens->ne[3] == 1); // ggml_is_vector
+    fprintf(stderr, "- %d (should be 12)\n", tokens->type); // type
     // x = self.w.emb.weight[token]
     struct ggml_tensor * x = ggml_get_rows(ctx, model.emb, tokens);
+    fprintf(stderr, "got rows in rwkv_build_ser_graph\n");
 
     // x = self.layer_norm(x, self.w.blocks[0].ln0)
     x = rwkv_layer_norm(ctx, x, model.ln0_weight, model.ln0_bias);
@@ -984,7 +989,12 @@ bool rwkv_build_seq_graph(
     const uint32_t n_embed = model.header.n_embed;
     const size_t sequence_len = tokens->ne[0];
 
+    fprintf(stderr, "getting rows in rwkv_build_seq_graph\n");
+    fprintf(stderr, "- %d (should be 1)\n", model.emb->ne[2] == 1 && model.emb->ne[3] == 1); // ggml_is_matrix
+    fprintf(stderr, "- %d (should be 1)\n", tokens->ne[1] == 1 && tokens->ne[2] == 1 && tokens->ne[3] == 1); // ggml_is_vector
+    fprintf(stderr, "- %d (should be 12)\n", tokens->type); // type
     struct ggml_tensor * x = ggml_get_rows(ctx, model.emb, tokens);
+    fprintf(stderr, "got rows in rwkv_build_seq_graph\n");
     x = rwkv_layer_norm(ctx, x, ggml_repeat(ctx, model.ln0_weight, x), ggml_repeat(ctx, model.ln0_bias, x));
 
     for (size_t i = 0; i < model.header.n_layer; i++) {
