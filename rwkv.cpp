@@ -1321,17 +1321,11 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
         struct rwkv_graph graph;
         graph.ctx = ctx_size;
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, graph.ctx.ctx, "Failed to allocate sequence graph context");
-        graph.tokens = ggml_new_tensor_1d(graph.ctx.ctx, GGML_TYPE_I32, sequence_len);
-
-        fprintf(stderr, "after ggml_new_tensor_1d\n");
-        fprintf(stderr, "- ne[0] %d\n", graph.tokens->ne[0]);
-        fprintf(stderr, "- ne[1] %d\n", graph.tokens->ne[1]);
-        fprintf(stderr, "- ne[2] %d\n", graph.tokens->ne[2]);
-        fprintf(stderr, "- ne[3] %d\n", graph.tokens->ne[3]);
-        fprintf(stderr, "- type %d\n", graph.tokens->type);
 
         graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, graph.cgraph, "Failed to allocate sequence graph");
+
+        graph.tokens = ggml_new_tensor_1d(graph.ctx.ctx, GGML_TYPE_I32, sequence_len);
 
         fprintf(stderr, "after graph alloc\n");
         fprintf(stderr, "- ne[0] %d\n", graph.tokens->ne[0]);
