@@ -460,6 +460,9 @@ struct ggml_tensor * rwkv_layer_norm(ggml_context * ctx, struct ggml_tensor * x,
 
 // --- Implementation ---
 
+// Used to calculate the memory usage of GGML contexts before allocating them.
+// Since GGML uses an internal bump allocator that can't be grown at runtime, we need to ensure we have enough space,
+// while at the same time, not using more memory than necessary.
 struct rwkv_ctx_size {
     size_t objects_count = 0;
     size_t objects_size = 0;
@@ -470,9 +473,9 @@ struct rwkv_ggml_context {
     std::unique_ptr<uint8_t []> scratch;
     struct ggml_context * ctx;
 
-    rwkv_ggml_context() {}
+    rwkv_ggml_context(): ctx(NULL) {}
 
-    rwkv_ggml_context(struct rwkv_ctx_size size) {
+    rwkv_ggml_context(struct rwkv_ctx_size size): ctx(NULL) {
         scratch.reset(new(std::nothrow) uint8_t [size.scratch_size]);
 
         if (!scratch) {
@@ -518,6 +521,10 @@ struct rwkv_instance {
     size_t ffn_key_size;
 };
 
+// The hidden state of a single RWKV layer.
+// These are mostly used for dividing up the input state, and writing portions of the output state.
+// But they're also used in building the computation graphs, to represent the operations used from input->output
+// (operating "in place" on a rwkv_layer_state).
 struct rwkv_layer_state {
     struct ggml_tensor * ffn_xx;
     struct ggml_tensor * att_xx;
@@ -526,17 +533,24 @@ struct rwkv_layer_state {
     struct ggml_tensor * att_pp;
 };
 
+// Holds a single computation graph and its GGML context.
+// Graphs each have their own context so that they can be individually freed and rebuilt.
+// Graphs read hidden state from the rwkv_context and then write it back to the rwkv_context.
+// (see rwkv_context.input_layers and rwkv_context.output_layers)
 struct rwkv_graph {
     struct rwkv_ggml_context ctx;
     struct ggml_tensor * tokens;
+
+    // ggml_cgraph is so large that it can cause stack overflows if not stored on the heap
     std::unique_ptr<struct ggml_cgraph> cgraph;
 };
 
 // RWKV context for a specific instance.
-// Contains the computation graph and is used for inference.
+// Contains computation graphs and is used for inference.
 struct rwkv_context {
     std::shared_ptr<struct rwkv_instance> instance;
 
+    // Reused by all graphs.
     struct rwkv_ggml_context ctx;
     struct ggml_tensor * input_state;
     std::unique_ptr<struct rwkv_layer_state []> input_layers;
@@ -545,10 +559,14 @@ struct rwkv_context {
     struct ggml_tensor * logits;
 
     uint32_t n_threads;
-    struct rwkv_graph graph;
 
+    // The serial graph implements the traditional RNN mode that processes only one token at a time (serial mode).
+    struct rwkv_graph serial_graph;
+
+    // The sequence graph implements the "sequence mode" (or transformer/GPT mode) that processes multiple tokens at a time.
+    // This can be an order of magnitude or so faster than serial execution if used properly.
     size_t sequence_len;
-    struct rwkv_graph seq_graph;
+    struct rwkv_graph sequence_graph;
 
     enum rwkv_error_flags last_error;
     bool print_errors;
@@ -894,7 +912,7 @@ struct ggml_tensor * rwkv_ffn(struct ggml_context * ctx, struct ggml_tensor * x,
     return ggml_mul(ctx, r, ggml_mul_mat(ctx, layer.ffn_value, k));
 }
 
-struct rwkv_ctx_size rwkv_ser_graph_size(const size_t n_vocab, const size_t n_embed, const size_t n_layer, const size_t ffn_key_size) {
+struct rwkv_ctx_size rwkv_serial_graph_size(const size_t n_vocab, const size_t n_embed, const size_t n_layer, const size_t ffn_key_size) {
     struct rwkv_ctx_size ctx_size;
     /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed);
     /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 2, 1, GGML_TYPE_F32, n_embed);
@@ -912,7 +930,7 @@ struct rwkv_ctx_size rwkv_ser_graph_size(const size_t n_vocab, const size_t n_em
     return ctx_size;
 }
 
-bool rwkv_build_ser_graph(
+bool rwkv_build_serial_graph(
     struct ggml_context * ctx,
     struct rwkv_model & model,
     struct ggml_tensor * tokens,
@@ -953,7 +971,7 @@ bool rwkv_build_ser_graph(
     return true;
 }
 
-struct rwkv_ctx_size rwkv_seq_graph_size(const size_t n_vocab, const size_t n_embed, const size_t n_layer, const size_t ffn_key_size, const size_t sequence_len) {
+struct rwkv_ctx_size rwkv_sequence_graph_size(const size_t n_vocab, const size_t n_embed, const size_t n_layer, const size_t ffn_key_size, const size_t sequence_len) {
     struct rwkv_ctx_size ctx_size;
     /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_F32, n_embed, sequence_len);
     /*      x */ rwkv_ctx_size_add_tensor(ctx_size, 4, 1, GGML_TYPE_F32, n_embed, sequence_len);
@@ -980,7 +998,7 @@ struct rwkv_ctx_size rwkv_seq_graph_size(const size_t n_vocab, const size_t n_em
     return ctx_size;
 }
 
-bool rwkv_build_seq_graph(
+bool rwkv_build_sequence_graph(
     struct ggml_context * ctx,
     struct rwkv_model & model,
     struct ggml_tensor * tokens,
@@ -1183,17 +1201,17 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
 
     struct rwkv_ctx_size graph_ctx_size;
     /* token */ rwkv_ctx_size_add_objects(graph_ctx_size, 1, sizeof(struct ggml_tensor) + sizeof(uint32_t));
-    /* graph */ rwkv_ctx_size_add(graph_ctx_size, 1, rwkv_ser_graph_size(n_vocab, n_embed, n_layer, instance->ffn_key_size));
+    /* graph */ rwkv_ctx_size_add(graph_ctx_size, 1, rwkv_serial_graph_size(n_vocab, n_embed, n_layer, instance->ffn_key_size));
     /*  work */ rwkv_ctx_size_add(graph_ctx_size, 1, rwkv_estimate_graph_work(rwkv_type_to_ggml[header.data_type], instance->ffn_key_size, n_threads));
 
-    struct rwkv_graph graph;
-    graph.ctx = graph_ctx_size;
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, graph.ctx.ctx, "Failed to allocate serial graph context");
-    graph.tokens = ggml_new_i32(graph.ctx.ctx, 0);
-    graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
-    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, graph.cgraph, "Failed to allocate serial graph");
-    graph.cgraph->n_threads = n_threads;
-    RWKV_ASSERT_NULL(RWKV_ERROR_GRAPH, rwkv_build_ser_graph(graph.ctx.ctx, instance->model, graph.tokens, inputs.get(), outputs.get(), logits, graph.cgraph.get()));
+    struct rwkv_graph serial_graph;
+    serial_graph.ctx = graph_ctx_size;
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, serial_graph.ctx.ctx, "Failed to allocate serial graph context");
+    serial_graph.tokens = ggml_new_i32(serial_graph.ctx.ctx, 0);
+    serial_graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
+    RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, serial_graph.cgraph, "Failed to allocate serial graph");
+    serial_graph.cgraph->n_threads = n_threads;
+    RWKV_ASSERT_NULL(RWKV_ERROR_GRAPH, rwkv_build_serial_graph(serial_graph.ctx.ctx, instance->model, serial_graph.tokens, inputs.get(), outputs.get(), logits, serial_graph.cgraph.get()));
 
     std::unique_ptr<struct rwkv_context> rwkv_ctx(new(std::nothrow) struct rwkv_context());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, rwkv_ctx, "Failed to allocate rwkv_context");
@@ -1205,7 +1223,7 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
     rwkv_ctx->output_layers = std::move(outputs);
     rwkv_ctx->logits = logits;
     rwkv_ctx->n_threads = n_threads;
-    rwkv_ctx->graph = std::move(graph);
+    rwkv_ctx->serial_graph = std::move(serial_graph);
     rwkv_ctx->last_error = RWKV_ERROR_NONE;
     rwkv_ctx->print_errors = global_print_errors;
     return rwkv_ctx.release();
@@ -1289,8 +1307,8 @@ bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const floa
     RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, token < n_vocab, "Token (%" PRId32 ") is out of range (0 ..= %zu)", token, n_vocab - 1);
 
     rwkv_set_inputs(ctx, state_in);
-    ggml_set_i32(ctx->graph.tokens, token);
-    ggml_graph_compute(ctx->graph.ctx.ctx, ctx->graph.cgraph.get());
+    ggml_set_i32(ctx->serial_graph.tokens, token);
+    ggml_graph_compute(ctx->serial_graph.ctx.ctx, ctx->serial_graph.cgraph.get());
     rwkv_get_outputs(ctx, state_out, logits_out);
 
     return true;
@@ -1313,7 +1331,7 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
         // Build new sequence graph
         struct rwkv_ctx_size ctx_size;
         /* tokens */ rwkv_ctx_size_add_tensor(ctx_size, 1, 0, GGML_TYPE_I32, sequence_len);
-        /*  graph */ rwkv_ctx_size_add(ctx_size, 1, rwkv_seq_graph_size(n_vocab, n_embed, n_layer, ctx->instance->ffn_key_size, sequence_len));
+        /*  graph */ rwkv_ctx_size_add(ctx_size, 1, rwkv_sequence_graph_size(n_vocab, n_embed, n_layer, ctx->instance->ffn_key_size, sequence_len));
         /*   work */ rwkv_ctx_size_add(ctx_size, 1, rwkv_estimate_graph_work(rwkv_type_to_ggml[header.data_type], ctx->instance->ffn_key_size, 1, sequence_len));
 
         struct rwkv_graph graph;
@@ -1323,16 +1341,19 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
         graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, graph.cgraph, "Failed to allocate sequence graph");
         graph.cgraph->n_threads = 1;
-        RWKV_ASSERT_FALSE(RWKV_ERROR_GRAPH, rwkv_build_seq_graph(graph.ctx.ctx, ctx->instance->model, graph.tokens, ctx->input_layers.get(), ctx->output_layers.get(), ctx->logits, graph.cgraph.get()));
+        RWKV_ASSERT_FALSE(RWKV_ERROR_GRAPH, rwkv_build_sequence_graph(graph.ctx.ctx, ctx->instance->model, graph.tokens, ctx->input_layers.get(), ctx->output_layers.get(), ctx->logits, graph.cgraph.get()));
 
         ((struct rwkv_context *) ctx)->sequence_len = sequence_len;
-        ((struct rwkv_context *) ctx)->seq_graph = std::move(graph);
+        ((struct rwkv_context *) ctx)->sequence_graph = std::move(graph);
     }
 
-    rwkv_set_inputs(ctx, state_in);
-    memcpy(ctx->seq_graph.tokens->data, sequence, sequence_len * sizeof(uint32_t));
-    ggml_graph_compute(ctx->seq_graph.ctx.ctx, ctx->seq_graph.cgraph.get());
-    rwkv_get_outputs(ctx, state_out, logits_out);
+    // Allow building the sequence graph without actually evaluating, by specifying sequence = NULL.
+    if (sequence) {
+        rwkv_set_inputs(ctx, state_in);
+        memcpy(ctx->sequence_graph.tokens->data, sequence, sequence_len * sizeof(uint32_t));
+        ggml_graph_compute(ctx->sequence_graph.ctx.ctx, ctx->sequence_graph.cgraph.get());
+        rwkv_get_outputs(ctx, state_out, logits_out);
+    }
 
     return true;
 }
