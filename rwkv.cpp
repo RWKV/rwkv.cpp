@@ -1054,7 +1054,11 @@ bool rwkv_build_sequence_graph(
 }
 
 size_t rwkv_estimate_graph_work(const enum ggml_type type, const size_t ffn_key_size, const uint32_t n_threads, const size_t sequence_len = 1) {
+#ifdef GGML_USE_CUBLAS
+    enum ggml_type mul_mat_type = GGML_TYPE_F16;
+#else
     enum ggml_type mul_mat_type = ggml_is_quantized(type) ? GGML_TYPE_Q8_1 : type;
+#endif
     return rwkv_tensor_size(GGML_TYPE_I8, rwkv_tensor_size(mul_mat_type, ffn_key_size, sequence_len) * n_threads + 64 * (n_threads - 1));
 }
 
