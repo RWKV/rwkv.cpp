@@ -1189,11 +1189,11 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
     struct rwkv_graph graph;
     graph.ctx = graph_ctx_size;
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, graph.ctx.ctx, "Failed to allocate serial graph context");
-    graph.tokens = ggml_new_i32(graph.ctx.ctx, 0);
     graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, graph.cgraph, "Failed to allocate serial graph");
     graph.cgraph->n_threads = n_threads;
 
+    graph.tokens = ggml_new_i32(graph.ctx.ctx, 0);
     struct ggml_tensor * logits = ggml_new_tensor_1d(ctx.ctx, GGML_TYPE_F32, n_vocab);
 
     RWKV_ASSERT_NULL(RWKV_ERROR_GRAPH, rwkv_build_ser_graph(graph.ctx.ctx, instance->model, graph.tokens, inputs.get(), outputs.get(), logits, graph.cgraph.get()));
