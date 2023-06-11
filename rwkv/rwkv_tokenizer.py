@@ -106,7 +106,8 @@ class TRIE_TOKENIZER():
 def get_tokenizer(tokenizer="20B"):
     if tokenizer == "world":
         print('Loading world tokenizer')
-        tokenizer = TRIE_TOKENIZER('rwkv_vocab_v20230424.txt')
+        tokenizer_path = pathlib.Path(os.path.abspath(__file__)).parent / 'rwkv_vocab_v20230424.txt'
+        tokenizer = TRIE_TOKENIZER(tokenizer_path)
         tokenizer_encode = lambda prompt: tokenizer.encode(prompt)
     elif tokenizer == "20B":
         print('Loading 20B tokenizer')
