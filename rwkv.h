@@ -138,7 +138,7 @@ extern "C" {
     // This is the number of elements you'll need to allocate for a call to rwkv_eval, rwkv_eval_sequence, or rwkv_init_state.
     RWKV_API size_t rwkv_get_state_len(const struct rwkv_context * ctx);
 
-    // Returns the number of elements in the logits output of a given model.
+    // Returns the number of float elements in the logits output of a given model.
     // This is currently always identical to n_vocab.
     RWKV_API size_t rwkv_get_logits_len(const struct rwkv_context * ctx);
 
