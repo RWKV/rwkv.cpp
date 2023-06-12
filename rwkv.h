@@ -123,7 +123,7 @@ extern "C" {
     RWKV_API bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * tokens, size_t sequence_len, const float * state_in, float * state_out, float * logits_out);
 
     // Returns the number of tokens in the given model's vocabulary.
-    // Useful for telling legacy RWKV models (n_vocab = 50277) apart from modern World models (n_vocab = 65535).
+    // Useful for telling legacy RWKV models (n_vocab = 50277) apart from modern World models (n_vocab = 65536).
     RWKV_API size_t rwkv_get_n_vocab(const struct rwkv_context * ctx);
 
     // Returns the number of elements in the given model's embed weights.
