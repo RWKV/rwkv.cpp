@@ -106,9 +106,21 @@ extern "C" {
     // Returns false on any error. Error messages would be printed to stderr.
     // - token: next token index, in range 0 <= token < n_vocab.
     // - state_in: FP32 buffer of size rwkv_get_state_buffer_element_count; or NULL, if this is a first pass.
-    // - state_out: FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to.
-    // - logits_out: FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to.
+    // - state_out: FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to if non-NULL.
+    // - logits_out: FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to if non-NULL.
     RWKV_API bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const float * state_in, float * state_out, float * logits_out);
+
+    // Evaluates the model for a sequence of tokens.
+    // Uses a faster algorithm than rwkv_eval if you do not need the state and logits for every token. Best used with batch sizes of 64 or so.
+    // Has to build a computation graph on the first call for a given sequence, but will use this cached graph for subsequent calls of the same sequence length.
+    // - tokens: pointer to an array of tokens. If NULL, the graph will be built and cached, but not executed. (Useful for initialization.)
+    // Not thread-safe. For parallel inference, call rwkv_clone_context to create one rwkv_context for each thread.
+    // Returns false on any error. Error messages would be printed to stderr.
+    // - sequence_len: number of tokens to read from the array.
+    // - state_in: FP32 buffer of size rwkv_get_state_buffer_element_count, or NULL if this is a first pass.
+    // - state_out: FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to if non-NULL.
+    // - logits_out: FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to if non-NULL.
+    RWKV_API bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * tokens, size_t sequence_len, const float * state_in, float * state_out, float * logits_out);
 
     // Returns count of FP32 elements in state buffer.
     RWKV_API uint32_t rwkv_get_state_buffer_element_count(const struct rwkv_context * ctx);

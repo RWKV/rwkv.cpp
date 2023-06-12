@@ -135,7 +135,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF ..
+          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF -DRWKV_SANITIZE_ADDRESS=ON ..
           cmake --build . --config Release
 
       - name: Test
