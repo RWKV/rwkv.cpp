@@ -18,7 +18,9 @@
 #define _FILE_OFFSET_BITS 64
 #define RWKV_MAYBE_BREAK
 
-#ifdef _MSC_BUILD
+#include <sys/stat.h>
+
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 #define stat _stat64
 #define fstat _fstat64
 #define ftell _ftelli64
@@ -29,7 +31,6 @@
 #define RWKV_MAYBE_BREAK __debugbreak()
 #endif
 #else
-#include <sys/stat.h>
 #if !defined(__APPLE__)
 #define ftell ftello
 #define fseek fseeko
