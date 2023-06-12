@@ -1363,12 +1363,12 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
 
 // Provided for compatibility
 extern "C" RWKV_API uint32_t rwkv_get_state_buffer_element_count(const struct rwkv_context * ctx) {
-    return rwkv_state_len(ctx);
+    return rwkv_get_state_len(ctx);
 }
 
 // Provided for compatibility
 extern "C" RWKV_API uint32_t rwkv_get_logits_buffer_element_count(const struct rwkv_context * ctx) {
-    return rwkv_logits_len(ctx);
+    return rwkv_get_logits_len(ctx);
 }
 
 size_t rwkv_get_n_vocab(const struct rwkv_context * ctx) {
@@ -1383,12 +1383,12 @@ size_t rwkv_get_n_layer(const struct rwkv_context * ctx) {
     return (size_t) ctx->instance->model.header.n_layer;
 }
 
-size_t rwkv_state_len(const struct rwkv_context * ctx) {
+size_t rwkv_get_state_len(const struct rwkv_context * ctx) {
     const struct rwkv_file_header & header = ctx->instance->model.header;
     return (size_t) header.n_embed * 5 * (size_t) header.n_layer;
 }
 
-size_t rwkv_logits_len(const struct rwkv_context * ctx) {
+size_t rwkv_get_logits_len(const struct rwkv_context * ctx) {
     return (size_t) ctx->instance->model.header.n_vocab;
 }
 

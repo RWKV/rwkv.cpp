@@ -33,11 +33,11 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     ASSERT(rwkv_gpu_offload_layers(model, N_GPU_LAYERS), "Unexpected error %d", rwkv_get_last_error(model));
 #endif
 
-    uint32_t n_vocab = rwkv_logits_len(model);
+    uint32_t n_vocab = rwkv_get_logits_len(model);
 
     ASSERT(n_vocab == N_VOCAB, "Unexpected n_vocab in the model");
 
-    float * state = malloc(sizeof(float) * rwkv_state_len(model));
+    float * state = malloc(sizeof(float) * rwkv_get_state_len(model));
     float * logits = malloc(sizeof(float) * n_vocab);
 
     char * prompt = "\"in";
