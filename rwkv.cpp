@@ -1285,11 +1285,7 @@ void rwkv_set_inputs(const struct rwkv_context * ctx, const float * state_in) {
     if (state_in) {
         memcpy(ctx->input_state->data, state_in, ggml_nbytes(ctx->input_state));
     } else {
-        ggml_set_f32(ctx->input_state, 0.0F);
-
-        for (size_t i = 0; i < ctx->instance->model.header.n_layer; i++) {
-            ggml_set_f32(ctx->input_layers[i].att_pp, -1e30F);
-        }
+        rwkv_init_state(ctx, (float *) ctx->input_state->data);
     }
 }
 
@@ -1364,12 +1360,46 @@ bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * sequen
     return true;
 }
 
-uint32_t rwkv_get_state_buffer_element_count(const struct rwkv_context * ctx) {
-    return ctx->instance->model.header.n_layer * 5 * ctx->instance->model.header.n_embed;
+// Provided for compatibility
+extern "C" RWKV_API uint32_t rwkv_get_state_buffer_element_count(const struct rwkv_context * ctx) {
+    return rwkv_state_len(ctx);
 }
 
-uint32_t rwkv_get_logits_buffer_element_count(const struct rwkv_context * ctx) {
-    return ctx->instance->model.header.n_vocab;
+// Provided for compatibility
+extern "C" RWKV_API uint32_t rwkv_get_logits_buffer_element_count(const struct rwkv_context * ctx) {
+    return rwkv_logits_len(ctx);
+}
+
+size_t rwkv_get_n_vocab(const struct rwkv_context * ctx) {
+    return (size_t) ctx->instance->model.header.n_vocab;
+}
+
+size_t rwkv_get_n_embed(const struct rwkv_context * ctx) {
+    return (size_t) ctx->instance->model.header.n_embed;
+}
+
+size_t rwkv_get_n_layer(const struct rwkv_context * ctx) {
+    return (size_t) ctx->instance->model.header.n_layer;
+}
+
+size_t rwkv_state_len(const struct rwkv_context * ctx) {
+    const struct rwkv_file_header & header = ctx->instance->model.header;
+    return (size_t) header.n_embed * 5 * (size_t) header.n_layer;
+}
+
+size_t rwkv_logits_len(const struct rwkv_context * ctx) {
+    return (size_t) ctx->instance->model.header.n_vocab;
+}
+
+void rwkv_init_state(const struct rwkv_context * ctx, float * state) {
+    const struct rwkv_file_header & header = ctx->instance->model.header;
+    const size_t layer_size = (size_t) header.n_embed * 5;
+    const size_t layer_zero = (size_t) header.n_embed * 4;
+    const size_t layers_size = (size_t) header.n_layer * layer_size;
+    for (size_t start = 0; start < layers_size; start += layer_size) {
+        for (size_t i = 0; i < layer_zero; state[start + i++] = 0.0F);
+        for (size_t i = layer_zero; i < layer_size; state[start + i++] = -1e30F);
+    }
 }
 
 void rwkv_free(struct rwkv_context * ctx) {
