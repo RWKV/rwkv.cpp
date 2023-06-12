@@ -46,6 +46,7 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     const size_t prompt_length = strlen(prompt);
 
     rwkv_init_state(model, state);
+
     for (size_t i = 0; i < prompt_length; i++) {
         rwkv_eval(model, prompt[i], state, state, logits);
     }
