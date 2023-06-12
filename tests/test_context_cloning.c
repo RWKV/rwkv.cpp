@@ -13,8 +13,8 @@ int main() {
 		return EXIT_FAILURE;
 	}
 
-	float * state = calloc(rwkv_get_state_buffer_element_count(ctx), sizeof(float));
-	float * logits = calloc(rwkv_get_logits_buffer_element_count(ctx), sizeof(float));
+	float * state = calloc(rwkv_get_state_len(ctx), sizeof(float));
+	float * logits = calloc(rwkv_get_logits_len(ctx), sizeof(float));
 
 	if (!state || !logits) {
 		fprintf(stderr, "Failed to allocate state/logits\n");
@@ -31,7 +31,7 @@ int main() {
 	}
 
 	float * expected_logits = logits;
-	logits = calloc(rwkv_get_logits_buffer_element_count(ctx), sizeof(float));
+	logits = calloc(rwkv_get_logits_len(ctx), sizeof(float));
 
 	if (!logits) {
 		fprintf(stderr, "Failed to allocate state/logits\n");
@@ -46,7 +46,7 @@ int main() {
 		rwkv_eval(ctx, *token, state, state, logits);
 	}
 
-	if (memcmp(expected_logits, logits, rwkv_get_logits_buffer_element_count(ctx) * sizeof(float))) {
+	if (memcmp(expected_logits, logits, rwkv_get_logits_len(ctx) * sizeof(float))) {
 		fprintf(stderr, "results not identical :(\n");
 		return EXIT_FAILURE;
 	} else {

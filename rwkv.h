@@ -105,9 +105,9 @@ extern "C" {
     // Not thread-safe. For parallel inference, call rwkv_clone_context to create one rwkv_context for each thread.
     // Returns false on any error. Error messages would be printed to stderr.
     // - token: next token index, in range 0 <= token < n_vocab.
-    // - state_in: FP32 buffer of size rwkv_get_state_buffer_element_count; or NULL, if this is a first pass.
-    // - state_out: FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to if non-NULL.
-    // - logits_out: FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to if non-NULL.
+    // - state_in: FP32 buffer of size rwkv_get_state_len(); or NULL, if this is a first pass.
+    // - state_out: FP32 buffer of size rwkv_get_state_len(). This buffer will be written to if non-NULL.
+    // - logits_out: FP32 buffer of size rwkv_get_logits_len(). This buffer will be written to if non-NULL.
     RWKV_API bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const float * state_in, float * state_out, float * logits_out);
 
     // Evaluates the model for a sequence of tokens.
@@ -117,16 +117,36 @@ extern "C" {
     // Not thread-safe. For parallel inference, call rwkv_clone_context to create one rwkv_context for each thread.
     // Returns false on any error. Error messages would be printed to stderr.
     // - sequence_len: number of tokens to read from the array.
-    // - state_in: FP32 buffer of size rwkv_get_state_buffer_element_count, or NULL if this is a first pass.
-    // - state_out: FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to if non-NULL.
-    // - logits_out: FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to if non-NULL.
+    // - state_in: FP32 buffer of size rwkv_get_state_len(), or NULL if this is a first pass.
+    // - state_out: FP32 buffer of size rwkv_get_state_len(). This buffer will be written to if non-NULL.
+    // - logits_out: FP32 buffer of size rwkv_get_logits_len(). This buffer will be written to if non-NULL.
     RWKV_API bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * tokens, size_t sequence_len, const float * state_in, float * state_out, float * logits_out);
 
-    // Returns count of FP32 elements in state buffer.
-    RWKV_API uint32_t rwkv_get_state_buffer_element_count(const struct rwkv_context * ctx);
+    // Returns the number of tokens in the given model's vocabulary.
+    // Useful for telling legacy RWKV models (n_vocab = 50277) apart from modern World models (n_vocab = 65535).
+    RWKV_API size_t rwkv_get_n_vocab(const struct rwkv_context * ctx);
 
-    // Returns count of FP32 elements in logits buffer.
-    RWKV_API uint32_t rwkv_get_logits_buffer_element_count(const struct rwkv_context * ctx);
+    // Returns the number of elements in the given model's embed weights.
+    // Useful for reading individual fields of a model's hidden state, if desired.
+    RWKV_API size_t rwkv_get_n_embed(const struct rwkv_context * ctx);
+
+    // Returns the number of layers in the given model.
+    // Useful for always offloading the entire model to GPU, if desired.
+    RWKV_API size_t rwkv_get_n_layer(const struct rwkv_context * ctx);
+
+    // Returns the number of float elements in a complete state for the given model.
+    // This is the number of elements you'll need to allocate for a call to rwkv_eval, rwkv_eval_sequence, or rwkv_init_state.
+    RWKV_API size_t rwkv_get_state_len(const struct rwkv_context * ctx);
+
+    // Returns the number of float elements in the logits output of a given model.
+    // This is currently always identical to n_vocab.
+    RWKV_API size_t rwkv_get_logits_len(const struct rwkv_context * ctx);
+
+    // Initializes the given state so that passing it to rwkv_eval or rwkv_eval_sequence would be identical to passing NULL.
+    // Useful in cases where tracking the first call to these functions may be annoying or expensive.
+    // State must be initialized for behavior to be defined, passing a zeroed state to rwkv.cpp functions will result in NaNs.
+    // - state: FP32 buffer of size rwkv_get_state_len() to initialize
+    RWKV_API void rwkv_init_state(const struct rwkv_context * ctx, float * state);
 
     // Frees all allocated memory and the context.
     // Does not need to be the same thread that created the rwkv_context.
