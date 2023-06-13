@@ -42,7 +42,7 @@ int main() {
 
 	rwkv_eval(ctx, prompt[0], NULL, state, logits);
 
-	for (int i = 1; i < prompt[i] != 0; i++) {
+	for (int i = 1; prompt[i] != 0; i++) {
 		rwkv_eval(ctx, prompt[i], state, state, logits);
 	}
 
