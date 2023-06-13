@@ -85,9 +85,10 @@ extern "C" {
 
     // Loads the model from a file and prepares it for inference.
     // Returns NULL on any error.
+    // TODO Split for compatibility and document
     // - model_file_path: path to model file in ggml format.
     // - n_threads: count of threads to use, must be positive.
-    RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, const uint32_t n_threads);
+    RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, const uint32_t n_threads, const char * target_format_name);
 
     // Creates a new context from an existing one.
     // This can allow you to run multiple rwkv_eval's in parallel, without having to load a single model multiple times.

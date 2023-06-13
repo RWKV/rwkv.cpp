@@ -37,7 +37,7 @@ class RWKVSharedLibrary:
 
         self.library = ctypes.cdll.LoadLibrary(shared_library_path)
 
-        self.library.rwkv_init_from_file.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
+        self.library.rwkv_init_from_file.argtypes = [ctypes.c_char_p, ctypes.c_uint32, ctypes.c_char_p]
         self.library.rwkv_init_from_file.restype = ctypes.c_void_p
 
         self.library.rwkv_gpu_offload_layers.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
@@ -70,7 +70,8 @@ class RWKVSharedLibrary:
         self.library.rwkv_get_system_info_string.argtypes = []
         self.library.rwkv_get_system_info_string.restype = ctypes.c_char_p
 
-    def rwkv_init_from_file(self, model_file_path: str, thread_count: int) -> RWKVContext:
+    # TODO Document target format parameter
+    def rwkv_init_from_file(self, model_file_path: str, thread_count: int, target_format_name: str = '') -> RWKVContext:
         """
         Loads the model from a file and prepares it for inference.
         Throws an exception in case of any error. Error messages would be printed to stderr.
@@ -83,7 +84,7 @@ class RWKVSharedLibrary:
             Count of threads to use, must be positive.
         """
 
-        ptr = self.library.rwkv_init_from_file(model_file_path.encode('utf-8'), ctypes.c_uint32(thread_count))
+        ptr = self.library.rwkv_init_from_file(model_file_path.encode('utf-8'), ctypes.c_uint32(thread_count), target_format_name.encode('utf-8'))
 
         assert ptr is not None, 'rwkv_init_from_file failed, check stderr'
 
