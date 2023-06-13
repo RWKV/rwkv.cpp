@@ -42,7 +42,7 @@ END_OF_TEXT_TOKEN: int = 0
 
 parser = argparse.ArgumentParser(description='Provide terminal-based chat interface for RWKV model')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
-parser.add_argument('tokenizer', help='Tokenizer to use. Supported tokenizers: 20B, world', nargs='?', type=str, default='20B')
+parser.add_argument('tokenizer', help='Tokenizer to use; supported tokenizers: 20B, world', nargs='?', type=str, default='20B')
 args = parser.parse_args()
 
 script_dir: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent
@@ -54,7 +54,7 @@ with open(script_dir / 'prompt' / f'{LANGUAGE}-{PROMPT_TYPE}.json', 'r', encodin
 
 assert init_prompt != '', 'Prompt must not be empty'
 
-tokenizer, tokenizer_encode = get_tokenizer(args.tokenizer)
+tokenizer_decode, tokenizer_encode = get_tokenizer(args.tokenizer)
 
 library = rwkv_cpp_shared_library.load_rwkv_shared_library()
 print(f'System info: {library.rwkv_get_system_info_string()}')
@@ -263,7 +263,7 @@ Below is an instruction that describes a task. Write a response that appropriate
         # Avoid UTF-8 display issues
         accumulated_tokens += [token]
 
-        decoded: str = tokenizer.decode(accumulated_tokens)
+        decoded: str = tokenizer_decode(accumulated_tokens)
 
         if '\uFFFD' not in decoded:
             print(decoded, end='', flush=True)
@@ -271,7 +271,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             accumulated_tokens = []
 
         if thread == 'chat':
-            if '\n\n' in tokenizer.decode(processed_tokens[start_index:]):
+            if '\n\n' in tokenizer_decode(processed_tokens[start_index:]):
                 break
 
         if i == MAX_GENERATION_LENGTH - 1:

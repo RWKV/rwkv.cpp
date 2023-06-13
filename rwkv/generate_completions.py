@@ -28,12 +28,12 @@ top_p: float = 0.5
 
 parser = argparse.ArgumentParser(description='Generate completions from RWKV model based on a prompt')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
-parser.add_argument('tokenizer', help='Tokenizer to use. Supported tokenizers: 20B, world', nargs='?', type=str, default='20B')
+parser.add_argument('tokenizer', help='Tokenizer to use; supported tokenizers: 20B, world', nargs='?', type=str, default='20B')
 args = parser.parse_args()
 
 assert prompt != '', 'Prompt must not be empty'
 
-tokenizer, tokenizer_encode = get_tokenizer(args.tokenizer)
+tokenizer_decode, tokenizer_encode = get_tokenizer(args.tokenizer)
 
 prompt_tokens = tokenizer_encode(prompt)
 
@@ -61,7 +61,7 @@ for GENERATION in range(generation_count):
     for i in range(tokens_per_generation):
         token = sampling.sample_logits(logits, temperature, top_p)
 
-        print(tokenizer.decode([token]), end='', flush=True)
+        print(tokenizer_decode([token]), end='', flush=True)
 
         logits, state = model.eval(token, state, state, logits)
 
