@@ -222,4 +222,4 @@ See also [FILE_FORMAT.md](FILE_FORMAT.md) for version numbers of `rwkv.cpp` mode
 
 ## Contributing
 
-There is no complete contributor guide yet; but we have [CODE_STYLE.md](CODE_STYLE.md).
+Please follow the code style described in [CODE_STYLE.md](CODE_STYLE.md).
