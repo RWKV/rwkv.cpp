@@ -84,7 +84,7 @@ extern "C" {
     RWKV_API enum rwkv_error_flags rwkv_get_last_error(struct rwkv_context * ctx);
 
     // Loads the model from a file and prepares it for inference.
-    // Returns NULL on any error. Error messages would be printed to stderr.
+    // Returns NULL on any error.
     // - model_file_path: path to model file in ggml format.
     // - n_threads: count of threads to use, must be positive.
     RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, const uint32_t n_threads);
@@ -103,35 +103,35 @@ extern "C" {
 
     // Evaluates the model for a single token.
     // Not thread-safe. For parallel inference, call rwkv_clone_context to create one rwkv_context for each thread.
-    // Returns false on any error. Error messages would be printed to stderr.
+    // Returns false on any error.
     // - token: next token index, in range 0 <= token < n_vocab.
     // - state_in: FP32 buffer of size rwkv_get_state_len(); or NULL, if this is a first pass.
     // - state_out: FP32 buffer of size rwkv_get_state_len(). This buffer will be written to if non-NULL.
     // - logits_out: FP32 buffer of size rwkv_get_logits_len(). This buffer will be written to if non-NULL.
-    RWKV_API bool rwkv_eval(const struct rwkv_context * ctx, const uint32_t token, const float * state_in, float * state_out, float * logits_out);
+    RWKV_API bool rwkv_eval(struct rwkv_context * ctx, const uint32_t token, const float * state_in, float * state_out, float * logits_out);
 
     // Evaluates the model for a sequence of tokens.
     // Uses a faster algorithm than rwkv_eval if you do not need the state and logits for every token. Best used with batch sizes of 64 or so.
     // Has to build a computation graph on the first call for a given sequence, but will use this cached graph for subsequent calls of the same sequence length.
-    // - tokens: pointer to an array of tokens. If NULL, the graph will be built and cached, but not executed. (Useful for initialization.)
     // Not thread-safe. For parallel inference, call rwkv_clone_context to create one rwkv_context for each thread.
-    // Returns false on any error. Error messages would be printed to stderr.
+    // Returns false on any error.
+    // - tokens: pointer to an array of tokens. If NULL, the graph will be built and cached, but not executed: this can be useful for initialization.
     // - sequence_len: number of tokens to read from the array.
     // - state_in: FP32 buffer of size rwkv_get_state_len(), or NULL if this is a first pass.
     // - state_out: FP32 buffer of size rwkv_get_state_len(). This buffer will be written to if non-NULL.
     // - logits_out: FP32 buffer of size rwkv_get_logits_len(). This buffer will be written to if non-NULL.
-    RWKV_API bool rwkv_eval_sequence(const struct rwkv_context * ctx, const uint32_t * tokens, size_t sequence_len, const float * state_in, float * state_out, float * logits_out);
+    RWKV_API bool rwkv_eval_sequence(struct rwkv_context * ctx, const uint32_t * tokens, size_t sequence_len, const float * state_in, float * state_out, float * logits_out);
 
     // Returns the number of tokens in the given model's vocabulary.
-    // Useful for telling legacy RWKV models (n_vocab = 50277) apart from modern World models (n_vocab = 65536).
+    // Useful for telling 20B_tokenizer models (n_vocab = 50277) apart from World models (n_vocab = 65536).
     RWKV_API size_t rwkv_get_n_vocab(const struct rwkv_context * ctx);
 
-    // Returns the number of elements in the given model's embed weights.
-    // Useful for reading individual fields of a model's hidden state, if desired.
+    // Returns the number of elements in the given model's embedding.
+    // Useful for reading individual fields of a model's hidden state.
     RWKV_API size_t rwkv_get_n_embed(const struct rwkv_context * ctx);
 
     // Returns the number of layers in the given model.
-    // Useful for always offloading the entire model to GPU, if desired.
+    // Useful for always offloading the entire model to GPU.
     RWKV_API size_t rwkv_get_n_layer(const struct rwkv_context * ctx);
 
     // Returns the number of float elements in a complete state for the given model.
@@ -149,7 +149,7 @@ extern "C" {
     RWKV_API void rwkv_init_state(const struct rwkv_context * ctx, float * state);
 
     // Frees all allocated memory and the context.
-    // Does not need to be the same thread that created the rwkv_context.
+    // Does not need to be called on the same thread that created the rwkv_context.
     RWKV_API void rwkv_free(struct rwkv_context * ctx);
 
     // Quantizes FP32 or FP16 model to one of quantized formats.

@@ -2,7 +2,7 @@
 
 This is a port of [BlinkDL/RWKV-LM](https://github.com/BlinkDL/RWKV-LM) to [ggerganov/ggml](https://github.com/ggerganov/ggml).
 
-Besides the usual **FP32**, it supports **FP16**, **quantized INT4, INT5 and INT8** inference. This project is **CPU only**.
+Besides the usual **FP32**, it supports **FP16**, **quantized INT4, INT5 and INT8** inference. This project is **focused on CPU**, but cuBLAS is also supported.
 
 This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrapper](rwkv%2Frwkv_cpp_model.py) for it.
 
@@ -28,7 +28,7 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 
 #### With cuBLAS
 
-Measurements were made on 3060Ti 8G + i7 13700K. Latency per token shown.
+Measurements were made on Intel i7 13700K & NVIDIA 3060 Ti 8G. Latency per token shown.
 
 | Model                 | Layers on GPU | Format | 24 Threads  | 8 Threads  | 4 Threads  | 2 Threads  | 1 Threads  |
 |-----------------------|---------------|--------|-------------|------------|------------|------------|------------|
@@ -39,7 +39,7 @@ Measurements were made on 3060Ti 8G + i7 13700K. Latency per token shown.
 | `RWKV-4-Raven-7B-v11` | 32            | `Q4_1` | 94.5 ms     | 54.3 ms    | 49.7 ms    | 51.8 ms    | 59.2 ms    |
 | `RWKV-4-Raven-7B-v11` | 32            | `Q5_1` | 101.6 ms    | 72.3 ms    | 67.2 ms    | 69.3 ms    | 77.0 ms    |
 
-Note: since there is only `ggml_mul_mat()` supported with cuBLAS, we still need to assign few CPU resources to execute remaining operations.
+Note: since cuBLAS is supported only for `ggml_mul_mat()`, we still need to use few CPU resources to execute remaining operations.
 
 ## How to use
 
@@ -79,7 +79,7 @@ If everything went OK, `bin\Release\rwkv.dll` file should appear.
 
 ##### Windows + cuBLAS
 
-**Important**: Since there is no cuBLAS static libraries for Windows, after compiling with dynamic libraries following DLLs should be copied from `{CUDA}/bin` into `build/bin/Release`: `cudart64_12.dll`, `cublas64_12.dll`, `cublasLt64_12.dll`.
+**Important**: Since there are no cuBLAS static libraries for Windows, after compiling with dynamic libraries following DLLs should be copied from `{CUDA}/bin` into `build/bin/Release`: `cudart64_12.dll`, `cublas64_12.dll`, `cublasLt64_12.dll`.
 
 ```commandline
 mkdir build
@@ -116,7 +116,7 @@ If everything went OK, `librwkv.so` (Linux) or `librwkv.dylib` (MacOS) file shou
 
 #### Option 3.1. Download pre-quantized Raven model
 
-There are pre-quantized Raven models available on [Hugging Face](https://huggingface.co/BlinkDL/rwkv-4-raven/tree/main). Check that you are downloading `.bin` file, NOT `.pth`.
+There are pre-quantized Raven models available on [Hugging Face](https://huggingface.co/BlinkDL/rwkv-4-raven/tree/main). Check that you are downloading `.bin` file, **not** `.pth`.
 
 #### Option 3.2. Convert and quantize PyTorch model
 
@@ -222,4 +222,4 @@ See also [FILE_FORMAT.md](FILE_FORMAT.md) for version numbers of `rwkv.cpp` mode
 
 ## Contributing
 
-There is no complete contributor guide yet; but we have [CODE_STYLE.md](CODE_STYLE.md).
+Please follow the code style described in [CODE_STYLE.md](CODE_STYLE.md).
