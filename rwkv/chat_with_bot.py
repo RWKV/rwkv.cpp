@@ -42,7 +42,7 @@ END_OF_TEXT_TOKEN: int = 0
 
 parser = argparse.ArgumentParser(description='Provide terminal-based chat interface for RWKV model')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
-parser.add_argument('tokenizer', help='Which tokenizer to use', nargs='?', type=str, default="20B")
+parser.add_argument('tokenizer', help='Tokenizer to use. Supported tokenizers: 20B, world', nargs='?', type=str, default='20B')
 args = parser.parse_args()
 
 script_dir: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent
@@ -105,15 +105,18 @@ def split_last_end_of_line(tokens):
     return tokens
 
 # =================================================================================================
-T1 = time.time()
+
+processing_start = time.time()
+
 prompt_tokens = tokenizer_encode(init_prompt)
 prompt_token_count = len(prompt_tokens)
 print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
 process_tokens(split_last_end_of_line(prompt_tokens))
-T2 = time.time()
-print(f'Process time :{((T2 - T1)*1000)} ms')
-print(f'Process time per token :{(((T2 - T1)*1000)) / prompt_token_count} ms')
+
+processing_duration = (time.time() - processing_start) * 1000
+
+print(f'Processed in {processing_duration} ms, {processing_duration / prompt_token_count} ms per token')
 
 save_thread_state('chat_init')
 save_thread_state('chat')

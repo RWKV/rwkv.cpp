@@ -81,13 +81,12 @@ class RWKVSharedLibrary:
             Path to model file in ggml format.
         thread_count : int
             Count of threads to use, must be positive.
-        gpu_layers_count : int
-            Count of layers to load on gpu, must be positive only enabled with cuBLAS.
         """
 
-        ptr = self.library.rwkv_init_from_file(model_file_path.encode('utf-8'),
-                                               ctypes.c_uint32(thread_count))
+        ptr = self.library.rwkv_init_from_file(model_file_path.encode('utf-8'), ctypes.c_uint32(thread_count))
+
         assert ptr is not None, 'rwkv_init_from_file failed, check stderr'
+
         return RWKVContext(ptr)
 
     def rwkv_gpu_offload_layers(self, ctx: RWKVContext, gpu_layers_count: int) -> None:
@@ -97,8 +96,10 @@ class RWKVSharedLibrary:
 
         Parameters
         ----------
+        ctx : RWKVContext
+            RWKV context obtained from rwkv_init_from_file.
         gpu_layers_count : int
-            Count of layers to load onto gpu, must be >= 0, only enabled with cuBLAS.
+            Count of layers to load onto gpu, must be >= 0.
         """
 
         assert self.library.rwkv_gpu_offload_layers(ctx.ptr, ctypes.c_uint32(gpu_layers_count)), 'rwkv_gpu_offload_layers failed, check stderr'

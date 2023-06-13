@@ -11,6 +11,7 @@ Overall, keep code in similar style as it was before.
 - Keep lines at 180 characters or shorter.
 - Separate logically grouped pieces of code with empty lines.
 - Surround `if`, `for`, `while`, `do` and other similar statements with empty lines.
+- Add trailing new line to the end of the file.
 
 ### Comments and messages
 

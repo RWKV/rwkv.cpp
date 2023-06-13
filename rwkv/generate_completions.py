@@ -1,13 +1,11 @@
 # Generates completions from RWKV model based on a prompt.
 
 import argparse
-import os
 import time
 import sampling
 import rwkv_cpp_model
 import rwkv_cpp_shared_library
 from rwkv_tokenizer import get_tokenizer
-from typing import List
 
 # ======================================== Script settings ========================================
 
@@ -30,7 +28,7 @@ top_p: float = 0.5
 
 parser = argparse.ArgumentParser(description='Generate completions from RWKV model based on a prompt')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
-parser.add_argument('tokenizer', help='Which tokenizer to use', nargs='?', type=str, default="20B")
+parser.add_argument('tokenizer', help='Tokenizer to use. Supported tokenizers: 20B, world', nargs='?', type=str, default='20B')
 args = parser.parse_args()
 
 assert prompt != '', 'Prompt must not be empty'

@@ -14,7 +14,7 @@ class RWKVModel:
             shared_library: rwkv_cpp_shared_library.RWKVSharedLibrary,
             model_path: str,
             thread_count: int = max(1, multiprocessing.cpu_count() // 2),
-            gpu_layers_count: int = 4,
+            gpu_layers_count: int = 0,
     ):
         """
         Loads the model and prepares it for inference.
@@ -39,7 +39,7 @@ class RWKVModel:
         self._ctx = self._library.rwkv_init_from_file(model_path, thread_count)
 
         if gpu_layers_count > 0:
-	        self._library.rwkv_gpu_offload_layers(self._ctx, gpu_layers_count)
+            self._library.rwkv_gpu_offload_layers(self._ctx, gpu_layers_count)
 
         self._state_buffer_element_count = self._library.rwkv_get_state_buffer_element_count(self._ctx)
         self._logits_buffer_element_count = self._library.rwkv_get_logits_buffer_element_count(self._ctx)
