@@ -114,9 +114,9 @@ print(f'Processing {prompt_token_count} prompt tokens, may take a while')
 
 process_tokens(split_last_end_of_line(prompt_tokens))
 
-processing_duration = (time.time() - processing_start) * 1000
+processing_duration = time.time() - processing_start
 
-print(f'Processed in {processing_duration} ms, {processing_duration / prompt_token_count} ms per token')
+print(f'Processed in {int(processing_duration)} s, {int(processing_duration / prompt_token_count * 1000)} ms per token')
 
 save_thread_state('chat_init')
 save_thread_state('chat')
