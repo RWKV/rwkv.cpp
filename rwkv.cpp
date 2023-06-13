@@ -865,8 +865,6 @@ struct ggml_tensor * rwkv_att_wkv(
 }
 
 struct rwkv_ctx_size rwkv_att_size(const size_t n_embed = 0) {
-    size_t ptr_nelem = sizeof(void *) / sizeof(uint32_t);
-
     struct rwkv_ctx_size ctx_size;
     /*  xx */ rwkv_ctx_size_add(ctx_size, 1, rwkv_xx_size(n_embed));
     /* rkv */ rwkv_ctx_size_add(ctx_size, 1, rwkv_att_rkv_size(n_embed));
@@ -968,8 +966,6 @@ bool rwkv_build_serial_graph(
     struct ggml_tensor * logits,
     struct ggml_cgraph * cgraph
 ) {
-    size_t n_embed = model.header.n_embed;
-
     // x = self.w.emb.weight[token]
     struct ggml_tensor * x = ggml_get_rows(ctx, model.emb, tokens);
 
