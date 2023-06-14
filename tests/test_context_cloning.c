@@ -5,7 +5,7 @@
 #include <string.h>
 
 int main() {
-	struct rwkv_context * ctx = rwkv_init_from_file("tiny-rwkv-660K-FP32.bin", 2, "");
+	struct rwkv_context * ctx = rwkv_init_from_file("tiny-rwkv-660K-FP32.bin", 2);
 
 	if (!ctx) {
 		enum rwkv_error_flags error = rwkv_get_last_error(NULL);

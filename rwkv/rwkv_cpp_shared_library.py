@@ -2,7 +2,8 @@ import os
 import sys
 import ctypes
 import pathlib
-from typing import Optional
+import enum
+from typing import Dict, Optional
 
 QUANTIZED_FORMAT_NAMES = (
     'Q4_0',
@@ -13,6 +14,29 @@ QUANTIZED_FORMAT_NAMES = (
 )
 
 P_FLOAT = ctypes.POINTER(ctypes.c_float)
+
+class RWKVInitFromFileOptionKey(enum.Enum):
+    # Sets target format of model parameters.
+    #
+    # If an FP16 or FP32 model is being loaded, and this option is set,
+    # parameters will be quantized just-in-time into the specified format.
+    # If an already quantized model is being loaded, value of this option is ignored.
+    # The function will not read the whole model file at once, but will do quantization tensor-by-tensor;
+    # it is safe to load big models which will fit into RAM when quantized.
+    # Use of this option will introduce significant one-time delay when loading the model.
+    #
+    # Intended use-case is to have only FP16 model on disk, while not wasting
+    # the disk space on models of all available quantized formats.
+    #
+    # For allowed values, see QUANTIZED_FORMAT_NAMES.
+    TARGET_FORMAT_NAME = 0
+
+class RWKVInitFromFileOption(ctypes.Structure):
+
+    _fields_ = [
+        ('key', ctypes.c_int),
+        ('value', ctypes.c_char_p)
+    ]
 
 class RWKVContext:
 
@@ -37,8 +61,8 @@ class RWKVSharedLibrary:
 
         self.library = ctypes.cdll.LoadLibrary(shared_library_path)
 
-        self.library.rwkv_init_from_file.argtypes = [ctypes.c_char_p, ctypes.c_uint32, ctypes.c_char_p]
-        self.library.rwkv_init_from_file.restype = ctypes.c_void_p
+        self.library.rwkv_init_from_file_ex.argtypes = [ctypes.c_char_p, ctypes.c_uint32, ctypes.POINTER(RWKVInitFromFileOption), ctypes.c_size_t]
+        self.library.rwkv_init_from_file_ex.restype = ctypes.c_void_p
 
         self.library.rwkv_gpu_offload_layers.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
         self.library.rwkv_gpu_offload_layers.restype = ctypes.c_bool
@@ -70,10 +94,10 @@ class RWKVSharedLibrary:
         self.library.rwkv_get_system_info_string.argtypes = []
         self.library.rwkv_get_system_info_string.restype = ctypes.c_char_p
 
-    # TODO Document target format parameter
-    def rwkv_init_from_file(self, model_file_path: str, thread_count: int, target_format_name: str = '') -> RWKVContext:
+    def rwkv_init_from_file(self, model_file_path: str, thread_count: int, options: Optional[Dict[RWKVInitFromFileOptionKey, str]] = None) -> RWKVContext:
         """
         Loads the model from a file and prepares it for inference.
+        Loading behavior can be customized with options, but none of them are required.
         Throws an exception in case of any error. Error messages would be printed to stderr.
 
         Parameters
@@ -82,9 +106,25 @@ class RWKVSharedLibrary:
             Path to model file in ggml format.
         thread_count : int
             Count of threads to use, must be positive.
+        options : Optional[Dict[RWKVInitFromFileOptionKey, str]]
+            Options passed to rwkv_init_from_file_ex.
         """
 
-        ptr = self.library.rwkv_init_from_file(model_file_path.encode('utf-8'), ctypes.c_uint32(thread_count), target_format_name.encode('utf-8'))
+        options_count = 0
+        options_ptr = None
+
+        if options is not None and len(options) > 0:
+            options_count = len(options)
+            options_ptr = (RWKVInitFromFileOption * options_count)()
+
+            i = 0
+            for k, v in options.items():
+                options_ptr[i].key = k.value
+                options_ptr[i].value = v.encode('utf-8')
+
+                i += 1
+
+        ptr = self.library.rwkv_init_from_file_ex(model_file_path.encode('utf-8'), ctypes.c_uint32(thread_count), options_ptr, options_count)
 
         assert ptr is not None, 'rwkv_init_from_file failed, check stderr'
 
