@@ -1,3 +1,5 @@
+// Tests that after context cloning evaluation gives identical results.
+
 #include "rwkv.h"
 
 #include <stdlib.h>
