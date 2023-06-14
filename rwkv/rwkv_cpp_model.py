@@ -2,7 +2,7 @@ import os
 import torch
 import multiprocessing
 import rwkv_cpp_shared_library
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 class RWKVModel:
     """
@@ -101,6 +101,68 @@ class RWKVModel:
         self._library.rwkv_eval(
             self._ctx,
             token,
+            state_in_ptr,
+            state_out.data_ptr(),
+            logits_out.data_ptr()
+        )
+
+        return logits_out, state_out
+    
+    def eval_sequence(
+            self,
+            tokens: List[int],
+            state_in: Optional[torch.Tensor],
+            state_out: Optional[torch.Tensor] = None,
+            logits_out: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Evaluates the model for a sequence of tokens.
+        In case of any error, this method will throw an exception.
+
+        Parameters
+        ----------
+        tokens : List[int]
+            Indices of the next tokens to be seen by the model. Must be in range 0 <= token < n_vocab.
+        state_in : Optional[torch.Tensor]
+            State from previous call of this method. If this is a first pass, set it to None.
+        state_out : Optional[torch.Tensor]
+            Optional output tensor for state. If provided, must be of type float32, contiguous and of shape (state_buffer_element_count).
+        logits_out : Optional[torch.Tensor]
+            Optional output tensor for logits. If provided, must be of type float32, contiguous and of shape (logits_buffer_element_count).
+
+        Returns
+        -------
+        logits, state
+            Logits vector of shape (n_vocab); state for the next step.
+        """
+
+        assert self._valid, 'Model was freed'
+
+        def validate_buffer(buf: torch.Tensor, name: str, size: int) -> None:
+            assert buf.dtype == torch.float32, f'{name} is not of type float32'
+            assert buf.is_contiguous(), f'{name} is not contiguous'
+            assert buf.shape == (size,), f'{name} has invalid shape {buf.shape}, expected ({size})'
+
+        if state_in is not None:
+            validate_buffer(state_in, 'state_in', self._state_buffer_element_count)
+
+            state_in_ptr = state_in.data_ptr()
+        else:
+            state_in_ptr = 0
+
+        if state_out is not None:
+            validate_buffer(state_out, 'state_out', self._state_buffer_element_count)
+        else:
+            state_out = torch.zeros(self._state_buffer_element_count, dtype=torch.float32, device='cpu')
+
+        if logits_out is not None:
+            validate_buffer(logits_out, 'logits_out', self._logits_buffer_element_count)
+        else:
+            logits_out = torch.zeros(self._logits_buffer_element_count, dtype=torch.float32, device='cpu')
+
+        self._library.rwkv_eval_sequence(
+            self._ctx,
+            tokens,
             state_in_ptr,
             state_out.data_ptr(),
             logits_out.data_ptr()
