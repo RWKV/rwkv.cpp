@@ -41,7 +41,7 @@ option(RWKV_ACCELERATE             "rwkv: enable Accelerate framework"          
 option(RWKV_OPENBLAS               "rwkv: use OpenBLAS"                                   OFF)
 option(RWKV_CUBLAS                 "rwkv: use cuBLAS"                                     OFF)
 
-# Standalone
+# Build only shared library without building tests and extras
 option(RWKV_STANDALONE             "rwkv: build only RWKV library"                        OFF)
 
 #
