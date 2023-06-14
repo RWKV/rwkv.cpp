@@ -1349,7 +1349,7 @@ struct rwkv_context * rwkv_init_from_file_ex(
 
                 break;
             default:
-                RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ARGS | RWKV_ERROR_DATA_TYPE, false, "Invalid option key %d", options[i].key);
+                RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ARGS, false, "Invalid option key %d", options[i].key);
 
                 break;
         }
