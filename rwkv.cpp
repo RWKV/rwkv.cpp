@@ -174,8 +174,8 @@ bool rwkv_fwrite_data(FILE * file, const void * data, const size_t length) {
 #define TYPE_UNKNOWN TYPE_COUNT
 
 enum rwkv_type {
-    TYPE_F32,
-    TYPE_F16,
+    TYPE_FP32,
+    TYPE_FP16,
     TYPE_Q4_0,
     TYPE_Q4_1,
     TYPE_Q4_1_O, // Unsupported
@@ -204,8 +204,8 @@ extern const enum ggml_type rwkv_type_to_ggml[TYPE_COUNT + 1] = {
 };
 
 extern const enum rwkv_type rwkv_type_from_ggml[GGML_TYPE_COUNT + 1] = {
-    TYPE_F32,    /* F32   */
-    TYPE_F16,    /* F16   */
+    TYPE_FP32,   /* FP32  */
+    TYPE_FP16,   /* FP16  */
     TYPE_Q4_0,   /* Q4_0  */
     TYPE_Q4_1,   /* Q4_1  */
     TYPE_Q4_2,   /* Q4_2  */
@@ -220,7 +220,7 @@ extern const enum rwkv_type rwkv_type_from_ggml[GGML_TYPE_COUNT + 1] = {
     TYPE_COUNT,  /* COUNT */
 };
 
-extern const char * rwkv_type_to_string[TYPE_COUNT + 1] = {"float32", "float16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "unknown"};
+extern const char * rwkv_type_to_string[TYPE_COUNT + 1] = {"FP32", "FP16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "unknown"};
 
 enum rwkv_type rwkv_type_from_string(const char * str) {
     for (int ord = 0; ord < TYPE_COUNT; ord++) {
@@ -363,27 +363,82 @@ bool rwkv_fread_tensor(FILE * file, struct rwkv_tensor & output, void * buffer =
     return true;
 }
 
-bool rwkv_fread_ggml_tensor_data(FILE * file, const struct rwkv_tensor_header & header, struct ggml_context * ctx, std::string & name, struct ggml_tensor *& tensor) {
+// Returns true, if a tensor with specified type, name and dimension count shound be quantized to target_type.
+// Returns false, if a tensor should be left as-is.
+bool rwkv_should_be_quantized(const ggml_type source_type, const ggml_type target_type, const std::string & name, const uint32_t dim_count) {
+    // Quantize only 2D tensors, except embedding and head matrices.
+    // Embedding and head take little space, especially in bigger models;
+    // but they significantly increase perplexity when quantized.
+    return (source_type == GGML_TYPE_F32 || source_type == GGML_TYPE_F16) &&
+        target_type != GGML_TYPE_COUNT &&
+        target_type != source_type &&
+        ggml_is_quantized(target_type) &&
+        dim_count == 2 &&
+        name != "emb.weight" &&
+        name != "head.weight";
+}
+
+bool rwkv_fread_ggml_tensor_data(
+    FILE * file,
+    const struct rwkv_tensor_header & header,
+    struct ggml_context * ctx,
+    std::string & name,
+    struct ggml_tensor *& tensor,
+    const ggml_type target_type
+) {
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_READ, rwkv_fread_string(file, header.key_length, name), "Failed to read tensor name");
 
     enum ggml_type ggml_type = rwkv_type_to_ggml[header.data_type];
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_UNSUPPORTED, ggml_type != GGML_TYPE_UNKNOWN, "Unsupported tensor data type %s from %s", rwkv_type_to_string[header.data_type], name.c_str());
 
-    tensor = header.dim_count == 1
-        ? ggml_new_tensor_1d(ctx, ggml_type, header.width)
-        : ggml_new_tensor_2d(ctx, ggml_type, header.width, header.height);
+    if (rwkv_should_be_quantized(ggml_type, target_type, name, header.dim_count)) {
+        size_t buffer_size_bytes = header.dim_count == 1
+            ? rwkv_tensor_size(ggml_type, header.width)
+            : rwkv_tensor_size(ggml_type, header.width, header.height);
 
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, tensor, "Failed to allocate tensor");
-    ggml_set_name(tensor, name.c_str());
+        tensor = header.dim_count == 1
+            ? ggml_new_tensor_1d(ctx, target_type, header.width)
+            : ggml_new_tensor_2d(ctx, target_type, header.width, header.height);
 
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_READ, rwkv_fread_data(file, ggml_nbytes(tensor), tensor->data), "Failed to read tensor data from %s", name.c_str());
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, tensor, "Failed to allocate tensor");
+        ggml_set_name(tensor, name.c_str());
+
+        std::unique_ptr<char[]> buffer(new(std::nothrow) char[buffer_size_bytes]);
+
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_READ, rwkv_fread_data(file, buffer_size_bytes, buffer.get()), "Failed to read tensor data from %s", name.c_str());
+
+        // Quantization works only with FP32 values
+        if (header.data_type == TYPE_FP16) {
+            std::unique_ptr<char[]> float_buffer(new(std::nothrow) char[buffer_size_bytes * 2]);
+
+            ggml_fp16_to_fp32_row((const ggml_fp16_t *) buffer.get(), (float *) float_buffer.get(), ggml_nelements(tensor));
+
+            buffer.reset(float_buffer.release());
+        }
+
+        int64_t histogram[16] {};
+
+        ggml_quantize_chunk(target_type, (const float *) buffer.get(), tensor->data, 0, ggml_nelements(tensor), histogram);
+
+        buffer.reset();
+    } else {
+        tensor = header.dim_count == 1
+            ? ggml_new_tensor_1d(ctx, ggml_type, header.width)
+            : ggml_new_tensor_2d(ctx, ggml_type, header.width, header.height);
+
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, tensor, "Failed to allocate tensor");
+        ggml_set_name(tensor, name.c_str());
+
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_READ, rwkv_fread_data(file, ggml_nbytes(tensor), tensor->data), "Failed to read tensor data from %s", name.c_str());
+    }
+
     return true;
 }
 
-bool rwkv_fread_ggml_tensor(FILE * file, struct ggml_context * ctx, std::string & name, struct ggml_tensor *& tensor) {
+bool rwkv_fread_ggml_tensor(FILE * file, struct ggml_context * ctx, std::string & name, struct ggml_tensor *& tensor, const ggml_type target_type) {
     struct rwkv_tensor_header header;
     RWKV_ENSURE_OR_FALSE_MSG(rwkv_fread_tensor_header(file, header), "Invalid tensor header");
-    return rwkv_fread_ggml_tensor_data(file, header, ctx, name, tensor);
+    return rwkv_fread_ggml_tensor_data(file, header, ctx, name, tensor, target_type);
 }
 
 bool rwkv_fwrite_tensor(FILE * file, const struct rwkv_tensor & tensor) {
@@ -429,7 +484,7 @@ struct rwkv_model {
     struct ggml_tensor * ln0_weight;
     struct ggml_tensor * ln0_bias;
 
-    std::unique_ptr<struct rwkv_layer []> layers;
+    std::unique_ptr<struct rwkv_layer[]> layers;
 
     struct ggml_tensor * ln_out_weight;
     struct ggml_tensor * ln_out_bias;
@@ -580,9 +635,9 @@ struct rwkv_context {
     // Reused by all graphs.
     struct rwkv_ggml_context ctx;
     struct ggml_tensor * input_state;
-    std::unique_ptr<struct rwkv_layer_state []> input_layers;
+    std::unique_ptr<struct rwkv_layer_state[]> input_layers;
     struct ggml_tensor * output_state;
-    std::unique_ptr<struct rwkv_layer_state []> output_layers;
+    std::unique_ptr<struct rwkv_layer_state[]> output_layers;
     struct ggml_tensor * logits;
 
     uint32_t n_threads;
@@ -610,7 +665,7 @@ bool rwkv_set_params(struct rwkv_model & model, F callback) {
     RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.bias", model.ln0_bias));
 
     uint32_t n_layer = model.header.n_layer;
-    std::unique_ptr<struct rwkv_layer []> layers(new(std::nothrow) struct rwkv_layer [n_layer]);
+    std::unique_ptr<struct rwkv_layer[]> layers(new(std::nothrow) struct rwkv_layer[n_layer]);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, layers.get(), "Failed to allocate model layers");
     model.layers = std::move(layers);
 
@@ -1037,7 +1092,7 @@ bool rwkv_build_sequence_graph(
 
     struct ggml_tensor * x = ggml_get_rows(ctx, model.emb, tokens);
     x = rwkv_layer_norm(ctx, x, ggml_repeat(ctx, model.ln0_weight, x), ggml_repeat(ctx, model.ln0_bias, x));
-    
+
     for (size_t i = 0; i < model.header.n_layer; i++) {
         struct rwkv_layer & layer = model.layers[i];
         struct rwkv_layer_state state = inputs[i];
@@ -1115,7 +1170,7 @@ struct rwkv_file {
     }
 };
 
-bool rwkv_instance_from_file(const char * file_path, struct rwkv_instance & instance) {
+bool rwkv_instance_from_file(const char * file_path, struct rwkv_instance & instance, const ggml_type target_type) {
     struct stat file_stat;
     struct rwkv_model model;
     struct rwkv_ggml_context ctx;
@@ -1140,7 +1195,13 @@ bool rwkv_instance_from_file(const char * file_path, struct rwkv_instance & inst
             RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_string(file.file, tensor_header.key_length, name), "Failed to read tensor name");
             RWKV_ASSERT_NULL_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(file.file, rwkv_tensor_size(tensor_header), SEEK_CUR) == 0, "Failed to read tensor data");
 
-            rwkv_ctx_size_add_tensor(ctx_size, 1, 0, tensor_header);
+            enum ggml_type source_type = rwkv_type_to_ggml[tensor_header.data_type];
+
+            enum ggml_type in_memory_type = rwkv_should_be_quantized(source_type, target_type, name, tensor_header.dim_count)
+                ? target_type
+                : source_type;
+
+            rwkv_ctx_size_add_tensor(ctx_size, 1, 0, in_memory_type, tensor_header.width, tensor_header.height);
 
             if (ffn_key_size == 0 && name == "blocks.0.ffn.key.weight") {
                 ffn_key_size = tensor_header.height;
@@ -1156,13 +1217,13 @@ bool rwkv_instance_from_file(const char * file_path, struct rwkv_instance & inst
         struct ggml_tensor * tensor;
 
         while ((size_t) ftell(file.file) < (size_t) file_stat.st_size) {
-            RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_ggml_tensor(file.file, ctx.ctx, name, tensor), "Failed to read model params");
+            RWKV_ASSERT_NULL_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_ggml_tensor(file.file, ctx.ctx, name, tensor, target_type), "Failed to read model params");
             parameters[std::move(name)] = tensor;
         }
     }
 
     std::unordered_map<std::string, struct ggml_tensor *> & parameters_ref = parameters;
-    RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, rwkv_set_params(model, [&](const char * key, struct ggml_tensor *& dest) {
+    RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, rwkv_set_params(model,[&](const char * key, struct ggml_tensor *& dest) {
         struct ggml_tensor * tensor = parameters_ref[key];
         RWKV_ENSURE_OR_FALSE_MSG(tensor, "Model parameter %s not found", key);
         dest = tensor;
@@ -1203,11 +1264,11 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
     struct ggml_tensor * output = ggml_new_tensor_1d(ctx.ctx, GGML_TYPE_F32, n_embed * 5 * n_layer);
 
     // We collect parts of input state here. Each part is (n_embed) vector.
-    std::unique_ptr<struct rwkv_layer_state []> inputs(new(std::nothrow) struct rwkv_layer_state [n_layer]);
+    std::unique_ptr<struct rwkv_layer_state[]> inputs(new(std::nothrow) struct rwkv_layer_state[n_layer]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, inputs.get(), "Failed to allocate input state parts");
 
     // We collect parts of output state here. Each part is (n_embed) vector.
-    std::unique_ptr<struct rwkv_layer_state []> outputs(new(std::nothrow) struct rwkv_layer_state [n_layer]);
+    std::unique_ptr<struct rwkv_layer_state[]> outputs(new(std::nothrow) struct rwkv_layer_state[n_layer]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, outputs.get(), "Failed to allocate output state parts");
 
     for (size_t i = 0; i < n_layer; i++) {
@@ -1258,12 +1319,45 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
     return rwkv_ctx.release();
 }
 
-struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads) {
+struct rwkv_context * rwkv_init_from_file(const char * file_path,const uint32_t n_threads) {
+    return rwkv_init_from_file_ex(file_path, n_threads, NULL, 0);
+}
+
+struct rwkv_context * rwkv_init_from_file_ex(
+    const char * file_path,
+    const uint32_t n_threads,
+    const struct rwkv_init_from_file_option * options,
+    const size_t option_count
+) {
     global_last_error = RWKV_ERROR_NONE;
+
+    enum ggml_type target_type = GGML_TYPE_COUNT;
+
+    for (size_t i = 0; options != NULL && i < option_count; i++) {
+        //fprintf(stderr, "Option #%d/%d, key %d, value \"%s\"\n", i, option_count, options[i].key, options[i].value);
+
+        switch (options[i].key) {
+            case RWKV_INIT_FROM_FILE_OPTION_TARGET_FORMAT_NAME:
+                target_type = rwkv_type_to_ggml[rwkv_type_from_string(options[i].value)];
+
+                RWKV_ASSERT_NULL_MSG(
+                    RWKV_ERROR_ARGS | RWKV_ERROR_DATA_TYPE,
+                    ggml_is_quantized(target_type),
+                    "Unsupported target format %s",
+                    rwkv_type_to_string[rwkv_type_from_ggml[target_type]]
+                );
+
+                break;
+            default:
+                RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ARGS, false, "Invalid option key %d", options[i].key);
+
+                break;
+        }
+    }
 
     std::shared_ptr<struct rwkv_instance> instance(new(std::nothrow) struct rwkv_instance());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, instance, "Failed to allocate instance");
-    RWKV_ENSURE_OR_NULL(rwkv_instance_from_file(file_path, *instance.get()));
+    RWKV_ENSURE_OR_NULL(rwkv_instance_from_file(file_path, *instance.get(), target_type));
     return rwkv_new_context_impl(instance, n_threads);
 }
 
@@ -1438,10 +1532,10 @@ void rwkv_free(struct rwkv_context * ctx) {
     std::unique_ptr<struct rwkv_context> rwkv_ctx(ctx);
 }
 
-bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const char * type_name) {
+bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const char * format_name) {
     global_last_error = RWKV_ERROR_NONE;
 
-    enum ggml_type out_type = rwkv_type_to_ggml[rwkv_type_from_string(type_name)];
+    enum ggml_type out_type = rwkv_type_to_ggml[rwkv_type_from_string(format_name)];
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ARGS | RWKV_ERROR_DATA_TYPE, ggml_is_quantized(out_type), "Unsupported output data type (%s)", rwkv_type_to_string[rwkv_type_from_ggml[out_type]]);
 
     RWKV_MSG("Loading model from '%s'\n", in_path);
@@ -1464,7 +1558,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     RWKV_ASSERT_FALSE_MSG(
         RWKV_ERROR_FILE,
         in_type == GGML_TYPE_F32 || in_type == GGML_TYPE_F16,
-        "Unsupported input data type (%s); needs to be F32 or F16",
+        "Unsupported input data type (%s); needs to be FP32 or FP16",
         rwkv_type_to_string[rwkv_type_from_ggml[in_type]]
     );
 
@@ -1477,7 +1571,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     size_t orig_total_size = 0;
     size_t new_total_size = 0;
 
-    // Required to init the fp16 tables
+    // Required to init the F16 tables
     // Doesn't crash if ggml_init fails
     ggml_free(ggml_init({ 0, NULL, true }));
 
@@ -1496,7 +1590,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         }
 
         // f16 type tensors get relocated to out and then converted into f32 at in
-        if (header.data_type == TYPE_F16) {
+        if (header.data_type == TYPE_FP16) {
             if (in_size > max_out_size) {
                 max_out_size = in_size;
             }
@@ -1524,7 +1618,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     // This is a histogram of quantized values. If it shows single 1.0, then all 0.0, something went very wrong!
     int64_t hist_all[16] {};
 
-    std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [max_in_size + max_out_size]);
+    std::unique_ptr<uint8_t[]> scratch(new(std::nothrow) uint8_t[max_in_size + max_out_size]);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, scratch.get(), "Failed to allocate buffer");
 
     uint8_t * in_buf = scratch.get();
@@ -1542,19 +1636,16 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         const char * name_str = name.c_str();
         RWKV_MSG("%*s - [%5" PRId32 ", %5" PRId32 "], type = %6s ", (int) max_key_length, name_str, header.width, header.height, rwkv_type_to_string[header.data_type]);
 
-        data = header.data_type == TYPE_F16 ? out_buf : in_buf;
+        data = header.data_type == TYPE_FP16 ? out_buf : in_buf;
         size_t orig_size = rwkv_tensor_size(header), new_size = orig_size;
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_data(in_file.file, orig_size, data), "\nFailed to read tensor data of %s", name_str);
 
-        // Quantize only 2D tensors, except embedding and head matrices.
-        // Embedding and head take not too much space, especially in bigger models;
-        // but they significantly increase perplexity when quantized.
-        if ((header.data_type == TYPE_F32 || header.data_type == TYPE_F16) && header.dim_count == 2 && name != "emb.weight" && name != "head.weight") {
+        if (rwkv_should_be_quantized(rwkv_type_to_ggml[header.data_type], out_type, name, header.dim_count)) {
             RWKV_MSG("quantizing... ");
 
             size_t nelements = (size_t) header.width * (size_t) header.height;
 
-            if (header.data_type == TYPE_F16) {
+            if (header.data_type == TYPE_FP16) {
                 ggml_fp16_to_fp32_row((const ggml_fp16_t *) out_buf, (float *) in_buf, nelements);
             }
 

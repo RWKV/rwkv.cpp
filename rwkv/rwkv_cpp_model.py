@@ -2,7 +2,7 @@ import os
 import torch
 import multiprocessing
 import rwkv_cpp_shared_library
-from typing import Tuple, Optional
+from typing import Dict, Tuple, Optional
 
 class RWKVModel:
     """
@@ -15,6 +15,7 @@ class RWKVModel:
             model_path: str,
             thread_count: int = max(1, multiprocessing.cpu_count() // 2),
             gpu_layers_count: int = 0,
+            options: Optional[Dict[rwkv_cpp_shared_library.RWKVInitFromFileOptionKey, str]] = None
     ):
         """
         Loads the model and prepares it for inference.
@@ -28,6 +29,8 @@ class RWKVModel:
             Path to RWKV model file in ggml format.
         thread_count : int
             Thread count to use. If not set, defaults to CPU count / 2.
+        options : Optional[Dict[RWKVInitFromFileOptionKey, str]]
+            Options passed to rwkv_init_from_file_ex.
         """
 
         assert os.path.isfile(model_path), f'{model_path} is not a file'
@@ -36,7 +39,7 @@ class RWKVModel:
 
         self._library = shared_library
 
-        self._ctx = self._library.rwkv_init_from_file(model_path, thread_count)
+        self._ctx = self._library.rwkv_init_from_file(model_path, thread_count, options)
 
         if gpu_layers_count > 0:
             self._library.rwkv_gpu_offload_layers(self._ctx, gpu_layers_count)

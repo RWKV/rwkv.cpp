@@ -83,10 +83,53 @@ extern "C" {
     // - ctx: the context the retrieve the error for, or NULL for the global error.
     RWKV_API enum rwkv_error_flags rwkv_get_last_error(struct rwkv_context * ctx);
 
+    enum rwkv_init_from_file_option_key {
+        // Sets target format of model parameters.
+        //
+        // If an FP16 or FP32 model is being loaded, and this option is set,
+        // parameters will be quantized just-in-time into the specified format.
+        // If an already quantized model is being loaded, value of this option is ignored.
+        // The function will not read the whole model file at once, but will do quantization tensor-by-tensor;
+        // it is safe to load big models which will fit into RAM when quantized.
+        // Use of this option will introduce significant one-time delay when loading the model.
+        //
+        // Intended use-case is to have only FP16 model on disk, while not wasting
+        // the disk space on models of all available quantized formats.
+        //
+        // Allowed values:
+        // - Q4_0
+        // - Q4_1
+        // - Q5_0
+        // - Q5_1
+        // - Q8_0
+        RWKV_INIT_FROM_FILE_OPTION_TARGET_FORMAT_NAME,
+        // Do not use this as an actual option key.
+        RWKV_INIT_FROM_FILE_OPTION_COUNT
+    };
+
+    struct rwkv_init_from_file_option {
+        // Key of the option.
+        enum rwkv_init_from_file_option_key key;
+        // Value of the option as a NULL-terminated, UTF-8 encoded string.
+        char * value;
+    };
+
     // Loads the model from a file and prepares it for inference.
+    // Loading behavior can be customized with options, but none of them are required.
+    // Function behavior when multiple options with the same key are specified is undefined.
     // Returns NULL on any error.
     // - model_file_path: path to model file in ggml format.
     // - n_threads: count of threads to use, must be positive.
+    // - options: array of options. Passing NULL is the same as setting option_count to 0.
+    // - option_count: size of the options array.
+    RWKV_API struct rwkv_context * rwkv_init_from_file_ex(
+        const char * model_file_path,
+        const uint32_t n_threads,
+        const struct rwkv_init_from_file_option * options,
+        const size_t option_count
+    );
+
+    // Same as rwkv_init_from_file_ex, but passing an empty array of options.
     RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, const uint32_t n_threads);
 
     // Creates a new context from an existing one.

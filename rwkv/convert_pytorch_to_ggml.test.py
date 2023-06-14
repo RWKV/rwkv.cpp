@@ -13,7 +13,7 @@ def test() -> None:
             'blocks.0.ln1.weight': torch.tensor([1], dtype=torch.float32)
         }
 
-        convert_pytorch_to_ggml.write_state_dict(state_dict, dest_path=test_file_path, data_type='float32')
+        convert_pytorch_to_ggml.write_state_dict(state_dict, dest_path=test_file_path, data_type='FP32')
 
         with open(test_file_path, 'rb') as input:
             actual_bytes: bytes = input.read()
