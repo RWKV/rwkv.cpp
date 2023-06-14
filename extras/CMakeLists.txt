@@ -5,7 +5,7 @@ function(rwkv_add_extra source)
 	if (RWKV_STATIC)
 		get_target_property(target_LINK_OPTIONS rwkv_${EXTRA_TARGET} LINK_OPTIONS)
     	list(REMOVE_ITEM target_LINK_OPTIONS "-static")
-    	    set_target_properties(rwkv_${EXTRA_TARGET} PROPERTIES LINK_OPTIONS "${target_LINK_OPTIONS}")
+    	set_target_properties(rwkv_${EXTRA_TARGET} PROPERTIES LINK_OPTIONS "${target_LINK_OPTIONS}")
 	endif()
 endfunction()
 
