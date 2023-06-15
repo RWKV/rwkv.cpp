@@ -2,7 +2,7 @@ import os
 import sys
 import ctypes
 import pathlib
-from typing import Optional
+from typing import Optional, List
 
 QUANTIZED_FORMAT_NAMES = (
     'Q4_0',
@@ -13,6 +13,7 @@ QUANTIZED_FORMAT_NAMES = (
 )
 
 P_FLOAT = ctypes.POINTER(ctypes.c_float)
+P_INT = ctypes.POINTER(ctypes.c_int32)
 
 class RWKVContext:
 
@@ -51,6 +52,16 @@ class RWKVSharedLibrary:
             P_FLOAT  # logits_out
         ]
         self.library.rwkv_eval.restype = ctypes.c_bool
+
+        self.library.rwkv_eval_sequence.argtypes = [
+            ctypes.c_void_p, # ctx
+            P_INT, # tokens
+            ctypes.c_size_t, # token count
+            P_FLOAT, # state_in
+            P_FLOAT, # state_out
+            P_FLOAT  # logits_out
+        ]
+        self.library.rwkv_eval_sequence.restype = ctypes.c_bool
 
         self.library.rwkv_get_state_buffer_element_count.argtypes = [ctypes.c_void_p]
         self.library.rwkv_get_state_buffer_element_count.restype = ctypes.c_uint32
@@ -133,6 +144,41 @@ class RWKVSharedLibrary:
         assert self.library.rwkv_eval(
             ctx.ptr,
             ctypes.c_int32(token),
+            ctypes.cast(0 if state_in_address is None else state_in_address, P_FLOAT),
+            ctypes.cast(state_out_address, P_FLOAT),
+            ctypes.cast(logits_out_address, P_FLOAT)
+        ), 'rwkv_eval failed, check stderr'
+
+    def rwkv_eval_sequence(
+            self,
+            ctx: RWKVContext,
+            tokens: List[int],
+            state_in_address: Optional[int],
+            state_out_address: int,
+            logits_out_address: int
+    ) -> None:
+        """
+        Evaluates the model for a sequence of tokens.
+        Throws an exception in case of any error. Error messages would be printed to stderr.
+
+        Parameters
+        ----------
+        ctx : RWKVContext
+            RWKV context obtained from rwkv_init_from_file.
+        tokens : List[int]
+            Next token indices, in range 0 <= token < n_vocab.
+        state_in_address : int
+            Address of the first element of a FP32 buffer of size rwkv_get_state_buffer_element_count; or None, if this is a first pass.
+        state_out_address : int
+            Address of the first element of a FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to.
+        logits_out_address : int
+            Address of the first element of a FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to.
+        """
+
+        assert self.library.rwkv_eval_sequence(
+            ctx.ptr,
+            ctypes.cast((ctypes.c_int32 * len(tokens))(*tokens), P_INT),
+            ctypes.c_size_t(len(tokens)),
             ctypes.cast(0 if state_in_address is None else state_in_address, P_FLOAT),
             ctypes.cast(state_out_address, P_FLOAT),
             ctypes.cast(logits_out_address, P_FLOAT)
