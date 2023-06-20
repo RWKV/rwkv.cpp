@@ -1397,7 +1397,7 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
         /* att_pp */ future_input.subview(future_ctx, n_embed); future_output.subview(future_ctx, n_embed);
     }
 
-    struct rwkv_ggml_context ctx = future_ctx;
+    struct rwkv_ggml_context ctx(future_ctx);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, ctx.ctx, "Failed to allocate model context");
 
     struct ggml_tensor * input = ggml_new_tensor_1d(ctx.ctx, GGML_TYPE_F32, n_embed * 5 * n_layer);
