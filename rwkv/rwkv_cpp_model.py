@@ -79,6 +79,7 @@ class RWKVModel:
         assert self._valid, 'Model was freed'
 
         def validate_buffer(buf: torch.Tensor, name: str, size: int) -> None:
+            assert buf.device == torch.device('cpu'), f'{name} is not on CPU'
             assert buf.dtype == torch.float32, f'{name} is not of type float32'
             assert buf.is_contiguous(), f'{name} is not contiguous'
             assert buf.shape == (size,), f'{name} has invalid shape {buf.shape}, expected ({size})'
