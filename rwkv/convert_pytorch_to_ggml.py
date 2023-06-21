@@ -1,5 +1,5 @@
 # Converts an RWKV model checkpoint in PyTorch format to an rwkv.cpp compatible file.
-# Usage: python convert_pytorch_to_ggml.py C:\RWKV-4-Pile-169M-20220807-8023.pth C:\rwkv.cpp-169M.bin float32
+# Usage: python convert_pytorch_to_ggml.py C:\RWKV-4-Pile-169M-20220807-8023.pth C:\rwkv.cpp-169M-FP16.bin FP16
 # Get model checkpoints from https://huggingface.co/BlinkDL
 # See FILE_FORMAT.md for the documentation on the file format.
 
@@ -12,7 +12,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Convert an RWKV model checkpoint in PyTorch format to an rwkv.cpp compatible file')
     parser.add_argument('src_path', help='Path to PyTorch checkpoint file')
     parser.add_argument('dest_path', help='Path to rwkv.cpp checkpoint file, will be overwritten')
-    parser.add_argument('data_type', help='Data type, float16 or float32', type=str, choices=['float16', 'float32'], default='float32')
+    parser.add_argument('data_type', help='Data type, FP16 or FP32', type=str, choices=['FP16', 'FP32', 'float16', 'float32'], default='FP16')
     return parser.parse_args()
 
 def get_layer_count(state_dict: Dict[str, torch.Tensor]) -> int:
@@ -33,6 +33,8 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
     n_embed = emb_weight.shape[1]
 
     with open(dest_path, 'wb') as out_file:
+        is_FP16: bool = data_type == 'FP16' or data_type == 'float16'
+
         out_file.write(struct.pack(
             # Disable padding with '='
             '=iiiiii',
@@ -42,7 +44,7 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
             n_vocab,
             n_embed,
             n_layer,
-            1 if data_type == 'float16' else 0
+            1 if is_FP16 else 0
         ))
 
         for k in state_dict.keys():
@@ -56,8 +58,8 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
             if '.time_decay' in k:
                 tensor = -torch.exp(tensor)
 
-            # Keep 1-dim vectors in fp32
-            if data_type == 'float16' and len(tensor.shape) > 1:
+            # Keep 1-dim vectors in FP32
+            if is_FP16 and len(tensor.shape) > 1:
                 tensor = tensor.half()
 
             shape = tensor.shape

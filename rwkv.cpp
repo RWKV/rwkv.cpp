@@ -174,8 +174,8 @@ bool rwkv_fwrite_data(FILE * file, const void * data, const size_t length) {
 #define TYPE_UNKNOWN TYPE_COUNT
 
 enum rwkv_type {
-    TYPE_F32,
-    TYPE_F16,
+    TYPE_FP32,
+    TYPE_FP16,
     TYPE_Q4_0,
     TYPE_Q4_1,
     TYPE_Q4_1_O, // Unsupported
@@ -190,8 +190,8 @@ enum rwkv_type {
 #define GGML_TYPE_UNKNOWN GGML_TYPE_COUNT
 
 extern const enum ggml_type rwkv_type_to_ggml[TYPE_COUNT + 1] = {
-    GGML_TYPE_F32,     /* F32    */
-    GGML_TYPE_F16,     /* F16    */
+    GGML_TYPE_F32,     /* FP32   */
+    GGML_TYPE_F16,     /* FP16   */
     GGML_TYPE_Q4_0,    /* Q4_0   */
     GGML_TYPE_Q4_1,    /* Q4_1   */
     GGML_TYPE_UNKNOWN, /* Q4_1_O */
@@ -204,8 +204,8 @@ extern const enum ggml_type rwkv_type_to_ggml[TYPE_COUNT + 1] = {
 };
 
 extern const enum rwkv_type rwkv_type_from_ggml[GGML_TYPE_COUNT + 1] = {
-    TYPE_F32,    /* F32   */
-    TYPE_F16,    /* F16   */
+    TYPE_FP32,   /* FP32  */
+    TYPE_FP16,   /* FP16  */
     TYPE_Q4_0,   /* Q4_0  */
     TYPE_Q4_1,   /* Q4_1  */
     TYPE_Q4_2,   /* Q4_2  */
@@ -220,7 +220,7 @@ extern const enum rwkv_type rwkv_type_from_ggml[GGML_TYPE_COUNT + 1] = {
     TYPE_COUNT,  /* COUNT */
 };
 
-extern const char * rwkv_type_to_string[TYPE_COUNT + 1] = {"float32", "float16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "unknown"};
+extern const char * rwkv_type_to_string[TYPE_COUNT + 1] = {"FP32", "FP16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "unknown"};
 
 enum rwkv_type rwkv_type_from_string(const char * str) {
     for (int ord = 0; ord < TYPE_COUNT; ord++) {
@@ -1461,7 +1461,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     RWKV_ASSERT_FALSE_MSG(
         RWKV_ERROR_FILE,
         in_type == GGML_TYPE_F32 || in_type == GGML_TYPE_F16,
-        "Unsupported input data type (%s); needs to be F32 or F16",
+        "Unsupported input data type (%s); needs to be FP32 or FP16",
         rwkv_type_to_string[rwkv_type_from_ggml[in_type]]
     );
 
@@ -1474,7 +1474,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     size_t orig_total_size = 0;
     size_t new_total_size = 0;
 
-    // Required to init the fp16 tables
+    // Required to init the F16 tables
     // Doesn't crash if ggml_init fails
     ggml_free(ggml_init({ 0, NULL, true }));
 
@@ -1493,7 +1493,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         }
 
         // f16 type tensors get relocated to out and then converted into f32 at in
-        if (header.data_type == TYPE_F16) {
+        if (header.data_type == TYPE_FP16) {
             if (in_size > max_out_size) {
                 max_out_size = in_size;
             }
@@ -1539,19 +1539,19 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         const char * name_str = name.c_str();
         RWKV_MSG("%*s - [%5" PRId32 ", %5" PRId32 "], type = %6s ", (int) max_key_length, name_str, header.width, header.height, rwkv_type_to_string[header.data_type]);
 
-        data = header.data_type == TYPE_F16 ? out_buf : in_buf;
+        data = header.data_type == TYPE_FP16 ? out_buf : in_buf;
         size_t orig_size = rwkv_tensor_size(header), new_size = orig_size;
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_data(in_file.file, orig_size, data), "\nFailed to read tensor data of %s", name_str);
 
         // Quantize only 2D tensors, except embedding and head matrices.
         // Embedding and head take not too much space, especially in bigger models;
         // but they significantly increase perplexity when quantized.
-        if ((header.data_type == TYPE_F32 || header.data_type == TYPE_F16) && header.dim_count == 2 && name != "emb.weight" && name != "head.weight") {
+        if ((header.data_type == TYPE_FP32 || header.data_type == TYPE_FP16) && header.dim_count == 2 && name != "emb.weight" && name != "head.weight") {
             RWKV_MSG("quantizing... ");
 
             size_t nelements = (size_t) header.width * (size_t) header.height;
 
-            if (header.data_type == TYPE_F16) {
+            if (header.data_type == TYPE_FP16) {
                 ggml_fp16_to_fp32_row((const ggml_fp16_t *) out_buf, (float *) in_buf, nelements);
             }
 
