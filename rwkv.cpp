@@ -1161,7 +1161,7 @@ bool rwkv_instance_from_file(const char * file_path, struct rwkv_instance & inst
     }
 
     std::unordered_map<std::string, struct ggml_tensor *> & parameters_ref = parameters;
-    RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, rwkv_set_params(model,[&](const char * key, struct ggml_tensor *& dest) {
+    RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, rwkv_set_params(model, [&](const char * key, struct ggml_tensor *& dest) {
         struct ggml_tensor * tensor = parameters_ref[key];
         RWKV_ENSURE_OR_FALSE_MSG(tensor, "Model parameter %s not found", key);
         dest = tensor;
