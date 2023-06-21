@@ -598,8 +598,7 @@ struct rwkv_context {
     enum rwkv_error_flags last_error;
     bool print_errors;
 
-    size_t gpu_layers;
-    size_t vram_total;
+    uint32_t gpu_layers;
 };
 
 // https://stackoverflow.com/a/6458689
@@ -1277,31 +1276,29 @@ struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32
     return clone;
 }
 
-bool rwkv_gpu_offload_layers(const struct rwkv_context * ctx, const uint32_t n_gpu_layers) {
+bool rwkv_gpu_offload_layers(struct rwkv_context * ctx, const uint32_t n_layers) {
 #ifdef GGML_USE_CUBLAS
-    size_t n_gpu = std::min(n_gpu_layers, ctx->instance->model.header.n_layer);
+    uint32_t layers_to_offload = std::min(n_layers, ctx->instance->model.header.n_layer - ctx->gpu_layers);
 
-    size_t gpu_layers = ctx->gpu_layers;
-    size_t vram_total = ctx->vram_total;
+    for (uint32_t i = 0; i < layers_to_offload; i++) {
+        const struct rwkv_layer & layer = ctx->instance->model.layers[ctx->gpu_layers + i];
 
-    for (size_t i = 0; i < n_gpu; i++) {
-        const struct rwkv_layer & layer = ctx->instance->model.layers[i];
+        // Use cuBLAS only for heavy matrices; other operations are not supported for the GPU at the moment
+        ggml_cuda_transform_tensor(layer.att_key);
+        ggml_cuda_transform_tensor(layer.att_value);
+        ggml_cuda_transform_tensor(layer.att_receptance);
+        ggml_cuda_transform_tensor(layer.att_output);
 
-        // Use cuBLAS only for heavy matrices; other operations are not supported for GPU at the moment
-        ggml_cuda_transform_tensor(layer.att_key);          vram_total += ggml_nbytes(layer.att_key);
-        ggml_cuda_transform_tensor(layer.att_value);        vram_total += ggml_nbytes(layer.att_value);
-        ggml_cuda_transform_tensor(layer.att_receptance);   vram_total += ggml_nbytes(layer.att_receptance);
-        ggml_cuda_transform_tensor(layer.att_output);       vram_total += ggml_nbytes(layer.att_output);
-
-        ggml_cuda_transform_tensor(layer.ffn_key);          vram_total += ggml_nbytes(layer.ffn_key);
-        ggml_cuda_transform_tensor(layer.ffn_value);        vram_total += ggml_nbytes(layer.ffn_value);
-        ggml_cuda_transform_tensor(layer.ffn_receptance);   vram_total += ggml_nbytes(layer.ffn_receptance);
-
-        gpu_layers++;
+        ggml_cuda_transform_tensor(layer.ffn_key);
+        ggml_cuda_transform_tensor(layer.ffn_value);
+        ggml_cuda_transform_tensor(layer.ffn_receptance);
     }
-#endif
 
-    return true;
+    ctx->gpu_layers += layers_to_offload;
+
+    return layers_to_offload > 0;
+#endif
+    return false;
 }
 
 void rwkv_set_inputs(const struct rwkv_context * ctx, const float * state_in) {

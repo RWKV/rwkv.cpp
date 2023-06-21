@@ -14,7 +14,7 @@ class RWKVModel:
             shared_library: rwkv_cpp_shared_library.RWKVSharedLibrary,
             model_path: str,
             thread_count: int = max(1, multiprocessing.cpu_count() // 2),
-            gpu_layers_count: int = 0,
+            gpu_layer_count: int = 0,
     ):
         """
         Loads the model and prepares it for inference.
@@ -28,18 +28,20 @@ class RWKVModel:
             Path to RWKV model file in ggml format.
         thread_count : int
             Thread count to use. If not set, defaults to CPU count / 2.
+        gpu_layer_count : int
+            Count of layers to offload onto the GPU, must be >= 0.
         """
 
         assert os.path.isfile(model_path), f'{model_path} is not a file'
-        assert thread_count > 0, 'Thread count must be positive'
-        assert gpu_layers_count >= 0, 'GPU layers count must be >= 0'
+        assert thread_count > 0, 'Thread count must be > 0'
+        assert gpu_layer_count >= 0, 'GPU layer count must be >= 0'
 
         self._library = shared_library
 
         self._ctx = self._library.rwkv_init_from_file(model_path, thread_count)
 
-        if gpu_layers_count > 0:
-            self._library.rwkv_gpu_offload_layers(self._ctx, gpu_layers_count)
+        if gpu_layer_count > 0:
+            self._library.rwkv_gpu_offload_layers(self._ctx, gpu_layer_count)
 
         self._state_buffer_element_count = self._library.rwkv_get_state_buffer_element_count(self._ctx)
         self._logits_buffer_element_count = self._library.rwkv_get_logits_buffer_element_count(self._ctx)

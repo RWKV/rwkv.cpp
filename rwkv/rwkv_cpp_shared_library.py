@@ -100,20 +100,23 @@ class RWKVSharedLibrary:
 
         return RWKVContext(ptr)
 
-    def rwkv_gpu_offload_layers(self, ctx: RWKVContext, gpu_layers_count: int) -> None:
+    def rwkv_gpu_offload_layers(self, ctx: RWKVContext, layer_count: int) -> bool:
         """
-        Offloads specified layers of context onto GPU using cuBLAS, if it is enabled.
-        If rwkv.cpp was compiled without cuBLAS support, this function is a no-op.
+        Offloads specified count of model layers onto the GPU. Offloaded layers are evaluated using cuBLAS.
+        Returns true if at least one layer was offloaded.
+        If rwkv.cpp was compiled without cuBLAS support, this function is a no-op and always returns false.
 
         Parameters
         ----------
         ctx : RWKVContext
             RWKV context obtained from rwkv_init_from_file.
-        gpu_layers_count : int
-            Count of layers to load onto gpu, must be >= 0.
+        layer_count : int
+            Count of layers to offload onto the GPU, must be >= 0.
         """
 
-        assert self.library.rwkv_gpu_offload_layers(ctx.ptr, ctypes.c_uint32(gpu_layers_count)), 'rwkv_gpu_offload_layers failed, check stderr'
+        assert layer_count >= 0, 'Layer count must be >= 0'
+
+        return self.library.rwkv_gpu_offload_layers(ctx.ptr, ctypes.c_uint32(layer_count))
 
     def rwkv_eval(
             self,
