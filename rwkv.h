@@ -97,9 +97,10 @@ extern "C" {
     // - n_threads: count of threads to use, must be positive.
     RWKV_API struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32_t n_threads);
 
-    // Offloads specified layers of context onto GPU using cuBLAS, if it is enabled.
-    // If rwkv.cpp was compiled without cuBLAS support, this function is a no-op.
-    RWKV_API bool rwkv_gpu_offload_layers(const struct rwkv_context * ctx, const uint32_t n_gpu_layers);
+    // Offloads specified count of model layers onto the GPU. Offloaded layers are evaluated using cuBLAS.
+    // Returns true if at least one layer was offloaded.
+    // If rwkv.cpp was compiled without cuBLAS support, this function is a no-op and always returns false.
+    RWKV_API bool rwkv_gpu_offload_layers(struct rwkv_context * ctx, const uint32_t n_layers);
 
     // Evaluates the model for a single token.
     // Not thread-safe. For parallel inference, call rwkv_clone_context to create one rwkv_context for each thread.

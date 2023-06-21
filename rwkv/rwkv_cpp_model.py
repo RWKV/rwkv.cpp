@@ -14,7 +14,8 @@ class RWKVModel:
             shared_library: rwkv_cpp_shared_library.RWKVSharedLibrary,
             model_path: str,
             thread_count: int = max(1, multiprocessing.cpu_count() // 2),
-            gpu_layers_count: int = 0,
+            gpu_layer_count: int = 0,
+            **kwargs
     ):
         """
         Loads the model and prepares it for inference.
@@ -28,18 +29,23 @@ class RWKVModel:
             Path to RWKV model file in ggml format.
         thread_count : int
             Thread count to use. If not set, defaults to CPU count / 2.
+        gpu_layer_count : int
+            Count of layers to offload onto the GPU, must be >= 0.
         """
 
+        if 'gpu_layers_count' in kwargs:
+            gpu_layer_count = kwargs['gpu_layers_count']
+
         assert os.path.isfile(model_path), f'{model_path} is not a file'
-        assert thread_count > 0, 'Thread count must be positive'
-        assert gpu_layers_count >= 0, 'GPU layers count must be >= 0'
+        assert thread_count > 0, 'Thread count must be > 0'
+        assert gpu_layer_count >= 0, 'GPU layer count must be >= 0'
 
         self._library = shared_library
 
         self._ctx = self._library.rwkv_init_from_file(model_path, thread_count)
 
-        if gpu_layers_count > 0:
-            self._library.rwkv_gpu_offload_layers(self._ctx, gpu_layers_count)
+        if gpu_layer_count > 0:
+            self._library.rwkv_gpu_offload_layers(self._ctx, gpu_layer_count)
 
         self._state_buffer_element_count = self._library.rwkv_get_state_buffer_element_count(self._ctx)
         self._logits_buffer_element_count = self._library.rwkv_get_logits_buffer_element_count(self._ctx)
@@ -76,25 +82,20 @@ class RWKVModel:
 
         assert self._valid, 'Model was freed'
 
-        def validate_buffer(buf: torch.Tensor, name: str, size: int) -> None:
-            assert buf.dtype == torch.float32, f'{name} is not of type float32'
-            assert buf.is_contiguous(), f'{name} is not contiguous'
-            assert buf.shape == (size,), f'{name} has invalid shape {buf.shape}, expected ({size})'
-
         if state_in is not None:
-            validate_buffer(state_in, 'state_in', self._state_buffer_element_count)
+            validate_tensor(state_in, 'state_in', self._state_buffer_element_count)
 
             state_in_ptr = state_in.data_ptr()
         else:
             state_in_ptr = 0
 
         if state_out is not None:
-            validate_buffer(state_out, 'state_out', self._state_buffer_element_count)
+            validate_tensor(state_out, 'state_out', self._state_buffer_element_count)
         else:
             state_out = torch.zeros(self._state_buffer_element_count, dtype=torch.float32, device='cpu')
 
         if logits_out is not None:
-            validate_buffer(logits_out, 'logits_out', self._logits_buffer_element_count)
+            validate_tensor(logits_out, 'logits_out', self._logits_buffer_element_count)
         else:
             logits_out = torch.zeros(self._logits_buffer_element_count, dtype=torch.float32, device='cpu')
 
@@ -138,25 +139,20 @@ class RWKVModel:
 
         assert self._valid, 'Model was freed'
 
-        def validate_buffer(buf: torch.Tensor, name: str, size: int) -> None:
-            assert buf.dtype == torch.float32, f'{name} is not of type float32'
-            assert buf.is_contiguous(), f'{name} is not contiguous'
-            assert buf.shape == (size,), f'{name} has invalid shape {buf.shape}, expected ({size})'
-
         if state_in is not None:
-            validate_buffer(state_in, 'state_in', self._state_buffer_element_count)
+            validate_tensor(state_in, 'state_in', self._state_buffer_element_count)
 
             state_in_ptr = state_in.data_ptr()
         else:
             state_in_ptr = 0
 
         if state_out is not None:
-            validate_buffer(state_out, 'state_out', self._state_buffer_element_count)
+            validate_tensor(state_out, 'state_out', self._state_buffer_element_count)
         else:
             state_out = torch.zeros(self._state_buffer_element_count, dtype=torch.float32, device='cpu')
 
         if logits_out is not None:
-            validate_buffer(logits_out, 'logits_out', self._logits_buffer_element_count)
+            validate_tensor(logits_out, 'logits_out', self._logits_buffer_element_count)
         else:
             logits_out = torch.zeros(self._logits_buffer_element_count, dtype=torch.float32, device='cpu')
 
@@ -187,3 +183,9 @@ class RWKVModel:
         # Free the context on GC in case user forgot to call free() explicitly.
         if hasattr(self, '_valid') and self._valid:
             self.free()
+
+def validate_tensor(buf: torch.Tensor, name: str, size: int) -> None:
+    assert buf.device == torch.device('cpu'), f'{name} is not on CPU'
+    assert buf.dtype == torch.float32, f'{name} is not of type float32'
+    assert buf.shape == (size,), f'{name} has invalid shape {buf.shape}, expected ({size})'
+    assert buf.is_contiguous(), f'{name} is not contiguous'

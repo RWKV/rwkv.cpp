@@ -28,16 +28,19 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 
 #### With cuBLAS
 
-Measurements were made on Intel i7 13700K & NVIDIA 3060 Ti 8G. Latency per token shown.
+Measurements were made on Intel i7 13700K & NVIDIA 3060 Ti 8 GB. Latency per token in ms shown.
 
-| Model                 | Layers on GPU | Format | 24 Threads  | 8 Threads  | 4 Threads  | 2 Threads  | 1 Threads  |
-|-----------------------|---------------|--------|-------------|------------|------------|------------|------------|
-| `RWKV-4-Pile-169M`    | 12            | `Q4_0` | 20.6 ms     | 8.6 ms     | 6.9 ms     | 6.2 ms     | 7.9 ms     |
-| `RWKV-4-Pile-169M`    | 12            | `Q4_1` | 21.4 ms     | 8.6 ms     | 6.9 ms     | 6.7 ms     | 7.8 ms     |
-| `RWKV-4-Pile-169M`    | 12            | `Q5_1` | 22.2 ms     | 9.0 ms     | 6.9 ms     | 6.7 ms     | 8.1 ms     |
-| `RWKV-4-Raven-7B-v11` | 32            | `Q4_0` | 94.9 ms     | 54.3 ms    | 50.2 ms    | 51.6 ms    | 59.2 ms    |
-| `RWKV-4-Raven-7B-v11` | 32            | `Q4_1` | 94.5 ms     | 54.3 ms    | 49.7 ms    | 51.8 ms    | 59.2 ms    |
-| `RWKV-4-Raven-7B-v11` | 32            | `Q5_1` | 101.6 ms    | 72.3 ms    | 67.2 ms    | 69.3 ms    | 77.0 ms    |
+| Model                 | Layers on GPU | Format | 1 thread | 2 threads | 4 threads | 8 threads | 24 threads |
+|-----------------------|---------------|--------|----------|-----------|-----------|-----------|------------|
+| `RWKV-4-Pile-169M`    | 12            | `Q4_0` | 7.9      | 6.2       | 6.9       | 8.6       | 20         |
+| `RWKV-4-Pile-169M`    | 12            | `Q4_1` | 7.8      | 6.7       | 6.9       | 8.6       | 21         |
+| `RWKV-4-Pile-169M`    | 12            | `Q5_1` | 8.1      | 6.7       | 6.9       | 9.0       | 22         |
+
+| Model                 | Layers on GPU | Format | 1 thread | 2 threads | 4 threads | 8 threads | 24 threads |
+|-----------------------|---------------|--------|----------|-----------|-----------|-----------|------------|
+| `RWKV-4-Raven-7B-v11` | 32            | `Q4_0` | 59       | 51        | 50        | 54        | 94         |
+| `RWKV-4-Raven-7B-v11` | 32            | `Q4_1` | 59       | 51        | 49        | 54        | 94         |
+| `RWKV-4-Raven-7B-v11` | 32            | `Q5_1` | 77       | 69        | 67        | 72        | 101        |
 
 Note: since cuBLAS is supported only for `ggml_mul_mat()`, we still need to use few CPU resources to execute remaining operations.
 
@@ -68,7 +71,7 @@ This option is recommended for maximum performance, because the library would be
 
 ##### Windows
 
-**Requirements**: [CMake](https://cmake.org/download/) or [CMake from anaconda](https://anaconda.org/conda-forge/cmake), MSVC compiler.
+**Requirements**: [CMake](https://cmake.org/download/) or [CMake from anaconda](https://anaconda.org/conda-forge/cmake), [Build Tools for Visual Studio 2019](https://visualstudio.microsoft.com/vs/older-downloads/).
 
 ```commandline
 cmake .
@@ -79,14 +82,7 @@ If everything went OK, `bin\Release\rwkv.dll` file should appear.
 
 ##### Windows + cuBLAS
 
-**Important**: Since there are no cuBLAS static libraries for Windows, after compiling with dynamic libraries following DLLs should be copied from `{CUDA}/bin` into `build/bin/Release`: `cudart64_12.dll`, `cublas64_12.dll`, `cublasLt64_12.dll`.
-
-```commandline
-mkdir build
-cd build
-cmake .. -DRWKV_CUBLAS=ON
-cmake --build . --config Release
-```
+Refer to [docs/cuBLAS_on_Windows.md](docs%2FcuBLAS_on_Windows.md) for a comprehensive guide.
 
 ##### Linux / MacOS
 
@@ -104,9 +100,7 @@ If everything went OK, `librwkv.so` (Linux) or `librwkv.dylib` (MacOS) file shou
 ##### Linux / MacOS + cuBLAS
 
 ```commandline
-mkdir build
-cd build
-cmake .. -DRWKV_CUBLAS=ON
+cmake . -DRWKV_CUBLAS=ON
 cmake --build . --config Release
 ```
 
@@ -130,10 +124,10 @@ This option would require a little more manual work, but you can use it with any
 
 ```commandline
 # Windows
-python rwkv\convert_pytorch_to_ggml.py C:\RWKV-4-Pile-169M-20220807-8023.pth C:\rwkv.cpp-169M.bin float16
+python rwkv\convert_pytorch_to_ggml.py C:\RWKV-4-Pile-169M-20220807-8023.pth C:\rwkv.cpp-169M.bin FP16
 
 # Linux / MacOS
-python rwkv/convert_pytorch_to_ggml.py ~/Downloads/RWKV-4-Pile-169M-20220807-8023.pth ~/Downloads/rwkv.cpp-169M.bin float16
+python rwkv/convert_pytorch_to_ggml.py ~/Downloads/RWKV-4-Pile-169M-20220807-8023.pth ~/Downloads/rwkv.cpp-169M.bin FP16
 ```
 
 **Optionally**, quantize the model into one of quantized formats from the table above:
@@ -218,8 +212,8 @@ For reference only, here is a list of latest versions of `rwkv.cpp` that have su
 - `Q4_3`, `Q4_1_O`
   - [commit c736ef5](https://github.com/saharNooby/rwkv.cpp/commit/c736ef5411606b529d3a74c139ee111ef1a28bb9), [release with prebuilt binaries](https://github.com/saharNooby/rwkv.cpp/releases/tag/master-1c363e6)
 
-See also [FILE_FORMAT.md](FILE_FORMAT.md) for version numbers of `rwkv.cpp` model files and their changelog.
+See also [docs/FILE_FORMAT.md](docs/FILE_FORMAT.md) for version numbers of `rwkv.cpp` model files and their changelog.
 
 ## Contributing
 
-Please follow the code style described in [CODE_STYLE.md](CODE_STYLE.md).
+Please follow the code style described in [docs/CODE_STYLE.md](docs/CODE_STYLE.md).
