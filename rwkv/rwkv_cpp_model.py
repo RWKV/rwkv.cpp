@@ -15,6 +15,7 @@ class RWKVModel:
             model_path: str,
             thread_count: int = max(1, multiprocessing.cpu_count() // 2),
             gpu_layer_count: int = 0,
+            **kwargs
     ):
         """
         Loads the model and prepares it for inference.
@@ -31,6 +32,9 @@ class RWKVModel:
         gpu_layer_count : int
             Count of layers to offload onto the GPU, must be >= 0.
         """
+
+        if 'gpu_layers_count' in kwargs:
+            gpu_layer_count = kwargs['gpu_layers_count']
 
         assert os.path.isfile(model_path), f'{model_path} is not a file'
         assert thread_count > 0, 'Thread count must be > 0'
