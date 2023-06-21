@@ -112,7 +112,9 @@ class WorldTokenizer:
         return self.encode_bytes(src.encode('utf-8'))
 
     def decode(self, tokens: List[int]) -> str:
-        return self.decode_bytes(tokens).decode('utf-8')
+        # 'replace' error handling mode will insert \uFFFD characters in place of malformed/partial UTF-8 sequences.
+        # Downstream code needs to detect \uFFFD and attempt to postpone decoding until more tokens arrive and UTF-8 sequences are complete.
+        return self.decode_bytes(tokens).decode('utf-8', errors='replace')
 
 def get_tokenizer(tokenizer: str = '20B') -> Tuple[
     Callable[[List[int]], str],
