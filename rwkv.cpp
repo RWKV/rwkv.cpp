@@ -429,7 +429,7 @@ struct rwkv_model {
     struct ggml_tensor * ln0_weight;
     struct ggml_tensor * ln0_bias;
 
-    std::unique_ptr<struct rwkv_layer []> layers;
+    std::unique_ptr<struct rwkv_layer[]> layers;
 
     struct ggml_tensor * ln_out_weight;
     struct ggml_tensor * ln_out_bias;
@@ -580,9 +580,9 @@ struct rwkv_context {
     // Reused by all graphs.
     struct rwkv_ggml_context ctx;
     struct ggml_tensor * input_state;
-    std::unique_ptr<struct rwkv_layer_state []> input_layers;
+    std::unique_ptr<struct rwkv_layer_state[]> input_layers;
     struct ggml_tensor * output_state;
-    std::unique_ptr<struct rwkv_layer_state []> output_layers;
+    std::unique_ptr<struct rwkv_layer_state[]> output_layers;
     struct ggml_tensor * logits;
 
     uint32_t n_threads;
@@ -609,7 +609,7 @@ bool rwkv_set_params(struct rwkv_model & model, F callback) {
     RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.bias", model.ln0_bias));
 
     uint32_t n_layer = model.header.n_layer;
-    std::unique_ptr<struct rwkv_layer []> layers(new(std::nothrow) struct rwkv_layer [n_layer]);
+    std::unique_ptr<struct rwkv_layer[]> layers(new(std::nothrow) struct rwkv_layer[n_layer]);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, layers.get(), "Failed to allocate model layers");
     model.layers = std::move(layers);
 
@@ -1161,7 +1161,7 @@ bool rwkv_instance_from_file(const char * file_path, struct rwkv_instance & inst
     }
 
     std::unordered_map<std::string, struct ggml_tensor *> & parameters_ref = parameters;
-    RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, rwkv_set_params(model, [&](const char * key, struct ggml_tensor *& dest) {
+    RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, rwkv_set_params(model,[&](const char * key, struct ggml_tensor *& dest) {
         struct ggml_tensor * tensor = parameters_ref[key];
         RWKV_ENSURE_OR_FALSE_MSG(tensor, "Model parameter %s not found", key);
         dest = tensor;
@@ -1202,11 +1202,11 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
     struct ggml_tensor * output = ggml_new_tensor_1d(ctx.ctx, GGML_TYPE_F32, n_embed * 5 * n_layer);
 
     // We collect parts of input state here. Each part is (n_embed) vector.
-    std::unique_ptr<struct rwkv_layer_state []> inputs(new(std::nothrow) struct rwkv_layer_state [n_layer]);
+    std::unique_ptr<struct rwkv_layer_state[]> inputs(new(std::nothrow) struct rwkv_layer_state[n_layer]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, inputs.get(), "Failed to allocate input state parts");
 
     // We collect parts of output state here. Each part is (n_embed) vector.
-    std::unique_ptr<struct rwkv_layer_state []> outputs(new(std::nothrow) struct rwkv_layer_state [n_layer]);
+    std::unique_ptr<struct rwkv_layer_state[]> outputs(new(std::nothrow) struct rwkv_layer_state[n_layer]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, outputs.get(), "Failed to allocate output state parts");
 
     for (size_t i = 0; i < n_layer; i++) {
@@ -1521,7 +1521,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     // This is a histogram of quantized values. If it shows single 1.0, then all 0.0, something went very wrong!
     int64_t hist_all[16] {};
 
-    std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [max_in_size + max_out_size]);
+    std::unique_ptr<uint8_t[]> scratch(new(std::nothrow) uint8_t[max_in_size + max_out_size]);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, scratch.get(), "Failed to allocate buffer");
 
     uint8_t * in_buf = scratch.get();
