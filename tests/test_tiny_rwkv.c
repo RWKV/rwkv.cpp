@@ -21,7 +21,6 @@
 
 #define N_VOCAB 256
 #define N_THREADS 2
-#define N_GPU_LAYERS 1
 
 void test_model(const char * model_path, const float * expected_logits, const float max_diff) {
     fprintf(stderr, "Testing %s\n", model_path);
@@ -29,8 +28,9 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     struct rwkv_context * model = rwkv_init_from_file(model_path, N_THREADS);
     enum rwkv_error_flags error = rwkv_get_last_error(NULL);
     ASSERT(error == 0, "Unexpected error %d", error);
+
 #ifdef GGML_USE_CUBLAS
-    ASSERT(rwkv_gpu_offload_layers(model, N_GPU_LAYERS), "Unexpected error %d", rwkv_get_last_error(model));
+    ASSERT(rwkv_gpu_offload_layers(model, rwkv_get_n_layer(model)), "Failed to offload layers to GPU");
 #endif
 
     const size_t n_vocab = rwkv_get_logits_len(model);

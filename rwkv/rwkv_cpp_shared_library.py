@@ -2,7 +2,7 @@ import os
 import sys
 import ctypes
 import pathlib
-from typing import Optional
+from typing import Optional, List
 
 QUANTIZED_FORMAT_NAMES = (
     'Q4_0',
@@ -13,6 +13,7 @@ QUANTIZED_FORMAT_NAMES = (
 )
 
 P_FLOAT = ctypes.POINTER(ctypes.c_float)
+P_INT = ctypes.POINTER(ctypes.c_int32)
 
 class RWKVContext:
 
@@ -52,6 +53,16 @@ class RWKVSharedLibrary:
         ]
         self.library.rwkv_eval.restype = ctypes.c_bool
 
+        self.library.rwkv_eval_sequence.argtypes = [
+            ctypes.c_void_p, # ctx
+            P_INT, # tokens
+            ctypes.c_size_t, # token count
+            P_FLOAT, # state_in
+            P_FLOAT, # state_out
+            P_FLOAT  # logits_out
+        ]
+        self.library.rwkv_eval_sequence.restype = ctypes.c_bool
+
         self.library.rwkv_get_state_buffer_element_count.argtypes = [ctypes.c_void_p]
         self.library.rwkv_get_state_buffer_element_count.restype = ctypes.c_uint32
 
@@ -89,20 +100,23 @@ class RWKVSharedLibrary:
 
         return RWKVContext(ptr)
 
-    def rwkv_gpu_offload_layers(self, ctx: RWKVContext, gpu_layers_count: int) -> None:
+    def rwkv_gpu_offload_layers(self, ctx: RWKVContext, layer_count: int) -> bool:
         """
-        Offloads specified layers of context onto GPU using cuBLAS, if it is enabled.
-        If rwkv.cpp was compiled without cuBLAS support, this function is a no-op.
+        Offloads specified count of model layers onto the GPU. Offloaded layers are evaluated using cuBLAS.
+        Returns true if at least one layer was offloaded.
+        If rwkv.cpp was compiled without cuBLAS support, this function is a no-op and always returns false.
 
         Parameters
         ----------
         ctx : RWKVContext
             RWKV context obtained from rwkv_init_from_file.
-        gpu_layers_count : int
-            Count of layers to load onto gpu, must be >= 0.
+        layer_count : int
+            Count of layers to offload onto the GPU, must be >= 0.
         """
 
-        assert self.library.rwkv_gpu_offload_layers(ctx.ptr, ctypes.c_uint32(gpu_layers_count)), 'rwkv_gpu_offload_layers failed, check stderr'
+        assert layer_count >= 0, 'Layer count must be >= 0'
+
+        return self.library.rwkv_gpu_offload_layers(ctx.ptr, ctypes.c_uint32(layer_count))
 
     def rwkv_eval(
             self,
@@ -133,6 +147,41 @@ class RWKVSharedLibrary:
         assert self.library.rwkv_eval(
             ctx.ptr,
             ctypes.c_int32(token),
+            ctypes.cast(0 if state_in_address is None else state_in_address, P_FLOAT),
+            ctypes.cast(state_out_address, P_FLOAT),
+            ctypes.cast(logits_out_address, P_FLOAT)
+        ), 'rwkv_eval failed, check stderr'
+
+    def rwkv_eval_sequence(
+            self,
+            ctx: RWKVContext,
+            tokens: List[int],
+            state_in_address: Optional[int],
+            state_out_address: int,
+            logits_out_address: int
+    ) -> None:
+        """
+        Evaluates the model for a sequence of tokens.
+        Throws an exception in case of any error. Error messages would be printed to stderr.
+
+        Parameters
+        ----------
+        ctx : RWKVContext
+            RWKV context obtained from rwkv_init_from_file.
+        tokens : List[int]
+            Next token indices, in range 0 <= token < n_vocab.
+        state_in_address : int
+            Address of the first element of a FP32 buffer of size rwkv_get_state_buffer_element_count; or None, if this is a first pass.
+        state_out_address : int
+            Address of the first element of a FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to.
+        logits_out_address : int
+            Address of the first element of a FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to.
+        """
+
+        assert self.library.rwkv_eval_sequence(
+            ctx.ptr,
+            ctypes.cast((ctypes.c_int32 * len(tokens))(*tokens), P_INT),
+            ctypes.c_size_t(len(tokens)),
             ctypes.cast(0 if state_in_address is None else state_in_address, P_FLOAT),
             ctypes.cast(state_out_address, P_FLOAT),
             ctypes.cast(logits_out_address, P_FLOAT)

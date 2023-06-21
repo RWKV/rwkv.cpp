@@ -41,6 +41,9 @@ option(RWKV_ACCELERATE             "rwkv: enable Accelerate framework"          
 option(RWKV_OPENBLAS               "rwkv: use OpenBLAS"                                   OFF)
 option(RWKV_CUBLAS                 "rwkv: use cuBLAS"                                     OFF)
 
+# Build only shared library without building tests and extras
+option(RWKV_STANDALONE             "rwkv: build only RWKV library"                        OFF)
+
 #
 # Compile flags
 #
@@ -284,6 +287,11 @@ if (GGML_CUDA_SOURCES)
     set_property(TARGET rwkv PROPERTY CUDA_ARCHITECTURES OFF)
 endif()
 
-enable_testing()
-add_subdirectory(tests)
-add_subdirectory(extras)
+if (NOT RWKV_STANDALONE)
+    set_property(TARGET ggml PROPERTY GGML_STANDALONE OFF)
+    enable_testing()
+    add_subdirectory(tests)
+    add_subdirectory(extras)
+elseif()
+    set_property(TARGET ggml PROPERTY GGML_STANDALONE ON)
+endif()

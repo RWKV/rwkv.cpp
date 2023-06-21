@@ -174,8 +174,8 @@ bool rwkv_fwrite_data(FILE * file, const void * data, const size_t length) {
 #define TYPE_UNKNOWN TYPE_COUNT
 
 enum rwkv_type {
-    TYPE_F32,
-    TYPE_F16,
+    TYPE_FP32,
+    TYPE_FP16,
     TYPE_Q4_0,
     TYPE_Q4_1,
     TYPE_Q4_1_O, // Unsupported
@@ -190,8 +190,8 @@ enum rwkv_type {
 #define GGML_TYPE_UNKNOWN GGML_TYPE_COUNT
 
 extern const enum ggml_type rwkv_type_to_ggml[TYPE_COUNT + 1] = {
-    GGML_TYPE_F32,     /* F32    */
-    GGML_TYPE_F16,     /* F16    */
+    GGML_TYPE_F32,     /* FP32   */
+    GGML_TYPE_F16,     /* FP16   */
     GGML_TYPE_Q4_0,    /* Q4_0   */
     GGML_TYPE_Q4_1,    /* Q4_1   */
     GGML_TYPE_UNKNOWN, /* Q4_1_O */
@@ -204,8 +204,8 @@ extern const enum ggml_type rwkv_type_to_ggml[TYPE_COUNT + 1] = {
 };
 
 extern const enum rwkv_type rwkv_type_from_ggml[GGML_TYPE_COUNT + 1] = {
-    TYPE_F32,    /* F32   */
-    TYPE_F16,    /* F16   */
+    TYPE_FP32,   /* FP32  */
+    TYPE_FP16,   /* FP16  */
     TYPE_Q4_0,   /* Q4_0  */
     TYPE_Q4_1,   /* Q4_1  */
     TYPE_Q4_2,   /* Q4_2  */
@@ -220,7 +220,7 @@ extern const enum rwkv_type rwkv_type_from_ggml[GGML_TYPE_COUNT + 1] = {
     TYPE_COUNT,  /* COUNT */
 };
 
-extern const char * rwkv_type_to_string[TYPE_COUNT + 1] = {"float32", "float16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "unknown"};
+extern const char * rwkv_type_to_string[TYPE_COUNT + 1] = {"FP32", "FP16", "Q4_0", "Q4_1", "Q4_1_O", "Q4_2", "Q4_3", "Q5_0", "Q5_1", "Q8_0", "unknown"};
 
 enum rwkv_type rwkv_type_from_string(const char * str) {
     for (int ord = 0; ord < TYPE_COUNT; ord++) {
@@ -417,7 +417,7 @@ struct rwkv_model {
     struct ggml_tensor * ln0_weight;
     struct ggml_tensor * ln0_bias;
 
-    std::unique_ptr<struct rwkv_layer []> layers;
+    std::unique_ptr<struct rwkv_layer[]> layers;
 
     struct ggml_tensor * ln_out_weight;
     struct ggml_tensor * ln_out_bias;
@@ -693,9 +693,9 @@ struct rwkv_context {
     // Reused by all graphs.
     struct rwkv_ggml_context ctx;
     struct ggml_tensor * input_state;
-    std::unique_ptr<struct rwkv_layer_state []> input_layers;
+    std::unique_ptr<struct rwkv_layer_state[]> input_layers;
     struct ggml_tensor * output_state;
-    std::unique_ptr<struct rwkv_layer_state []> output_layers;
+    std::unique_ptr<struct rwkv_layer_state[]> output_layers;
     struct ggml_tensor * logits;
 
     uint32_t n_threads;
@@ -712,7 +712,6 @@ struct rwkv_context {
     bool print_errors;
 
     size_t gpu_layers;
-    size_t vram_total;
 };
 
 // https://stackoverflow.com/a/6458689
@@ -723,7 +722,7 @@ bool rwkv_set_params(struct rwkv_model & model, F callback) {
     RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.bias", model.ln0_bias));
 
     uint32_t n_layer = model.header.n_layer;
-    std::unique_ptr<struct rwkv_layer []> layers(new(std::nothrow) struct rwkv_layer [n_layer]);
+    std::unique_ptr<struct rwkv_layer[]> layers(new(std::nothrow) struct rwkv_layer[n_layer]);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, layers.get(), "Failed to allocate model layers");
     model.layers = std::move(layers);
 
@@ -1404,11 +1403,11 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
     struct ggml_tensor * output = ggml_new_tensor_1d(ctx.ctx, GGML_TYPE_F32, n_embed * 5 * n_layer);
 
     // We collect parts of input state here. Each part is (n_embed) vector.
-    std::unique_ptr<struct rwkv_layer_state []> inputs(new(std::nothrow) struct rwkv_layer_state [n_layer]);
+    std::unique_ptr<struct rwkv_layer_state[]> inputs(new(std::nothrow) struct rwkv_layer_state[n_layer]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, inputs.get(), "Failed to allocate input state parts");
 
     // We collect parts of output state here. Each part is (n_embed) vector.
-    std::unique_ptr<struct rwkv_layer_state []> outputs(new(std::nothrow) struct rwkv_layer_state [n_layer]);
+    std::unique_ptr<struct rwkv_layer_state[]> outputs(new(std::nothrow) struct rwkv_layer_state[n_layer]);
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, outputs.get(), "Failed to allocate output state parts");
 
     for (size_t i = 0; i < n_layer; i++) {
@@ -1505,34 +1504,35 @@ struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32
     return clone;
 }
 
-bool rwkv_gpu_offload_layers(struct rwkv_context * ctx, const uint32_t n_gpu_layers) {
+bool rwkv_gpu_offload_layers(struct rwkv_context * ctx, const uint32_t n_layers) {
 #ifdef GGML_USE_CUBLAS
-    size_t & vram_total = ctx->vram_total;
     const auto offload = [&](struct ggml_tensor * tensor) {
         // TODO support multi-GPU
         tensor->backend = GGML_BACKEND_GPU;
         ggml_cuda_transform_tensor(tensor->data, tensor);
-        vram_total += ggml_nbytes(tensor);
     };
 
-    const size_t n_gpu = std::min(n_gpu_layers, ctx->instance->model.header.n_layer);
+    const size_t n_gpu = std::min(n_layers, ctx->instance->model.header.n_layer);
 
-    for (size_t & i = ctx->gpu_layers; i < n_gpu; i++) {
-        const struct rwkv_layer & layer = ctx->instance->model.layers[i];
+    if (ctx->gpu_layers < n_gpu) {
+        for (size_t & i = ctx->gpu_layers; i < n_gpu; i++) {
+            const struct rwkv_layer & layer = ctx->instance->model.layers[i];
 
-        // TODO also offload other operations to GPU with ggml_cuda_assign_buffers
-        offload(layer.att_key);
-        offload(layer.att_value);
-        offload(layer.att_receptance);
-        offload(layer.att_output);
+            // TODO also offload other operations to GPU with ggml_cuda_assign_buffers
+            offload(layer.att_key);
+            offload(layer.att_value);
+            offload(layer.att_receptance);
+            offload(layer.att_output);
 
-        offload(layer.ffn_key);
-        offload(layer.ffn_value);
-        offload(layer.ffn_receptance);
+            offload(layer.ffn_key);
+            offload(layer.ffn_value);
+            offload(layer.ffn_receptance);
+        }
+
+        return true;
     }
 #endif
-
-    return true;
+    return false;
 }
 
 void rwkv_set_inputs(const struct rwkv_context * ctx, const float * state_in) {
@@ -1720,7 +1720,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     RWKV_ASSERT_FALSE_MSG(
         RWKV_ERROR_FILE,
         in_type == GGML_TYPE_F32 || in_type == GGML_TYPE_F16,
-        "Unsupported input data type (%s); needs to be F32 or F16",
+        "Unsupported input data type (%s); needs to be FP32 or FP16",
         rwkv_type_to_string[rwkv_type_from_ggml[in_type]]
     );
 
@@ -1733,7 +1733,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     size_t orig_total_size = 0;
     size_t new_total_size = 0;
 
-    // Required to init the fp16 tables
+    // Required to init the F16 tables
     // Doesn't crash if ggml_init fails
     ggml_free(ggml_init({ 0, NULL, true }));
 
@@ -1752,7 +1752,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         }
 
         // f16 type tensors get relocated to out and then converted into f32 at in
-        if (header.data_type == TYPE_F16) {
+        if (header.data_type == TYPE_FP16) {
             if (in_size > max_out_size) {
                 max_out_size = in_size;
             }
@@ -1780,7 +1780,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     // This is a histogram of quantized values. If it shows single 1.0, then all 0.0, something went very wrong!
     int64_t hist_all[16] {};
 
-    std::unique_ptr<uint8_t []> scratch(new(std::nothrow) uint8_t [max_in_size + max_out_size]);
+    std::unique_ptr<uint8_t[]> scratch(new(std::nothrow) uint8_t[max_in_size + max_out_size]);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, scratch.get(), "Failed to allocate buffer");
 
     uint8_t * in_buf = scratch.get();
@@ -1798,19 +1798,19 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         const char * name_str = name.c_str();
         RWKV_MSG("%*s - [%5" PRId32 ", %5" PRId32 "], type = %6s ", (int) max_key_length, name_str, header.width, header.height, rwkv_type_to_string[header.data_type]);
 
-        data = header.data_type == TYPE_F16 ? out_buf : in_buf;
+        data = header.data_type == TYPE_FP16 ? out_buf : in_buf;
         size_t orig_size = header.size(), new_size = orig_size;
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_data(in_file.file, orig_size, data), "\nFailed to read tensor data of %s", name_str);
 
         // Quantize only 2D tensors, except embedding and head matrices.
         // Embedding and head take not too much space, especially in bigger models;
         // but they significantly increase perplexity when quantized.
-        if ((header.data_type == TYPE_F32 || header.data_type == TYPE_F16) && header.dim_count == 2 && name != "emb.weight" && name != "head.weight") {
+        if ((header.data_type == TYPE_FP32 || header.data_type == TYPE_FP16) && header.dim_count == 2 && name != "emb.weight" && name != "head.weight") {
             RWKV_MSG("quantizing... ");
 
             size_t nelements = (size_t) header.width * (size_t) header.height;
 
-            if (header.data_type == TYPE_F16) {
+            if (header.data_type == TYPE_FP16) {
                 ggml_fp16_to_fp32_row((const ggml_fp16_t *) out_buf, (float *) in_buf, nelements);
             }
 
