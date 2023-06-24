@@ -584,7 +584,7 @@ struct rwkv_future_tensor {
 
     struct rwkv_future_tensor fn(struct rwkv_future_ctx & ctx) const {
         ctx.add_objects(sizeof(struct ggml_tensor));
-        ctx.add_scratch(sizeof(void *) / sizeof(uint32_t));
+        ctx.add_memory(sizeof(void *) / sizeof(uint32_t));
         return this->dup(ctx);
     }
 
