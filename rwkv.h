@@ -105,6 +105,8 @@ extern "C" {
     // Evaluates the model for a single token.
     // Not thread-safe. For parallel inference, call rwkv_clone_context to create one rwkv_context for each thread.
     // Returns false on any error.
+    // You can pass NULL to logits_out whenever logits are not needed. This can improve speed by ~10ms per iteration
+    // that you do not calculate logits.
     // - token: next token index, in range 0 <= token < n_vocab.
     // - state_in: FP32 buffer of size rwkv_get_state_len(); or NULL, if this is a first pass.
     // - state_out: FP32 buffer of size rwkv_get_state_len(). This buffer will be written to if non-NULL.
@@ -116,6 +118,8 @@ extern "C" {
     // Has to build a computation graph on the first call for a given sequence, but will use this cached graph for subsequent calls of the same sequence length.
     // Not thread-safe. For parallel inference, call rwkv_clone_context to create one rwkv_context for each thread.
     // Returns false on any error.
+    // You can pass NULL to logits_out whenever logits are not needed. This can improve speed by ~10ms per iteration
+    // that you do not calculate logits.
     // - tokens: pointer to an array of tokens. If NULL, the graph will be built and cached, but not executed: this can be useful for initialization.
     // - sequence_len: number of tokens to read from the array.
     // - state_in: FP32 buffer of size rwkv_get_state_len(), or NULL if this is a first pass.
