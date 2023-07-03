@@ -129,8 +129,8 @@ endif()
 if (RWKV_CLBLAST)
     cmake_minimum_required(VERSION 3.17)
 
-    file(GLOB OPENCL_INCLUDE_SEARCH_PATHS OpenCL-*/)
-    file(GLOB CLBLAST_INCLUDE_SEARCH_PATHS CLBlast-*/)
+    file(GLOB OPENCL_INCLUDE_SEARCH_PATHS ${CMAKE_SOURCE_DIR}/OpenCL-*/)
+    file(GLOB CLBLAST_INCLUDE_SEARCH_PATHS ${CMAKE_SOURCE_DIR}/CLBlast-*/)
 
     set(OPENCL_INCLUDE_SEARCH_PATHS
         /usr/include
@@ -148,12 +148,13 @@ if (RWKV_CLBLAST)
         ${CLBLAST_INCLUDE_SEARCH_PATHS}
         )
 
-    find_path(OPENCL_INC NAMES opencl.h PATHS ${OPENCL_INCLUDE_SEARCH_PATHS})
-    find_library(OPENCL_LIB NAMES OpenCL)
-    find_path(CLBLAST_INC NAMES clblast.h PATHS ${CLBLAST_INCLUDE_SEARCH_PATHS})
-    find_library(CLBLAST_LIB NAMES clblast)
+    find_path(OPENCL_INC NAMES opencl.h PATHS ${OPENCL_INCLUDE_SEARCH_PATHS} PATH_SUFFIXES include/CL)
+    find_library(OPENCL_LIB NAMES OpenCL PATHS ${OPENCL_INCLUDE_SEARCH_PATHS} PATH_SUFFIXES lib)
+    find_path(CLBLAST_INC NAMES clblast.h PATHS ${CLBLAST_INCLUDE_SEARCH_PATHS} PATH_SUFFIXES include)
+    find_library(CLBLAST_LIB NAMES clblast PATHS ${CLBLAST_INCLUDE_SEARCH_PATHS} PATH_SUFFIXES lib)
 
     if (OPENCL_LIB)
+        set(OPENCL_INC ${OPENCL_INC}/..) # disgusting
         message(STATUS "OpenCL SDK found: ${OPENCL_INC}")
 
         if (CLBLAST_LIB)
