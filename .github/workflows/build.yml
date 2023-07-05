@@ -126,7 +126,6 @@ jobs:
       - name: Dependencies
         id: depends
         run: |
-          brew update
           brew install zip
 
       - name: Build
