@@ -26,6 +26,8 @@ DEFAULT_STOP = '\n\nUser'
 parser = argparse.ArgumentParser(description='Provide terminal-based chat interface for RWKV model')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
 parser.add_argument('tokenizer', help='Tokenizer to use; supported tokenizers: 20B, world', nargs='?', type=str, default='world')
+parser.add_argument('host', help='host', nargs='?', type=str, default='0.0.0.0')
+parser.add_argument('port', help='port', nargs='?', type=int, default=8000)
 args = parser.parse_args()
 
 completion_lock = Lock()
@@ -114,7 +116,7 @@ def generate_completions(
 
 
 def format_message(response, delta, chunk=False, chat_model=False, model_name='rwkv', finish_reason=None):
-    if chat_model:
+    if not chat_model:
         object = 'text_completion'
     else:
         if chunk:
@@ -160,7 +162,7 @@ def shutdown_event():
     model.free()
 
 
-async def process_generate(prompt, stop, stream, body, request):
+async def process_generate(prompt, stop, stream, chat_model, body, request):
     usage = {}
     func = partial(
         generate_completions,
@@ -178,14 +180,14 @@ async def process_generate(prompt, stop, stream, body, request):
         for delta in await run_with_lock(func, request):
             response += delta
             if stream:
-                chunk = format_message('', delta, chunk=True)
+                chunk = format_message('', delta, chunk=True, chat_model=chat_model)
                 yield json.dumps(chunk)
         if stream:
-            result = format_message(response, '', chunk=True, finish_reason='stop')
+            result = format_message(response, '', chunk=True, chat_model=chat_model, finish_reason='stop')
             result.update(usage=usage)
             yield json.dumps(result)
         else:
-            result = format_message(response, response, chunk=False, finish_reason='stop')
+            result = format_message(response, response, chunk=False, chat_model=chat_model, finish_reason='stop')
             result.update(usage=usage)
             yield result
 
@@ -267,7 +269,7 @@ class CompletionBody(ModelConfigBody):
 @app.post('/v1/completions')
 @app.post('/completions')
 async def completions(body: CompletionBody, request: Request):
-    return await process_generate(body.prompt, body.stop, body.stream, body, request)
+    return await process_generate(body.prompt, body.stop, body.stream, False, body, request)
 
 
 @app.post('/v1/chat/completions')
@@ -293,8 +295,8 @@ async def chat_completions(body: ChatCompletionBody, request: Request):
             completion_text += f'Bot: {content}\n\n'
     completion_text += f"Bot: "
 
-    return await process_generate(completion_text, body.stop, body.stream, body, request)
+    return await process_generate(completion_text, body.stop, body.stream, True, body, request)
 
 
 if __name__ == "__main__":
-    uvicorn.run("api:app", workers=0)
+    uvicorn.run("api:app", host=args.host, port=args.port)
