@@ -9,9 +9,7 @@ import rwkv_cpp_model
 import rwkv_cpp_shared_library
 from rwkv_tokenizer import get_tokenizer
 from fastapi import FastAPI, Request
-from flask import Flask, request, Response, stream_with_context, jsonify
 from threading import Lock
-from werkzeug.local import Local
 from typing import List, Dict, Optional
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
@@ -68,16 +66,13 @@ def generate_completions(
     usage=dict(),
     **kwargs,
 ):
-    state = Local()
-    state.logits = None
-    state.state = None
-    # logits, state = None, None
+    logits, state = None, None
     prompt_tokens = tokenizer_encode(prompt)
     prompt_token_count = len(prompt_tokens)
     usage['prompt_tokens'] = prompt_token_count
     logging.debug(f'{prompt_token_count} tokens in prompt')
     for token in prompt_tokens:
-        state.logits, state.state = model.eval(token, state.state, state.state, state.logits)
+        logits, state = model.eval(token, state, state, logits)
     logging.debug('end eval prompt_tokens')
 
     accumulated_tokens: List[int] = []  # 用于处理UTF8字符问题
@@ -86,8 +81,8 @@ def generate_completions(
     result = ''
     while True:
         for n in token_counts:
-            state.logits[n] -= presence_penalty + token_counts[n] * frequency_penalty
-        token = sampling.sample_logits(state.logits, temperature, top_p)
+            logits[n] -= presence_penalty + token_counts[n] * frequency_penalty
+        token = sampling.sample_logits(logits, temperature, top_p)
         completion_tokens.append(token)
         # 退出生成
         if token == END_OF_TEXT_TOKEN:
@@ -113,7 +108,7 @@ def generate_completions(
 
         if len(completion_tokens) >= max_tokens:
             break
-        state.logits, state.state = model.eval(token, state.state, state.state, state.logits)
+        logits, state = model.eval(token, state, state, logits)
     usage['prompt_tokens'] = prompt_token_count
     usage['completion_tokens'] = len(completion_tokens)
 
