@@ -63,6 +63,15 @@ class RWKVSharedLibrary:
         ]
         self.library.rwkv_eval_sequence.restype = ctypes.c_bool
 
+        self.library.rwkv_get_n_vocab.argtypes = [ctypes.c_void_p]
+        self.library.rwkv_get_n_vocab.restype = ctypes.c_size_t
+
+        self.library.rwkv_get_n_embed.argtypes = [ctypes.c_void_p]
+        self.library.rwkv_get_n_embed.restype = ctypes.c_size_t
+
+        self.library.rwkv_get_n_layer.argtypes = [ctypes.c_void_p]
+        self.library.rwkv_get_n_layer.restype = ctypes.c_size_t
+
         self.library.rwkv_get_state_buffer_element_count.argtypes = [ctypes.c_void_p]
         self.library.rwkv_get_state_buffer_element_count.restype = ctypes.c_uint32
 
@@ -254,6 +263,27 @@ class RWKVSharedLibrary:
         """
 
         return self.library.rwkv_get_system_info_string().decode('utf-8')
+
+    def rwkv_get_n_embed(self, ctx: RWKVContext) -> int:
+        """
+        Returns the size of one embedding vector.
+        """
+
+        return self.library.rwkv_get_n_embed(ctx.ptr)
+
+    def rwkv_get_n_layer(self, ctx: RWKVContext) -> int:
+        """
+        Returns the number of layers.
+        """
+
+        return self.library.rwkv_get_n_layer(ctx.ptr)
+
+    def rwkv_get_n_vocab(self, ctx: RWKVContext) -> int:
+        """
+        Returns vocab size.
+        """
+
+        return self.library.rwkv_get_n_vocab(ctx.ptr)
 
 
 def load_rwkv_shared_library() -> RWKVSharedLibrary:

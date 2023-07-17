@@ -1717,15 +1717,15 @@ extern "C" RWKV_API uint32_t rwkv_get_logits_buffer_element_count(const struct r
     return rwkv_get_logits_len(ctx);
 }
 
-size_t rwkv_get_n_vocab(const struct rwkv_context * ctx) {
+extern "C" RWKV_API size_t rwkv_get_n_vocab(const struct rwkv_context * ctx) {
     return (size_t) ctx->instance->model.header.n_vocab;
 }
 
-size_t rwkv_get_n_embed(const struct rwkv_context * ctx) {
+extern "C" RWKV_API size_t rwkv_get_n_embed(const struct rwkv_context * ctx) {
     return (size_t) ctx->instance->model.header.n_embed;
 }
 
-size_t rwkv_get_n_layer(const struct rwkv_context * ctx) {
+extern "C" RWKV_API size_t rwkv_get_n_layer(const struct rwkv_context * ctx) {
     return (size_t) ctx->instance->model.header.n_layer;
 }
 
