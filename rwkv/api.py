@@ -181,11 +181,11 @@ async def process_generate(prompt, stop, stream, body, request):
                 chunk = format_message('', delta, chunk=True)
                 yield json.dumps(chunk)
         if stream:
-            result = format_message('', '', chunk=True, finish_reason='stop')
+            result = format_message(response, '', chunk=True, finish_reason='stop')
             result.update(usage=usage)
             yield json.dumps(result)
         else:
-            result = format_message(response, '', chunk=False, finish_reason='stop')
+            result = format_message(response, response, chunk=False, finish_reason='stop')
             result.update(usage=usage)
             yield result
 
