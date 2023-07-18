@@ -1,7 +1,6 @@
 import time
 import json
 import logging
-import argparse
 import uvicorn
 import sampling
 from functools import partial
@@ -11,25 +10,25 @@ from rwkv_tokenizer import get_tokenizer
 from fastapi import FastAPI, Request, HTTPException, status
 from threading import Lock
 from typing import List, Dict, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, BaseSettings
 from sse_starlette.sse import EventSourceResponse
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 
 
-# -----------
+# ----- constant ----
 END_OF_LINE_TOKEN: int = 187
 DOUBLE_END_OF_LINE_TOKEN: int = 535
 END_OF_TEXT_TOKEN: int = 0
-DEFAULT_PROMPT = 'Hi. I am your assistant and I will provide expert full response in full details. Please feel free to ask any question and I will always answer it'
-DEFAULT_STOP = '\n\nUser'
 
-parser = argparse.ArgumentParser(description='Provide terminal-based chat interface for RWKV model')
-parser.add_argument('model_path', help='Path to RWKV model in ggml format')
-parser.add_argument('tokenizer', help='Tokenizer to use; supported tokenizers: 20B, world', nargs='?', type=str, default='world')
-parser.add_argument('host', help='host', nargs='?', type=str, default='0.0.0.0')
-parser.add_argument('port', help='port', nargs='?', type=int, default=8000)
-args = parser.parse_args()
+
+# Model only saw '\n\n' as [187, 187] before, but the tokenizer outputs [535] for it at the end.
+# See https://github.com/BlinkDL/ChatRWKV/pull/110/files
+def split_last_end_of_line(tokens):
+    if len(tokens) > 0 and tokens[-1] == DOUBLE_END_OF_LINE_TOKEN:
+        tokens = tokens[:-1] + [END_OF_LINE_TOKEN, END_OF_LINE_TOKEN]
+    return tokens
+
 
 completion_lock = Lock()
 requests_num = 0
@@ -62,15 +61,16 @@ def generate_completions(
     top_p=0.5,
     presence_penalty=0.2,  # [控制主题的重复度]
     frequency_penalty=0.2,  # [重复度惩罚因子]
-    stop=DEFAULT_STOP,
+    stop='',
     usage=dict(),
     **kwargs,
 ):
     logits, state = None, None
-    prompt_tokens = tokenizer_encode(prompt)
+    prompt_tokens = split_last_end_of_line(tokenizer_encode(prompt))
     prompt_token_count = len(prompt_tokens)
     usage['prompt_tokens'] = prompt_token_count
     logging.debug(f'{prompt_token_count} tokens in prompt')
+
     for token in prompt_tokens:
         logits, state = model.eval(token, state, state, logits)
     logging.debug('end eval prompt_tokens')
@@ -113,32 +113,20 @@ def generate_completions(
     usage['completion_tokens'] = len(completion_tokens)
 
 
-def format_message(response, delta, chunk=False, chat_model=False, model_name='rwkv', finish_reason=None):
-    if not chat_model:
-        object = 'text_completion'
-    else:
-        if chunk:
-            object = 'chat.completion.chunk'
-        else:
-            object = 'chat.completion'
-
-    return {
-        'object': object,
-        'response': response,
-        'model': model_name,
-        'choices': [{
-            'delta': {'content': delta},
-            'index': 0,
-            'finish_reason': finish_reason,
-        } if chat_model else {
-            'text': delta,
-            'index': 0,
-            'finish_reason': finish_reason,
-        }]
-    }
+class Settings(BaseSettings):
+    server_name: str = "RWKV API Server"
+    default_prompt: str = "Hi. I am your assistant and I will provide expert full response in full details. Please feel free to ask any question and I will always answer it"
+    default_stop: str = '\n\nUser'
+    user_name: str = 'User'
+    bot_name: str = 'Bot'
+    model_path: str = ''  # Path to RWKV model in ggml format
+    tokenizer: str = 'world'  # Tokenizer to use; supported tokenizers: 20B, world
+    host: str = '0.0.0.0'
+    port: int = 8000
 
 
 tokenizer_decode, tokenizer_encode, model = None, None, None
+settings = Settings()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -154,11 +142,11 @@ async def startup_event():
     # 只初始化一次
     global tokenizer_decode, tokenizer_encode, model
     # get world tokenizer
-    tokenizer_decode, tokenizer_encode = get_tokenizer(args.tokenizer)
+    tokenizer_decode, tokenizer_encode = get_tokenizer(settings.tokenizer)
     library = rwkv_cpp_shared_library.load_rwkv_shared_library()
     logging.info('System info: %r', library.rwkv_get_system_info_string())
     logging.info('Start Loading RWKV model')
-    model = rwkv_cpp_model.RWKVModel(library, args.model_path)
+    model = rwkv_cpp_model.RWKVModel(library, settings.model_path)
     logging.info('End Loading RWKV model')
 
 
@@ -201,6 +189,31 @@ async def process_generate(prompt, stop, stream, chat_model, body, request):
     return await generate().__anext__()
 
 
+def format_message(response, delta, chunk=False, chat_model=False, model_name='rwkv', finish_reason=None):
+    if not chat_model:
+        object = 'text_completion'
+    else:
+        if chunk:
+            object = 'chat.completion.chunk'
+        else:
+            object = 'chat.completion'
+
+    return {
+        'object': object,
+        'response': response,
+        'model': model_name,
+        'choices': [{
+            'delta': {'content': delta},
+            'index': 0,
+            'finish_reason': finish_reason,
+        } if chat_model else {
+            'text': delta,
+            'index': 0,
+            'finish_reason': finish_reason,
+        }]
+    }
+
+
 class ModelConfigBody(BaseModel):
     max_tokens: int = Field(default=1000, gt=0, le=102400)
     temperature: float = Field(default=0.8, ge=0, le=2)
@@ -229,7 +242,7 @@ class ChatCompletionBody(ModelConfigBody):
     messages: List[Message]
     model: str = "rwkv"
     stream: bool = False
-    stop: str = DEFAULT_STOP
+    stop: str = ''
 
     class Config:
         schema_extra = {
@@ -251,7 +264,7 @@ class CompletionBody(ModelConfigBody):
     prompt: str or List[str]
     model: str = "rwkv"
     stream: bool = False
-    stop: str = DEFAULT_STOP
+    stop: str = ''
 
     class Config:
         schema_extra = {
@@ -274,7 +287,7 @@ class CompletionBody(ModelConfigBody):
 @app.post('/v1/completions')
 @app.post('/completions')
 async def completions(body: CompletionBody, request: Request):
-    return await process_generate(body.prompt, body.stop, body.stream, False, body, request)
+    return await process_generate(body.prompt, body.stop or settings.default_stop, body.stream, False, body, request)
 
 
 @app.post('/v1/chat/completions')
@@ -285,7 +298,7 @@ async def chat_completions(body: ChatCompletionBody, request: Request):
     if len(body.messages) == 0 or body.messages[-1].role != 'user':
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "no question found")
 
-    system_role = DEFAULT_PROMPT
+    system_role = settings.default_prompt
     for message in body.messages:
         if message.role == 'system':
             system_role = message.content
@@ -299,8 +312,8 @@ async def chat_completions(body: ChatCompletionBody, request: Request):
             content = message.content.replace("\\n", "\n").replace("\r\n", "\n").replace("\n\n", "\n").strip()
             completion_text += f'Bot: {content}\n\n'
 
-    return await process_generate(completion_text, body.stop, body.stream, True, body, request)
+    return await process_generate(completion_text, body.stop or settings.default_stop, body.stream, True, body, request)
 
 
 if __name__ == "__main__":
-    uvicorn.run("api:app", host=args.host, port=args.port)
+    uvicorn.run("api:app", host=settings.host, port=settings.port)
