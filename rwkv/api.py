@@ -51,9 +51,6 @@ async def run_with_lock(func, request):
             if await request.is_disconnected():
                 logging.debug("Stop Waiting (Lock). RequestsNum: %r", requests_num)
                 return
-            # if await request.is_disconnected():
-            # new = f'{user}{separator} {msg}\n\n{bot}{separator}'
-            # process_tokens(tokenizer_encode(new), new_line_logit_bias=-999999999)
             return func()
 
 
@@ -145,7 +142,7 @@ tokenizer_decode, tokenizer_encode, model = None, None, None
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -293,7 +290,7 @@ async def chat_completions(body: ChatCompletionBody, request: Request):
         if message.role == 'system':
             system_role = message.content
 
-    completion_text = f'User: {DEFAULT_PROMPT}\n\n'
+    completion_text = f'{system_role}\n\n'
     for message in body.messages:
         if message.role == 'user':
             content = message.content.replace("\\n", "\n").replace("\r\n", "\n").replace("\n\n", "\n").strip()
@@ -301,7 +298,6 @@ async def chat_completions(body: ChatCompletionBody, request: Request):
         elif message.role == 'assistant':
             content = message.content.replace("\\n", "\n").replace("\r\n", "\n").replace("\n\n", "\n").strip()
             completion_text += f'Bot: {content}\n\n'
-    completion_text += f"Bot: "
 
     return await process_generate(completion_text, body.stop, body.stream, True, body, request)
 
