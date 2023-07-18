@@ -8,12 +8,13 @@ from functools import partial
 import rwkv_cpp_model
 import rwkv_cpp_shared_library
 from rwkv_tokenizer import get_tokenizer
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException, status
 from threading import Lock
 from typing import List, Dict, Optional
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
 
 
 # -----------
@@ -142,6 +143,13 @@ def format_message(response, delta, chunk=False, chat_model=False, model_name='r
 
 tokenizer_decode, tokenizer_encode, model = None, None, None
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
