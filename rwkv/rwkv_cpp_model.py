@@ -52,6 +52,19 @@ class RWKVModel:
 
         self._valid = True
 
+    @property
+    def n_vocab(self):
+        return self._library.rwkv_get_n_vocab(self._ctx)
+
+    @property
+    def n_embed(self):
+        return self._library.rwkv_get_n_embed(self._ctx)
+
+    @property
+    def n_layer(self):
+        return self._library.rwkv_get_n_layer(self._ctx)
+
+
     def eval(
             self,
             token: int,
