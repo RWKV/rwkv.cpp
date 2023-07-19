@@ -3,7 +3,7 @@ import json
 import logging
 import uvicorn
 import sampling
-from functools import partial
+import functools
 import rwkv_cpp_model
 import rwkv_cpp_shared_library
 from rwkv_tokenizer import get_tokenizer
@@ -34,26 +34,32 @@ completion_lock = Lock()
 requests_num = 0
 
 
-async def run_with_lock(func, request):
-    global requests_num
-    requests_num = requests_num + 1
-    logging.debug("Start Waiting. RequestsNum: %r", requests_num)
-    while completion_lock.locked():
-        if await request.is_disconnected():
-            logging.debug("Stop Waiting (Lock). RequestsNum: %r", requests_num)
-            return
-        # 等待
-        logging.debug("Waiting. RequestsNum: %r", requests_num)
-        time.sleep(0.1)
-    else:
-        with completion_lock:
+def run_with_lock(method):
+    @functools.wraps(method)
+    async def wrapper(request, *args, **kwargs):
+        global requests_num
+        requests_num = requests_num + 1
+        logging.debug("Start Waiting. RequestsNum: %r", requests_num)
+        while completion_lock.locked():
             if await request.is_disconnected():
                 logging.debug("Stop Waiting (Lock). RequestsNum: %r", requests_num)
                 return
-            return func()
+            # 等待
+            logging.debug("Waiting. RequestsNum: %r", requests_num)
+            time.sleep(0.1)
+        else:
+            with completion_lock:
+                if await request.is_disconnected():
+                    logging.debug("Stop Waiting (Lock). RequestsNum: %r", requests_num)
+                    return
+                return method(request, *args, **kwargs)
+
+    return wrapper
 
 
-def generate_completions(
+@run_with_lock
+async def generate_completions(
+    request,  # using in run_with_lock
     model,
     prompt,
     max_tokens=256,  # 这个是不是不应该用？
@@ -157,20 +163,19 @@ def shutdown_event():
 
 async def process_generate(prompt, stop, stream, chat_model, body, request):
     usage = {}
-    func = partial(
-        generate_completions,
-        model, f'User: {prompt}\n\nBot: ',
-        max_tokens=body.max_tokens or 1000,
-        temperature=body.temperature,
-        top_p=body.top_p,
-        presence_penalty=body.presence_penalty,
-        frequency_penalty=body.frequency_penalty,
-        stop=stop, usage=usage,
-    )
 
     async def generate():
         response = ''
-        for delta in await run_with_lock(func, request):
+        async for delta in await generate_completions(
+            request,
+            model, f'User: {prompt}\n\nBot: ',
+            max_tokens=body.max_tokens or 1000,
+            temperature=body.temperature,
+            top_p=body.top_p,
+            presence_penalty=body.presence_penalty,
+            frequency_penalty=body.frequency_penalty,
+            stop=stop, usage=usage,
+        ):
             response += delta
             if stream:
                 chunk = format_message('', delta, chunk=True, chat_model=chat_model)
