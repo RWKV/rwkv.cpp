@@ -119,7 +119,7 @@ class Settings(BaseSettings):
     default_stop: str = '\n\nUser'
     user_name: str = 'User'
     bot_name: str = 'Bot'
-    model_path: str = ''  # Path to RWKV model in ggml format
+    model_path: str = '/model.bin'  # Path to RWKV model in ggml format
     tokenizer: str = 'world'  # Tokenizer to use; supported tokenizers: 20B, world
     host: str = '0.0.0.0'
     port: int = 8000
