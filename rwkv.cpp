@@ -1930,7 +1930,8 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
 
 const char * rwkv_get_system_info_string(void) {
     static std::string s;
-    if(s.empty()) {
+
+    if (s.empty()) {
         s  = "";
         s += "AVX="       + std::to_string(ggml_cpu_has_avx())       + " ";
         s += "AVX2="      + std::to_string(ggml_cpu_has_avx2())      + " ";
