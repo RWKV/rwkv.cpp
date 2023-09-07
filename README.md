@@ -214,6 +214,11 @@ For reference only, here is a list of latest versions of `rwkv.cpp` that have su
 
 See also [docs/FILE_FORMAT.md](docs/FILE_FORMAT.md) for version numbers of `rwkv.cpp` model files and their changelog.
 
+## Bindings
+
+* Golang : [seasonjs/rwkv](https://github.com/seasonjs/rwkv)
+* Node.js : [Atome-FE/llama-node](https://github.com/Atome-FE/llama-node)
+
 ## Contributing
 
 Please follow the code style described in [docs/CODE_STYLE.md](docs/CODE_STYLE.md).
