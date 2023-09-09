@@ -216,8 +216,10 @@ See also [docs/FILE_FORMAT.md](docs/FILE_FORMAT.md) for version numbers of `rwkv
 
 ## Bindings
 
-* Golang : [seasonjs/rwkv](https://github.com/seasonjs/rwkv)
-* Node.js : [Atome-FE/llama-node](https://github.com/Atome-FE/llama-node)
+These projects wrap `rwkv.cpp` for easier use in other languages/frameworks.
+
+* Golang: [seasonjs/rwkv](https://github.com/seasonjs/rwkv)
+* Node.js: [Atome-FE/llama-node](https://github.com/Atome-FE/llama-node)
 
 ## Contributing
 
