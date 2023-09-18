@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#define TOKEN_COUNT 11
+
+static const unsigned char prompt[TOKEN_COUNT + 1] = "hello world";
+
 static int test_serial_mode() {
     struct rwkv_context * ctx = rwkv_init_from_file("tiny-rwkv-660K-FP32.bin", 2);
 
@@ -21,8 +25,6 @@ static int test_serial_mode() {
 		fprintf(stderr, "Failed to allocate state or logits\n");
 		return EXIT_FAILURE;
 	}
-
-	const unsigned char prompt[12] = "hello world";
 
 	rwkv_eval(ctx, prompt[0], NULL, state, logits);
 
@@ -78,9 +80,13 @@ static int test_sequential_mode() {
 		return EXIT_FAILURE;
 	}
 
-	const unsigned char prompt[12] = "hello world";
+	uint32_t prompt_tokens[TOKEN_COUNT];
 
-	rwkv_eval_sequence(ctx, prompt, 11, NULL, state, logits);
+	for (int i = 0; i < TOKEN_COUNT; i++) {
+	    prompt_tokens[i] = prompt[i];
+	}
+
+	rwkv_eval_sequence(ctx, prompt_tokens, TOKEN_COUNT, NULL, state, logits);
 
 	float * expected_state = state;
 
@@ -91,7 +97,7 @@ static int test_sequential_mode() {
 		return EXIT_FAILURE;
 	}
 
-	rwkv_eval_sequence(ctx, prompt, 11, NULL, state, NULL);
+	rwkv_eval_sequence(ctx, prompt_tokens, TOKEN_COUNT, NULL, state, NULL);
 
 	if (memcmp(expected_state, state, rwkv_get_state_len(ctx) * sizeof(float))) {
 		fprintf(stderr, "Sequential mode: results are not identical :(\n");

@@ -541,7 +541,6 @@ bool rwkv_set_params(struct rwkv_model & model, F callback) {
 // Creates a ggml context and loads all parameter tensors from a model file.
 bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model & model) {
     struct stat file_stat;
-    size_t ffn_key_size = 0;
 
     std::unordered_map<std::string, struct ggml_tensor *> parameters;
 
@@ -553,7 +552,7 @@ bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model & model
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, rwkv_fread_file_header(file.file, model.header), "Invalid file header");
 
     model.ggml_ctx = rwkv_init_ggml_context(
-        // Assuming that padding/alignment is already accounted for in rwkv_ggml_overhead().
+        // ggml tensors must be aligned; assuming here that overhead of parameter headers, included in the file size, will account for that.
         file_stat.st_size + rwkv_ggml_overhead(),
         false
     );
@@ -587,44 +586,110 @@ bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model & model
 
 // --- Operators ---
 
-void rwkv_exp_impl(const int n_cols, float * dest, const float * src) {
-    for (int i = 0; i < n_cols; i++) {
-        dest[i] = expf(src[i]);
+void rwkv_exp_impl(struct ggml_tensor * dest, const struct ggml_tensor * src, int ith, int nth, void * userdata) {
+    GGML_ASSERT(dest->type == GGML_TYPE_F32);
+    GGML_ASSERT(src->type == GGML_TYPE_F32);
+    GGML_ASSERT(ggml_are_same_shape(src, dest));
+
+    // Assuming contiguous 2D tensors.
+    int64_t element_count = src->ne[0] * src->ne[1];
+    float * src_data = (float *) src->data;
+    float * dest_data = (float *) dest->data;
+
+    for (int64_t i = 0; i < element_count; i++) {
+        dest_data[i] = expf(src_data[i]);
     }
+
+    // Suppress warnings for unused parameters.
+    (void) ith;
+    (void) nth;
+    (void) userdata;
 }
 
-void rwkv_1_minus_x_impl(const int n_cols, float * dest, const float * src) {
-    for (int i = 0; i < n_cols; i++) {
-        dest[i] = 1.0F - src[i];
+void rwkv_1_minus_x_impl(struct ggml_tensor * dest, const struct ggml_tensor * src, int ith, int nth, void * userdata) {
+    GGML_ASSERT(dest->type == GGML_TYPE_F32);
+    GGML_ASSERT(src->type == GGML_TYPE_F32);
+    GGML_ASSERT(ggml_are_same_shape(src, dest));
+
+    // Assuming contiguous 2D tensors.
+    int64_t element_count = src->ne[0] * src->ne[1];
+    float * src_data = (float *) src->data;
+    float * dest_data = (float *) dest->data;
+
+    for (int64_t i = 0; i < element_count; i++) {
+        dest_data[i] = 1.0F - src_data[i];
     }
+
+    // Suppress warnings for unused parameters.
+    (void) ith;
+    (void) nth;
+    (void) userdata;
 }
 
-void rwkv_sigmoid_impl(const int n_cols, float * dest, const float * src) {
-    for (int i = 0; i < n_cols; i++) {
-        dest[i] = 1.0F / (1.0F + expf(-src[i]));
+void rwkv_sigmoid_impl(struct ggml_tensor * dest, const struct ggml_tensor * src, int ith, int nth, void * userdata) {
+    GGML_ASSERT(dest->type == GGML_TYPE_F32);
+    GGML_ASSERT(src->type == GGML_TYPE_F32);
+    GGML_ASSERT(ggml_are_same_shape(src, dest));
+
+    // Assuming contiguous 2D tensors.
+    int64_t element_count = src->ne[0] * src->ne[1];
+    float * src_data = (float *) src->data;
+    float * dest_data = (float *) dest->data;
+
+    for (int64_t i = 0; i < element_count; i++) {
+        dest_data[i] = 1.0F / (1.0F + expf(-src_data[i]));
     }
+
+    // Suppress warnings for unused parameters.
+    (void) ith;
+    (void) nth;
+    (void) userdata;
 }
 
-void rwkv_max_impl(const int n_cols, float * dest, const float * src0, const float * src1) {
-    for (int i = 0; i < n_cols; i++) {
-        dest[i] = fmaxf(src0[i], src1[i]);
+void rwkv_max_impl(
+    struct ggml_tensor * dest,
+    const struct ggml_tensor * src0,
+    const struct ggml_tensor * src1,
+    int ith,
+    int nth,
+    void * userdata
+) {
+    GGML_ASSERT(dest->type == GGML_TYPE_F32);
+    GGML_ASSERT(src0->type == GGML_TYPE_F32);
+    GGML_ASSERT(src1->type == GGML_TYPE_F32);
+    GGML_ASSERT(ggml_are_same_shape(src0, dest));
+    GGML_ASSERT(ggml_are_same_shape(src1, dest));
+
+    // Assuming contiguous 2D tensors.
+    int64_t element_count = src0->ne[0] * src0->ne[1];
+    float * src0_data = (float *) src0->data;
+    float * src1_data = (float *) src1->data;
+    float * dest_data = (float *) dest->data;
+
+    for (int64_t i = 0; i < element_count; i++) {
+        dest_data[i] = fmaxf(src0_data[i], src1_data[i]);
     }
+
+    // Suppress warnings for unused parameters.
+    (void) ith;
+    (void) nth;
+    (void) userdata;
 }
 
 struct ggml_tensor * rwkv_exp(ggml_context * ctx, struct ggml_tensor * x) {
-    return ggml_map_unary_f32(ctx, x, rwkv_exp_impl);
+    return ggml_map_custom1(ctx, x, rwkv_exp_impl, 1, NULL);
 }
 
 struct ggml_tensor * rwkv_1_minus_x(ggml_context * ctx, struct ggml_tensor * x) {
-    return ggml_map_unary_f32(ctx, x, rwkv_1_minus_x_impl);
+    return ggml_map_custom1(ctx, x, rwkv_1_minus_x_impl, 1, NULL);
 }
 
 struct ggml_tensor * rwkv_sigmoid(ggml_context * ctx, struct ggml_tensor * x) {
-    return ggml_map_unary_f32(ctx, x, rwkv_sigmoid_impl);
+    return ggml_map_custom1(ctx, x, rwkv_sigmoid_impl, 1, NULL);
 }
 
 struct ggml_tensor * rwkv_max(ggml_context * ctx, struct ggml_tensor * x, struct ggml_tensor * y) {
-    return ggml_map_binary_f32(ctx, x, y, rwkv_max_impl);
+    return ggml_map_custom2(ctx, x, y, rwkv_max_impl, 1, NULL);
 }
 
 struct ggml_tensor * rwkv_layer_norm(ggml_context * ctx, struct ggml_tensor * x, struct ggml_tensor * weight, struct ggml_tensor * bias) {
@@ -662,11 +727,11 @@ struct rwkv_computation_graph {
     struct ggml_tensor * logits;
 
     // ggml graph counters before the graph was extended with logits tensor.
-    size_t pre_logits_nodes;
-    size_t pre_logits_leafs;
+    int pre_logits_nodes;
+    int pre_logits_leafs;
     // ggml graph counters after the graph was extended with logits tensor.
-    size_t post_logits_nodes;
-    size_t post_logits_leafs;
+    int post_logits_nodes;
+    int post_logits_leafs;
 };
 
 // The context holds the model and both serial and sequential computation graphs.
@@ -924,12 +989,12 @@ bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_computation_
         x = ggml_add_inplace(ctx, x, rwkv_att(ctx, x, layer, state));
         x = ggml_add_inplace(ctx, x, rwkv_ffn(ctx, x, layer, state));
 
-        struct rwkv_layer_state & output = outputs[i];
-        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.ffn_xx, output.ffn_xx));
-        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_xx, output.att_xx));
-        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_aa, output.att_aa));
-        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_bb, output.att_bb));
-        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_pp, output.att_pp));
+        struct rwkv_layer_state & output_state = outputs[i];
+        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.ffn_xx, output_state.ffn_xx));
+        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_xx, output_state.att_xx));
+        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_aa, output_state.att_aa));
+        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_bb, output_state.att_bb));
+        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_pp, output_state.att_pp));
     }
 
     graph.pre_logits_nodes = graph.cgraph->n_nodes;
@@ -1043,12 +1108,12 @@ bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_computat
         x = ggml_add_inplace(ctx, x, ggml_mul_mat(ctx, layer.att_output, ggml_mul(ctx, r, x_prev)));
         x = ggml_add_inplace(ctx, x, rwkv_ffn(ctx, x, layer, state));
 
-        struct rwkv_layer_state & output = outputs[i];
-        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.ffn_xx, output.ffn_xx));
-        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_xx, output.att_xx));
-        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_aa, output.att_aa));
-        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_bb, output.att_bb));
-        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_pp, output.att_pp));
+        struct rwkv_layer_state & output_state = outputs[i];
+        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.ffn_xx, output_state.ffn_xx));
+        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_xx, output_state.att_xx));
+        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_aa, output_state.att_aa));
+        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_bb, output_state.att_bb));
+        ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_pp, output_state.att_pp));
     }
 
     graph.pre_logits_nodes = graph.cgraph->n_nodes;
@@ -1116,8 +1181,6 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 
     RWKV_ENSURE_OR_NULL(rwkv_measure_and_build_serial_context(*ctx->model, ctx->serial_graph));
 
-    ctx->last_used_sequence_length = -1;
-
     return ctx.release();
 }
 
@@ -1128,11 +1191,11 @@ struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32
     clone->model = ctx->model;
     clone->model->reference_count++;
 
-    clone->n_threads = ctx->n_threads;
+    clone->n_threads = n_threads;
 
     RWKV_ENSURE_OR_NULL(rwkv_measure_and_build_serial_context(*clone->model, clone->serial_graph));
 
-    clone->last_used_sequence_length = -1;
+    clone->last_used_sequence_length = 0;
 
     clone->print_errors = ctx->print_errors;
 
@@ -1182,7 +1245,7 @@ void rwkv_set_inputs(const struct rwkv_context * ctx, const struct rwkv_computat
     }
 }
 
-void rwkv_get_outputs(const struct rwkv_context * ctx, const struct rwkv_computation_graph & graph, float * state_out, float * logits_out) {
+void rwkv_get_outputs(const struct rwkv_computation_graph & graph, float * state_out, float * logits_out) {
     if (state_out) {
         memcpy(state_out, graph.output_state->data, rwkv_tensor_nbytes(graph.output_state));
     }
@@ -1222,7 +1285,7 @@ bool rwkv_eval(struct rwkv_context * ctx, const uint32_t token, const float * st
 
     rwkv_eval_graph(ctx->serial_graph, ctx->n_threads, logits_out != NULL);
 
-    rwkv_get_outputs(ctx, ctx->serial_graph, state_out, logits_out);
+    rwkv_get_outputs(ctx->serial_graph, state_out, logits_out);
 
     return true;
 }
@@ -1236,6 +1299,8 @@ bool rwkv_eval_sequence(
     float * logits_out
 ) {
     ctx->last_error = RWKV_ERROR_NONE;
+
+    RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, sequence_len > 0, "Sequence length is 0");
 
     const struct rwkv_file_header & header = ctx->model->header;
     const size_t n_vocab = header.n_vocab;
@@ -1263,7 +1328,7 @@ bool rwkv_eval_sequence(
 
         rwkv_eval_graph(ctx->sequential_graph, ctx->n_threads, logits_out != NULL);
 
-        rwkv_get_outputs(ctx, ctx->sequential_graph, state_out, logits_out);
+        rwkv_get_outputs(ctx->sequential_graph, state_out, logits_out);
     }
 
     return true;
