@@ -1,3 +1,4 @@
+// TODO Move to inc
 #define ASSERT(x, ...) {\
         if (!(x)) {\
             fprintf(stderr, "*** Assertion failed ***\n");\

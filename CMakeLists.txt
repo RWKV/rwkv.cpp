@@ -106,6 +106,7 @@ if (RWKV_CUBLAS)
     cmake_minimum_required(VERSION 3.17)
 
     find_package(CUDAToolkit)
+
     if (CUDAToolkit_FOUND)
         message(STATUS "cuBLAS found")
 
@@ -120,6 +121,20 @@ if (RWKV_CUBLAS)
         else()
             set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} CUDA::cudart CUDA::cublas CUDA::cublasLt)
         endif()
+
+        # Copy-pasted from https://github.com/ggerganov/llama.cpp/blob/111163e2463171891680feed94371eb9becd9817/CMakeLists.txt#L317
+        if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+            # 52 == lowest CUDA 12 standard
+            # 60 == f16 CUDA intrinsics
+            # 61 == integer CUDA intrinsics
+            # 70 == compute capability at which unrolling a loop in mul_mat_q kernels is faster
+
+            # Lowest CUDA 12 standard + lowest for integer intrinsics
+            set(CMAKE_CUDA_ARCHITECTURES "52;61;70")
+        endif()
+        message(STATUS "Using CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
+
+        #add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-arch=sm_70>")
 
     else()
         message(WARNING "cuBLAS not found")
@@ -296,7 +311,9 @@ endif()
 
 add_library(ggml OBJECT
             ${CMAKE_SOURCE_DIR}/ggml/src/ggml.c
+            ${CMAKE_SOURCE_DIR}/ggml/src/ggml-alloc.c
             ${CMAKE_SOURCE_DIR}/ggml/include/ggml/ggml.h
+            ${CMAKE_SOURCE_DIR}/ggml/include/ggml/ggml-alloc.h
             ${GGML_CUDA_SOURCES}
             ${GGML_OPENCL_SOURCES})
 
@@ -326,13 +343,6 @@ target_link_libraries(rwkv PRIVATE ggml ${RWKV_EXTRA_LIBS})
 if (RWKV_BUILD_SHARED_LIBRARY)
     set_target_properties(rwkv PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(rwkv PRIVATE RWKV_SHARED RWKV_BUILD)
-endif()
-
-if (GGML_CUDA_SOURCES)
-    message(STATUS "GGML CUDA sources found, configuring CUDA architecture")
-    set_property(TARGET ggml PROPERTY CUDA_ARCHITECTURES OFF)
-    set_property(TARGET ggml PROPERTY CUDA_SELECT_NVCC_ARCH_FLAGS "Auto")
-    set_property(TARGET rwkv PROPERTY CUDA_ARCHITECTURES OFF)
 endif()
 
 if (NOT RWKV_STANDALONE)

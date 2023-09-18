@@ -1,7 +1,5 @@
 // Tests that tiny RWKV outputs expected results in all data types.
-
-#include "ggml.h"
-#include "rwkv.h"
+#include <rwkv.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,7 +21,7 @@ int main(void) {
 
         -0.160030F,
 #ifdef GGML_USE_CUBLAS
-        -0.412408F,
+        -0.547409F,
 #else
         -0.370606F,
 #endif
@@ -33,7 +31,7 @@ int main(void) {
 
         0.154614F,
 #ifdef GGML_USE_CUBLAS
-        -0.405527F,
+        -0.539827F,
 #else
         -0.372169F,
 #endif

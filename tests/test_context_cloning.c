@@ -1,3 +1,4 @@
+// Tests that evaluation works after the context was cloned.
 #include <rwkv.h>
 
 #include <stdlib.h>
@@ -17,7 +18,7 @@ int main() {
 	float * logits = calloc(rwkv_get_logits_len(ctx), sizeof(float));
 
 	if (!state || !logits) {
-		fprintf(stderr, "Failed to allocate state/logits\n");
+		fprintf(stderr, "Failed to allocate state or logits\n");
 		return EXIT_FAILURE;
 	}
 
@@ -34,26 +35,33 @@ int main() {
 	logits = calloc(rwkv_get_logits_len(ctx), sizeof(float));
 
 	if (!logits) {
-		fprintf(stderr, "Failed to allocate state/logits\n");
+		fprintf(stderr, "Failed to allocate logits\n");
 		return EXIT_FAILURE;
 	}
 
 	struct rwkv_context * ctx2 = rwkv_clone_context(ctx, 2);
 
-	rwkv_eval(ctx, prompt[0], NULL, state, logits);
+	if (ctx == ctx2) {
+		fprintf(stderr, "Same context was returned\n");
+		return EXIT_FAILURE;
+	}
+
+    // The cloned context should work fine after the original context was freed.
+	rwkv_free(ctx);
+
+	rwkv_eval(ctx2, prompt[0], NULL, state, logits);
 
 	for (int i = 1; prompt[i] != 0; i++) {
-		rwkv_eval(ctx, prompt[i], state, state, logits);
+		rwkv_eval(ctx2, prompt[i], state, state, logits);
 	}
 
-	if (memcmp(expected_logits, logits, rwkv_get_logits_len(ctx) * sizeof(float))) {
-		fprintf(stderr, "Results not identical :(\n");
+	if (memcmp(expected_logits, logits, rwkv_get_logits_len(ctx2) * sizeof(float))) {
+		fprintf(stderr, "Results are not identical :(\n");
 		return EXIT_FAILURE;
 	} else {
-		fprintf(stdout, "Results identical, success!\n");
+		fprintf(stdout, "Results are identical, success!\n");
 	}
 
-	rwkv_free(ctx);
 	rwkv_free(ctx2);
 
 	free(expected_logits);

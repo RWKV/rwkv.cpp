@@ -1,7 +1,5 @@
 // Tests that existing Q5_0 & Q5_1 model files are still working.
-
-#include "ggml.h"
-#include "rwkv.h"
+#include <rwkv.h>
 
 #include <stdio.h>
 #include <stdlib.h>
