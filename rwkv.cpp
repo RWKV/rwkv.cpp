@@ -1,4 +1,12 @@
 #include "rwkv.h"
+
+// Fix build on Linux.
+// https://stackoverflow.com/questions/8518264/where-is-the-declaration-of-cpu-alloc
+#if defined(__linux__)
+#define _GNU_SOURCE
+#include <sched.h>
+#endif
+
 #include "ggml.h"
 #include "ggml-alloc.h"
 
@@ -316,10 +324,10 @@ struct rwkv_tensor_header {
     uint32_t width;
     uint32_t height;
 
-    const size_t size() const;
+    size_t size() const;
 };
 
-const size_t rwkv_tensor_header::size() const {
+size_t rwkv_tensor_header::size() const {
     return rwkv_tensor_nbytes(rwkv_type_to_ggml[this->data_type], this->width, this->height);
 }
 
@@ -1311,10 +1319,7 @@ bool rwkv_eval_sequence(
 
     RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, sequence_len > 0, "Sequence length is 0");
 
-    const struct rwkv_file_header & header = ctx->model->header;
-    const size_t n_vocab = header.n_vocab;
-    const size_t n_embed = header.n_embed;
-    const size_t n_layer = header.n_layer;
+    const size_t n_vocab = ctx->model->header.n_vocab;
 
     if (sequence) {
         for (size_t i = 0; i < sequence_len; i++) {
