@@ -133,9 +133,6 @@ if (RWKV_CUBLAS)
             set(CMAKE_CUDA_ARCHITECTURES "52;61;70")
         endif()
         message(STATUS "Using CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
-
-        #add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-arch=sm_70>")
-
     else()
         message(WARNING "cuBLAS not found")
     endif()
@@ -153,7 +150,7 @@ if (RWKV_CLBLAST)
         $ENV{OPENCL_HOME}
         $ENV{OPENCL_HOME}/include
         ${OPENCL_INCLUDE_SEARCH_PATHS}
-        )
+    )
 
     set(CLBLAST_INCLUDE_SEARCH_PATHS
         /usr/include
@@ -161,7 +158,7 @@ if (RWKV_CLBLAST)
         $ENV{CLBLAST_HOME}
         $ENV{CLBLAST_HOME}/include
         ${CLBLAST_INCLUDE_SEARCH_PATHS}
-        )
+    )
 
     find_path(OPENCL_INC NAMES opencl.h PATHS ${OPENCL_INCLUDE_SEARCH_PATHS} PATH_SUFFIXES include/CL)
     find_library(OPENCL_LIB NAMES OpenCL PATHS ${OPENCL_INCLUDE_SEARCH_PATHS} PATH_SUFFIXES lib)
