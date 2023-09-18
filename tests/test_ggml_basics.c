@@ -1,4 +1,12 @@
 // Tests that ggml basics work.
+
+// Fix build on Linux.
+// https://stackoverflow.com/questions/8518264/where-is-the-declaration-of-cpu-alloc
+#if defined(__linux__)
+#define _GNU_SOURCE
+#include <sched.h>
+#endif
+
 #include <ggml.h>
 
 #include <stdio.h>
@@ -23,7 +31,7 @@
     }
 
 // Tests simple computation in a single context.
-static void test_computation() {
+static void test_computation(void) {
     struct ggml_init_params params = {
         .mem_size   = 16 * 1024,
         .mem_buffer = NULL,
@@ -62,7 +70,7 @@ static void test_computation() {
 
 // Tests that operations on tensors from different contexts work.
 // RWKV model loading code depends on this behavior.
-static void test_tensors_from_different_contexts() {
+static void test_tensors_from_different_contexts(void) {
     struct ggml_init_params params = {
         .mem_size   = 16 * 1024,
         .mem_buffer = NULL,
