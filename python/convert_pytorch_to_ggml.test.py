@@ -15,8 +15,8 @@ def test() -> None:
 
         convert_pytorch_to_ggml.write_state_dict(state_dict, dest_path=test_file_path, data_type='FP32')
 
-        with open(test_file_path, 'rb') as input:
-            actual_bytes: bytes = input.read()
+        with open(test_file_path, 'rb') as test_file:
+            actual_bytes: bytes = test_file.read()
 
         expected_bytes: bytes = struct.pack(
             '=iiiiii' + 'iiiii10sffffff' + 'iiii19sf',

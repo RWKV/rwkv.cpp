@@ -3,9 +3,8 @@
 import argparse
 import time
 import sampling
-import rwkv_cpp_model
-import rwkv_cpp_shared_library
-from rwkv_tokenizer import get_tokenizer
+from rwkv import rwkv_cpp_shared_library, rwkv_cpp_model
+from tokenizer_util import get_tokenizer
 
 # ======================================== Script settings ========================================
 
@@ -13,7 +12,7 @@ prompt: str = """# rwkv.cpp
 
 This is a port of [BlinkDL/RWKV-LM](https://github.com/BlinkDL/RWKV-LM) to [ggerganov/ggml](https://github.com/ggerganov/ggml).
 
-Besides usual **FP32**, it supports **FP16** and **quantized INT4** inference on CPU. This project is **CPU only**."""
+Besides the usual **FP32**, it supports **FP16**, **quantized INT4, INT5 and INT8** inference. This project is **focused on CPU**, but cuBLAS is also supported."""
 
 # How many completions to generate.
 generation_count: int = 3

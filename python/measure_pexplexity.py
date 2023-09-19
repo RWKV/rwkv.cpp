@@ -6,9 +6,8 @@ import os
 import time
 import argparse
 import torch
-import rwkv_cpp_model
-import rwkv_cpp_shared_library
-from rwkv_tokenizer import get_tokenizer
+from rwkv import rwkv_cpp_shared_library, rwkv_cpp_model
+from tokenizer_util import get_tokenizer
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Measure perplexity and per-token latency of an RWKV model on a given text file')

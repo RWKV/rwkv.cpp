@@ -6,14 +6,13 @@ import os
 import argparse
 import pathlib
 import copy
+import json
+import time
 import torch
 import sampling
-import rwkv_cpp_model
-import rwkv_cpp_shared_library
-from rwkv_tokenizer import get_tokenizer
-import json
+from rwkv import rwkv_cpp_shared_library, rwkv_cpp_model
+from tokenizer_util import get_tokenizer
 from typing import List, Dict, Optional
-import time
 
 # ======================================== Script settings ========================================
 

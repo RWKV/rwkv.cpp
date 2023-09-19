@@ -1,23 +1,19 @@
 import os
-import tokenizers
 import pathlib
 from typing import List, Set, Tuple, Callable
 
 # Taken from https://github.com/BlinkDL/ChatRWKV/tree/main/tokenizer/rwkv_tokenizer.py
 
 class Trie:
-    __slots__ = tuple('ch,to,values,front'.split(','))
+    __slots__ = ('ch', 'to', 'values', 'front')
 
-    to: List
-    values: Set
-
-    def __init__(self, front=None, ch=None):
+    def __init__(self, front=None, ch=None) -> None:
         self.ch = ch
-        self.to = [None for _ in range(256)]
-        self.values = set()
+        self.to: List = [None for _ in range(256)]
+        self.values: Set = set()
         self.front = front
 
-    def add(self, key: bytes, idx: int = 0, val=None):
+    def add(self, key: bytes, idx: int = 0, val=None) -> 'Trie':
         if idx == len(key):
             if val is None:
                 val = key
@@ -33,7 +29,7 @@ class Trie:
 
         return self.to[ch].add(key, idx=idx + 1, val=val)
 
-    def find_longest(self, key: bytes, idx: int = 0):
+    def find_longest(self, key: bytes, idx: int = 0) -> Tuple[int, 'Trie', set]:
         u: Trie = self
         ch: int = key[idx]
         ret = None
@@ -54,12 +50,12 @@ class Trie:
 
         return ret
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         fr = self
         ret = []
 
-        while fr != None:
-            if fr.ch != None:
+        while fr is not None:
+            if fr.ch is not None:
                 ret.append(fr.ch)
 
             fr = fr.front
@@ -68,7 +64,7 @@ class Trie:
 
 class WorldTokenizer:
 
-    def __init__(self, file_path):
+    def __init__(self, file_path) -> None:
         self.index_to_token = {}
 
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -82,14 +78,14 @@ class WorldTokenizer:
             assert len(x) == int(line[line.rindex(' '):])
             self.index_to_token[idx] = x
 
-        self.token2idx = {}
+        self.token_to_index = {}
 
         for k, v in self.index_to_token.items():
-            self.token2idx[v] = int(k)
+            self.token_to_index[v] = int(k)
 
         self.root = Trie()
 
-        for t, i in self.token2idx.items():
+        for t, i in self.token_to_index.items():
             _ = self.root.add(t, val=(t, i))
 
     def encode_bytes(self, src: bytes) -> List[int]:
@@ -116,19 +112,14 @@ class WorldTokenizer:
         # Downstream code needs to detect \uFFFD and attempt to postpone decoding until more tokens arrive and UTF-8 sequences are complete.
         return self.decode_bytes(tokens).decode('utf-8', errors='replace')
 
-def get_tokenizer(tokenizer: str = '20B') -> Tuple[
+def get_world_tokenizer_v20230424() -> Tuple[
     Callable[[List[int]], str],
     Callable[[str], List[int]]
 ]:
+    """
+    Loads the default World tokenizer, commonly used in RWKV v4 World models.
+    Returns a tuple of `decode` and `encode` functions.
+    """
     parent: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent
-
-    if tokenizer == 'world':
-        print('Loading world tokenizer')
-        tokenizer: WorldTokenizer = WorldTokenizer(parent / 'rwkv_vocab_v20230424.txt')
-        return tokenizer.decode, tokenizer.encode
-    elif tokenizer == '20B':
-        print('Loading 20B tokenizer')
-        tokenizer: tokenizers.Tokenizer = tokenizers.Tokenizer.from_file(str(parent / '20B_tokenizer.json'))
-        return tokenizer.decode, lambda x: tokenizer.encode(x).ids
-    else:
-        assert False, f'Unknown tokenizer {tokenizer}'
+    tokenizer: WorldTokenizer = WorldTokenizer(parent / 'rwkv_vocab_v20230424.txt')
+    return tokenizer.decode, tokenizer.encode

@@ -17,7 +17,7 @@ P_INT = ctypes.POINTER(ctypes.c_int32)
 
 class RWKVContext:
 
-    def __init__(self, ptr: ctypes.pointer):
+    def __init__(self, ptr: ctypes.pointer) -> None:
         self.ptr = ptr
 
 class RWKVSharedLibrary:
@@ -25,7 +25,7 @@ class RWKVSharedLibrary:
     Python wrapper around rwkv.cpp shared library.
     """
 
-    def __init__(self, shared_library_path: str):
+    def __init__(self, shared_library_path: str) -> None:
         """
         Loads the shared library from specified file.
         In case of any error, this method will throw an exception.
@@ -146,7 +146,7 @@ class RWKVSharedLibrary:
         this limit when using large models and/or large sequence lengths.
         Fortunately, rwkv.cpp's fork of ggml has increased limit which was tested to work for sequence lengths up to 64 for 14B models.
 
-        If you get `GGML_ASSERT: ...\ggml.c:16941: cgraph->n_nodes < GGML_MAX_NODES`, this means you've exceeded the limit.
+        If you get `GGML_ASSERT: ...\\ggml.c:16941: cgraph->n_nodes < GGML_MAX_NODES`, this means you've exceeded the limit.
         To get rid of the assertion failure, reduce the model size and/or sequence length.
 
         Throws an exception in case of any error. Error messages would be printed to stderr.
@@ -297,7 +297,6 @@ class RWKVSharedLibrary:
 
         return self.library.rwkv_get_n_vocab(ctx.ptr)
 
-
 def load_rwkv_shared_library() -> RWKVSharedLibrary:
     """
     Attempts to find rwkv.cpp shared library and load it.
@@ -313,19 +312,21 @@ def load_rwkv_shared_library() -> RWKVSharedLibrary:
     else:
         file_name = 'librwkv.so'
 
-    repo_root_dir: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent.parent
+    repo_root_dir: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent.parent.parent
 
     paths = [
-        # If we are in "rwkv" directory
-        f'../bin/Release/{file_name}',
-        # If we are in repo root directory
+        # If the current directory is ./python/rwkv
+        f'../../bin/Release/{file_name}',
+        f'../../build/bin/Release/{file_name}',
+        f'../../build/{file_name}',
+        # If the current directory is the repo root directory
         f'bin/Release/{file_name}',
-        # If we compiled in build directory
         f'build/bin/Release/{file_name}',
-        # If we compiled in build directory
         f'build/{file_name}',
         # Search relative to this file
         str(repo_root_dir / 'bin' / 'Release' / file_name),
+        str(repo_root_dir / 'build' / 'bin' / 'Release' / file_name),
+        str(repo_root_dir / 'build' / file_name),
         # Fallback
         str(repo_root_dir / file_name)
     ]
