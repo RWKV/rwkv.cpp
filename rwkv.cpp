@@ -1032,6 +1032,12 @@ static const size_t tensor_alignment = 32;
 
 // Prepares the computation graph for inference, measuring and allocating all input and output tensors.
 bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, struct rwkv_computation_graph & graph) {
+    if (graph.ggml_ctx) {
+        ggml_free(graph.ggml_ctx);
+
+        graph.ggml_ctx = NULL;
+    }
+
     // 1. Measure the space required for the ggml context.
     graph.ggml_ctx = rwkv_init_ggml_context(rwkv_ggml_overhead(), true);
 
@@ -1148,6 +1154,12 @@ bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_computat
 
 // Prepares the computation graph for inference, measuring and allocating all input and output tensors.
 bool rwkv_measure_and_build_sequential_context(struct rwkv_model & model, struct rwkv_computation_graph & graph, const size_t sequence_length) {
+    if (graph.ggml_ctx) {
+        ggml_free(graph.ggml_ctx);
+
+        graph.ggml_ctx = NULL;
+    }
+
     // 1. Measure the space required for the ggml context.
     graph.ggml_ctx = rwkv_init_ggml_context(rwkv_ggml_overhead(), true);
 
@@ -1274,12 +1286,14 @@ void rwkv_eval_graph(struct rwkv_computation_graph & graph, const uint32_t n_thr
         graph.cgraph->n_leafs = graph.post_logits_leafs;
     }
 
-    struct ggml_cplan plan = ggml_graph_plan(graph.cgraph.get(), n_threads);
+    struct ggml_cplan * plan = ggml_graph_plan(graph.cgraph.get(), n_threads);
 
-    std::unique_ptr<uint8_t[]> work_data{ new(std::nothrow) uint8_t[plan.work_size] };
-    plan.work_data = work_data.get();
+    std::unique_ptr<uint8_t[]> work_data{ new(std::nothrow) uint8_t[plan->work_size] };
+    plan->work_data = work_data.get();
 
-    ggml_graph_compute(graph.cgraph.get(), &plan);
+    ggml_graph_compute(graph.cgraph.get(), plan);
+
+    free(plan);
 }
 
 bool rwkv_eval(struct rwkv_context * ctx, const uint32_t token, const float * state_in, float * state_out, float * logits_out) {
@@ -1394,6 +1408,12 @@ void rwkv_free(struct rwkv_context * ctx) {
         ggml_free(ctx->model->ggml_ctx);
 
         delete ctx->model;
+    }
+
+    ggml_free(ctx->serial_graph.ggml_ctx);
+
+    if (ctx->last_used_sequence_length > 0) {
+        ggml_free(ctx->sequential_graph.ggml_ctx);
     }
 
     std::unique_ptr<struct rwkv_context> rwkv_ctx(ctx);

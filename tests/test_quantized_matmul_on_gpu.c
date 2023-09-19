@@ -61,17 +61,20 @@ int main(void) {
     struct ggml_tensor * mul0 = ggml_mul_mat(ctx, x, y);
     struct ggml_tensor * mul1 = ggml_mul_mat(ctx, x_quantized, y);
 
-    struct ggml_cgraph graph = ggml_build_forward(mul0);
+    // Allocation on heap instead of stack avoids SegFault when GGML_MAX_NODES is set to a large value.
+    struct ggml_cgraph * graph = (struct ggml_cgraph *) calloc(1, sizeof(struct ggml_cgraph));
+    ggml_build_forward_expand(graph, mul0);
+    ggml_build_forward_expand(graph, mul1);
 
-    ggml_build_forward_expand(&graph, mul1);
+    struct ggml_cplan * plan = ggml_graph_plan(graph, 2);
 
-    struct ggml_cplan plan = ggml_graph_plan(&graph, 2);
+    uint8_t * work_data = (uint8_t *) malloc(plan->work_size);
+    plan->work_data = work_data;
 
-    uint8_t * work_data = (uint8_t *) malloc(plan.work_size);
-    plan.work_data = work_data;
+    ggml_graph_compute(graph, plan);
 
-    ggml_graph_compute(&graph, &plan);
-
+    free(plan);
+    free(graph);
     free(work_data);
 
     float result0 = ((float *) mul0->data)[0];

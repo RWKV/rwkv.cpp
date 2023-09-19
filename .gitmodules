@@ -1,4 +1,4 @@
 [submodule "ggml"]
 	path = ggml
-	url = https://github.com/ggerganov/ggml
-	branch = master
+	url = https://github.com/saharNooby/ggml
+	branch = increased-node-limit-2023-09-19

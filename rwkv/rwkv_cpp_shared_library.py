@@ -140,24 +140,14 @@ class RWKVSharedLibrary:
         """
         Evaluates the model for a single token.
 
-        USABILITY WARNING
-
-        If you get `GGML_ASSERT: ...\\ggml.c:16941: cgraph->n_nodes < GGML_MAX_NODES`, this means you've exceeded the node limit.
+        NOTE ON GGML NODE LIMIT
 
         ggml has a hard-coded limit on max amount of nodes in a computation graph. The sequence graph is built in a way that quickly exceedes
-        this limit when using large models and/or large sequence lengths. For example, current value of `GGML_MAX_NODES` is 4096, and this is
-        not enough to use sequence mode with 14B models at all.
+        this limit when using large models and/or large sequence lengths.
+        Fortunately, rwkv.cpp's fork of ggml has increased limit which was tested to work for sequence lengths up to 64 for 14B models.
 
-        You have the following options to fix the assertion failure:
-        1. Reduce model size and/or sequence length until the failure stops happening.
-        2. Change `GGML_MAX_NODES` in `ggml.h` to a higher number, like 8192.
-
-        Use of option 2 comes with caveats:
-        1. In the same file, you also need to change `GGML_GRAPH_HASHTABLE_SIZE` to `(GGML_MAX_NODES * 2 + 1)`, or else the code will not compile.
-        2. rwkv.cpp tests may start fail with SegFaults, although the inference (including sequence mode) would still work.
-        3. Too high values of the limit will break inference completely.
-
-        For reference, I was able to use sequence_len = 5 with 14B model by increasing the limit from 4096 to 8192.
+        If you get `GGML_ASSERT: ...\ggml.c:16941: cgraph->n_nodes < GGML_MAX_NODES`, this means you've exceeded the limit.
+        To get rid of the assertion failure, reduce the model size and/or sequence length.
 
         Throws an exception in case of any error. Error messages would be printed to stderr.
 
