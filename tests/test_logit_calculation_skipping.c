@@ -1,34 +1,31 @@
 // Tests that evaluation works when the logits parameter was set to NULL.
-#include <rwkv.h>
-
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
+
+#include <rwkv.h>
+
+#include "assertions.inc"
 
 #define TOKEN_COUNT 11
 
-static const unsigned char prompt[TOKEN_COUNT + 1] = "hello world";
+const char prompt[TOKEN_COUNT + 1] = "hello world";
 
-static int test_serial_mode() {
+void test_serial_mode(void) {
+    fprintf(stderr, "Testing serial mode\n");
+
     struct rwkv_context * ctx = rwkv_init_from_file("tiny-rwkv-660K-FP32.bin", 2);
 
-    if (!ctx) {
-        enum rwkv_error_flags error = rwkv_get_last_error(NULL);
-        fprintf(stderr, "Unexpected error 0x%.8X\n", error);
-        return EXIT_FAILURE;
-    }
+    ASSERT(ctx != NULL, "Unexpected error 0x%.8X", rwkv_get_last_error(NULL));
 
     float * state = calloc(rwkv_get_state_len(ctx), sizeof(float));
     float * logits = calloc(rwkv_get_logits_len(ctx), sizeof(float));
 
-    if (!state || !logits) {
-        fprintf(stderr, "Failed to allocate state or logits\n");
-        return EXIT_FAILURE;
-    }
+    ASSERT(state != NULL, "Failed to allocate state");
+    ASSERT(logits != NULL, "Failed to allocate logits");
 
     rwkv_eval(ctx, prompt[0], NULL, state, logits);
 
-    for (int i = 1; prompt[i] != 0; i++) {
+    for (size_t i = 1; prompt[i] != 0; i++) {
         rwkv_eval(ctx, prompt[i], state, state, logits);
     }
 
@@ -36,10 +33,7 @@ static int test_serial_mode() {
 
     state = calloc(rwkv_get_state_len(ctx), sizeof(float));
 
-    if (!state) {
-        fprintf(stderr, "Failed to allocate state\n");
-        return EXIT_FAILURE;
-    }
+    ASSERT(state != NULL, "Failed to allocate state");
 
     rwkv_eval(ctx, prompt[0], NULL, state, NULL);
 
@@ -47,38 +41,27 @@ static int test_serial_mode() {
         rwkv_eval(ctx, prompt[i], state, state, NULL);
     }
 
-    if (memcmp(expected_state, state, rwkv_get_state_len(ctx) * sizeof(float))) {
-        fprintf(stderr, "Serial mode: results are not identical :(\n");
-        return EXIT_FAILURE;
-    } else {
-        fprintf(stdout, "Serial mode: results are identical, success!\n");
-    }
+    ASSERT(memcmp(expected_state, state, rwkv_get_state_len(ctx) * sizeof(float)) == 0, "Results are not identical");
 
     rwkv_free(ctx);
 
     free(logits);
     free(state);
     free(expected_state);
-
-    return EXIT_SUCCESS;
 }
 
-static int test_sequential_mode() {
+void test_sequential_mode(void) {
+    fprintf(stderr, "Testing sequential mode\n");
+
     struct rwkv_context * ctx = rwkv_init_from_file("tiny-rwkv-660K-FP32.bin", 2);
 
-    if (!ctx) {
-        enum rwkv_error_flags error = rwkv_get_last_error(NULL);
-        fprintf(stderr, "Unexpected error 0x%.8X\n", error);
-        return EXIT_FAILURE;
-    }
+    ASSERT(ctx != NULL, "Unexpected error 0x%.8X", rwkv_get_last_error(NULL));
 
     float * state = calloc(rwkv_get_state_len(ctx), sizeof(float));
     float * logits = calloc(rwkv_get_logits_len(ctx), sizeof(float));
 
-    if (!state || !logits) {
-        fprintf(stderr, "Failed to allocate state or logits\n");
-        return EXIT_FAILURE;
-    }
+    ASSERT(state != NULL, "Failed to allocate state");
+    ASSERT(logits != NULL, "Failed to allocate logits");
 
     uint32_t prompt_tokens[TOKEN_COUNT];
 
@@ -92,41 +75,23 @@ static int test_sequential_mode() {
 
     state = calloc(rwkv_get_state_len(ctx), sizeof(float));
 
-    if (!state) {
-        fprintf(stderr, "Failed to allocate state\n");
-        return EXIT_FAILURE;
-    }
+    ASSERT(state != NULL, "Failed to allocate state");
 
     rwkv_eval_sequence(ctx, prompt_tokens, TOKEN_COUNT, NULL, state, NULL);
 
-    if (memcmp(expected_state, state, rwkv_get_state_len(ctx) * sizeof(float))) {
-        fprintf(stderr, "Sequential mode: results are not identical :(\n");
-        return EXIT_FAILURE;
-    } else {
-        fprintf(stdout, "Sequential mode: results are identical, success!\n");
-    }
+    ASSERT(memcmp(expected_state, state, rwkv_get_state_len(ctx) * sizeof(float)) == 0, "Results are not identical");
 
     rwkv_free(ctx);
 
     free(logits);
     free(state);
     free(expected_state);
-
-    return EXIT_SUCCESS;
 }
 
-int main() {
-    int result = test_serial_mode();
+int main(void) {
+    test_serial_mode();
 
-    if (result != EXIT_SUCCESS) {
-        return result;
-    }
+    test_sequential_mode();
 
-    result = test_sequential_mode();
-
-    if (result != EXIT_SUCCESS) {
-        return result;
-    }
-
-    return EXIT_SUCCESS;
+    return 0;
 }

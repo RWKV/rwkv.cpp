@@ -1,43 +1,41 @@
 // Tests that tiny RWKV outputs expected results in all data types.
-#include <rwkv.h>
-
-#include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-#include <string.h>
+#include <stdio.h>
+
+#include <rwkv.h>
 
 #include "logit_difference_validator.inc"
 
 int main(void) {
     fprintf(stderr, "System info: %s\n", rwkv_get_system_info_string());
 
-    float * expected_logits = malloc(sizeof(float) * N_VOCAB);
+    float * expected_logits = calloc(N_VOCAB, sizeof(float));
     load_expected_logits(expected_logits);
 
-    // Somehow when using cuBLAS the calculation of Q4_1 may different from cpu only
+    // Somehow when using cuBLAS the result of Q4_1 is different from CPU only.
     float expected_difference_sum[14] = {
-        0.000000F,
-        -0.005320F,
+        +0.000000F, // FP32
+        -0.005320F, // FP16
 
-        -0.160030F,
-#ifdef GGML_USE_CUBLAS
-        -0.547409F,
+        -0.160030F, // Q4_0
+#if defined(GGML_USE_CUBLAS)
+        -0.547409F, // Q4_1
 #else
-        -0.370606F,
+        -0.370606F, // Q4_1
 #endif
-        -0.170404F,
-        0.278034F,
-        0.071216F,
+        -0.170404F, // Q5_0
+        +0.278034F, // Q5_1
+        +0.071216F, // Q8_0
 
-        0.154614F,
-#ifdef GGML_USE_CUBLAS
-        -0.539827F,
+        +0.154614F, // Q4_0
+#if defined(GGML_USE_CUBLAS)
+        -0.539827F, // Q4_1
 #else
-        -0.372169F,
+        -0.372169F, // Q4_1
 #endif
-        -0.170043F,
-        0.294953F,
-        0.065571F,
+        -0.170043F, // Q5_0
+        +0.294953F, // Q5_1
+        +0.065571F, // Q8_0
     };
 
     test_model("tiny-rwkv-660K-FP32.bin", expected_logits, expected_difference_sum[0]);
