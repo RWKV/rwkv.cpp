@@ -1,4 +1,5 @@
 # Generates completions from RWKV model based on a prompt.
+# Usage example: python generate_completions.py C:\rwkv.cpp-169M-Q5_1.bin 20B
 
 import argparse
 import time
