@@ -124,20 +124,20 @@ This option would require a little more manual work, but you can use it with any
 
 ```commandline
 # Windows
-python rwkv\convert_pytorch_to_ggml.py C:\RWKV-4-Pile-169M-20220807-8023.pth C:\rwkv.cpp-169M.bin FP16
+python python\convert_pytorch_to_ggml.py C:\RWKV-4-Pile-169M-20220807-8023.pth C:\rwkv.cpp-169M.bin FP16
 
 # Linux / MacOS
-python rwkv/convert_pytorch_to_ggml.py ~/Downloads/RWKV-4-Pile-169M-20220807-8023.pth ~/Downloads/rwkv.cpp-169M.bin FP16
+python python/convert_pytorch_to_ggml.py ~/Downloads/RWKV-4-Pile-169M-20220807-8023.pth ~/Downloads/rwkv.cpp-169M.bin FP16
 ```
 
 **Optionally**, quantize the model into one of quantized formats from the table above:
 
 ```commandline
 # Windows
-python rwkv\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q5_1.bin Q5_1
+python python\quantize.py C:\rwkv.cpp-169M.bin C:\rwkv.cpp-169M-Q5_1.bin Q5_1
 
 # Linux / MacOS
-python rwkv/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q5_1.bin Q5_1
+python python/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169M-Q5_1.bin Q5_1
 ```
 
 ### 4. Run the model
@@ -150,20 +150,20 @@ To generate some text, run:
 
 ```commandline
 # Windows
-python rwkv\generate_completions.py C:\rwkv.cpp-169M-Q5_1.bin
+python python\generate_completions.py C:\rwkv.cpp-169M-Q5_1.bin
 
 # Linux / MacOS
-python rwkv/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q5_1.bin
+python python/generate_completions.py ~/Downloads/rwkv.cpp-169M-Q5_1.bin
 ```
 
 To chat with a bot, run:
 
 ```commandline
 # Windows
-python rwkv\chat_with_bot.py C:\rwkv.cpp-169M-Q5_1.bin
+python python\chat_with_bot.py C:\rwkv.cpp-169M-Q5_1.bin
 
 # Linux / MacOS
-python rwkv/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q5_1.bin
+python python/chat_with_bot.py ~/Downloads/rwkv.cpp-169M-Q5_1.bin
 ```
 
 Edit [generate_completions.py](rwkv%2Fgenerate_completions.py) or [chat_with_bot.py](rwkv%2Fchat_with_bot.py) to change prompts and sampling settings.
