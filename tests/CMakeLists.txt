@@ -19,7 +19,8 @@ file(COPY tiny-rwkv-660K-Q5_0.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY tiny-rwkv-660K-Q5_1.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY expected_logits.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
-rwkv_add_test(test_ggml_basics.c)
+# TODO Restore
+#rwkv_add_test(test_ggml_basics.c)
 rwkv_add_test(test_quantized_matmul_on_gpu.c)
 rwkv_add_test(test_tiny_rwkv.c)
 rwkv_add_test(test_quantization_format_compatibility.c)

@@ -1,12 +1,4 @@
 // Tests that ggml basics work.
-
-// Fix build on Linux.
-// https://stackoverflow.com/questions/8518264/where-is-the-declaration-of-cpu-alloc
-#if defined(__linux__)
-#define _GNU_SOURCE
-#include <sched.h>
-#endif
-
 #include <ggml.h>
 
 #include <stdio.h>
