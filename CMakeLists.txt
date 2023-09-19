@@ -122,14 +122,14 @@ if (RWKV_CUBLAS)
             set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} CUDA::cudart CUDA::cublas CUDA::cublasLt)
         endif()
 
-        # Copy-pasted from https://github.com/ggerganov/llama.cpp/blob/111163e2463171891680feed94371eb9becd9817/CMakeLists.txt#L317
+        # Architecture set-up copy-pasted from https://github.com/ggerganov/llama.cpp/blob/111163e2463171891680feed94371eb9becd9817/CMakeLists.txt#L317
         if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-            # 52 == lowest CUDA 12 standard
-            # 60 == f16 CUDA intrinsics
-            # 61 == integer CUDA intrinsics
-            # 70 == compute capability at which unrolling a loop in mul_mat_q kernels is faster
+            # 52: lowest CUDA 12 standard
+            # 60: f16 CUDA intrinsics
+            # 61: integer CUDA intrinsics
+            # 70: compute capability at which unrolling a loop in mul_mat_q kernels is faster
 
-            # Lowest CUDA 12 standard + lowest for integer intrinsics
+            # Lowest CUDA 12 standard + lowest for integer intrinsics.
             set(CMAKE_CUDA_ARCHITECTURES "52;61;70")
         endif()
         message(STATUS "Using CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
