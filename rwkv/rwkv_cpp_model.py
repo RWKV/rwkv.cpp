@@ -131,6 +131,16 @@ class RWKVModel:
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Evaluates the model for a sequence of tokens.
+
+        NOTE ON GGML NODE LIMIT
+
+        ggml has a hard-coded limit on max amount of nodes in a computation graph. The sequence graph is built in a way that quickly exceedes
+        this limit when using large models and/or large sequence lengths.
+        Fortunately, rwkv.cpp's fork of ggml has increased limit which was tested to work for sequence lengths up to 64 for 14B models.
+
+        If you get `GGML_ASSERT: ...\ggml.c:16941: cgraph->n_nodes < GGML_MAX_NODES`, this means you've exceeded the limit.
+        To get rid of the assertion failure, reduce the model size and/or sequence length.
+
         In case of any error, this method will throw an exception.
 
         Parameters

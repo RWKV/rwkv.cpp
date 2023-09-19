@@ -1,6 +1,6 @@
 # Quantizes rwkv.cpp model file from FP32 or FP16.
 # Available format names are in rwkv_cpp_shared_library.QUANTIZED_FORMAT_NAMES
-# Usage: python quantize.py bin\Release\rwkv.dll C:\rwkv.cpp-169M-FP32.bin C:\rwkv.cpp-169M-Q5_1.bin Q5_1
+# Usage: python quantize.py C:\rwkv.cpp-169M-FP32.bin C:\rwkv.cpp-169M-Q5_1.bin Q5_1
 
 import argparse
 import rwkv_cpp_shared_library

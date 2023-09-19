@@ -106,6 +106,7 @@ if (RWKV_CUBLAS)
     cmake_minimum_required(VERSION 3.17)
 
     find_package(CUDAToolkit)
+
     if (CUDAToolkit_FOUND)
         message(STATUS "cuBLAS found")
 
@@ -121,6 +122,17 @@ if (RWKV_CUBLAS)
             set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} CUDA::cudart CUDA::cublas CUDA::cublasLt)
         endif()
 
+        # Architecture set-up copy-pasted from https://github.com/ggerganov/llama.cpp/blob/111163e2463171891680feed94371eb9becd9817/CMakeLists.txt#L317
+        if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+            # 52: lowest CUDA 12 standard
+            # 60: f16 CUDA intrinsics
+            # 61: integer CUDA intrinsics
+            # 70: compute capability at which unrolling a loop in mul_mat_q kernels is faster
+
+            # Lowest CUDA 12 standard + lowest for integer intrinsics.
+            set(CMAKE_CUDA_ARCHITECTURES "52;61;70")
+        endif()
+        message(STATUS "Using CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
     else()
         message(WARNING "cuBLAS not found")
     endif()
@@ -138,7 +150,7 @@ if (RWKV_CLBLAST)
         $ENV{OPENCL_HOME}
         $ENV{OPENCL_HOME}/include
         ${OPENCL_INCLUDE_SEARCH_PATHS}
-        )
+    )
 
     set(CLBLAST_INCLUDE_SEARCH_PATHS
         /usr/include
@@ -146,7 +158,7 @@ if (RWKV_CLBLAST)
         $ENV{CLBLAST_HOME}
         $ENV{CLBLAST_HOME}/include
         ${CLBLAST_INCLUDE_SEARCH_PATHS}
-        )
+    )
 
     find_path(OPENCL_INC NAMES opencl.h PATHS ${OPENCL_INCLUDE_SEARCH_PATHS} PATH_SUFFIXES include/CL)
     find_library(OPENCL_LIB NAMES OpenCL PATHS ${OPENCL_INCLUDE_SEARCH_PATHS} PATH_SUFFIXES lib)
@@ -287,6 +299,56 @@ else()
 endif()
 
 #
+# POSIX conformance
+# Section copy-pasted from https://github.com/ggerganov/llama.cpp/blob/8781013ef654270cbead3e0011e33a6d690fb168/CMakeLists.txt#L580C20-L580C20
+#
+
+# clock_gettime came in POSIX.1b (1993)
+# CLOCK_MONOTONIC came in POSIX.1-2001 / SUSv3 as optional
+# posix_memalign came in POSIX.1-2001 / SUSv3
+# M_PI is an XSI extension since POSIX.1-2001 / SUSv3, came in XPG1 (1985)
+add_compile_definitions(_XOPEN_SOURCE=600)
+
+# Somehow in OpenBSD whenever POSIX conformance is specified
+# some string functions rely on locale_t availability,
+# which was introduced in POSIX.1-2008, forcing us to go higher.
+if (CMAKE_SYSTEM_NAME MATCHES "OpenBSD")
+    remove_definitions(-D_XOPEN_SOURCE=600)
+    add_compile_definitions(_XOPEN_SOURCE=700)
+endif()
+
+# Data types, macros and functions related to controlling CPU affinity and
+# some memory allocation are available on Linux through GNU extensions in libc.
+if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    add_compile_definitions(_GNU_SOURCE)
+endif()
+
+# RLIMIT_MEMLOCK came in BSD, is not specified in POSIX.1,
+# and on macOS its availability depends on enabling Darwin extensions.
+# Similarly on DragonFly, enabling BSD extensions is necessary.
+if (
+    CMAKE_SYSTEM_NAME MATCHES "Darwin" OR
+    CMAKE_SYSTEM_NAME MATCHES "iOS" OR
+    CMAKE_SYSTEM_NAME MATCHES "tvOS" OR
+    CMAKE_SYSTEM_NAME MATCHES "DragonFly"
+)
+    add_compile_definitions(_DARWIN_C_SOURCE)
+endif()
+
+# alloca is a non-standard interface that is not visible on BSDs when
+# POSIX conformance is specified, but not all of them provide a clean way
+# to enable it in such cases.
+if (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+    add_compile_definitions(__BSD_VISIBLE)
+endif()
+if (CMAKE_SYSTEM_NAME MATCHES "NetBSD")
+    add_compile_definitions(_NETBSD_SOURCE)
+endif()
+if (CMAKE_SYSTEM_NAME MATCHES "OpenBSD")
+    add_compile_definitions(_BSD_SOURCE)
+endif()
+
+#
 # Build libraries
 #
 
@@ -296,7 +358,9 @@ endif()
 
 add_library(ggml OBJECT
             ${CMAKE_SOURCE_DIR}/ggml/src/ggml.c
+            ${CMAKE_SOURCE_DIR}/ggml/src/ggml-alloc.c
             ${CMAKE_SOURCE_DIR}/ggml/include/ggml/ggml.h
+            ${CMAKE_SOURCE_DIR}/ggml/include/ggml/ggml-alloc.h
             ${GGML_CUDA_SOURCES}
             ${GGML_OPENCL_SOURCES})
 
@@ -326,13 +390,6 @@ target_link_libraries(rwkv PRIVATE ggml ${RWKV_EXTRA_LIBS})
 if (RWKV_BUILD_SHARED_LIBRARY)
     set_target_properties(rwkv PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(rwkv PRIVATE RWKV_SHARED RWKV_BUILD)
-endif()
-
-if (GGML_CUDA_SOURCES)
-    message(STATUS "GGML CUDA sources found, configuring CUDA architecture")
-    set_property(TARGET ggml PROPERTY CUDA_ARCHITECTURES OFF)
-    set_property(TARGET ggml PROPERTY CUDA_SELECT_NVCC_ARCH_FLAGS "Auto")
-    set_property(TARGET rwkv PROPERTY CUDA_ARCHITECTURES OFF)
 endif()
 
 if (NOT RWKV_STANDALONE)
