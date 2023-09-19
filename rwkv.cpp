@@ -760,12 +760,12 @@ struct rwkv_context {
     bool print_errors;
 };
 
-void rwkv_set_print_errors(struct rwkv_context * ctx, bool print_errors) {
+void rwkv_set_print_errors(struct rwkv_context * ctx, const bool print_errors) {
     bool * ptr = ctx ? &ctx->print_errors : &global_print_errors;
     *ptr = print_errors;
 }
 
-bool rwkv_get_print_errors(struct rwkv_context * ctx) {
+bool rwkv_get_print_errors(const struct rwkv_context * ctx) {
     return ctx ? ctx->print_errors : global_print_errors;
 }
 
