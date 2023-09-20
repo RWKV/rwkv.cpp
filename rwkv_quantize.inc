@@ -1,8 +1,14 @@
+// API function.
 bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const char * type_name) {
     global_last_error = RWKV_ERROR_NONE;
 
     enum ggml_type out_type = rwkv_type_to_ggml[rwkv_type_from_string(type_name)];
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ARGS | RWKV_ERROR_DATA_TYPE, ggml_is_quantized(out_type), "Unsupported output data type (%s)", rwkv_type_to_string[rwkv_type_from_ggml[out_type]]);
+    RWKV_ASSERT_FALSE_MSG(
+        RWKV_ERROR_ARGS | RWKV_ERROR_DATA_TYPE,
+        ggml_is_quantized(out_type),
+        "Unsupported output data type (%s)",
+        rwkv_type_to_string[rwkv_type_from_ggml[out_type]]
+    );
 
     RWKV_MSG("Loading model from '%s'\n", in_path);
 
@@ -33,12 +39,12 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     out_header.data_type = rwkv_type_from_ggml[out_type];
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, rwkv_fwrite_file_header(out_file.file, out_header), "Failed to write file header");
 
-    // Process parameters
+    // Process parameters.
     size_t orig_total_size = 0;
     size_t new_total_size = 0;
 
-    // Required to init the F16 tables
-    // Doesn't crash if ggml_init fails
+    // Required to init the F16 tables.
+    // Doesn't crash if ggml_init fails.
     ggml_free(ggml_init({ 0, NULL, true }));
 
     size_t max_in_size = 0;
@@ -47,7 +53,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
 
     while (ftell(in_file.file) < in_stat.st_size) {
         struct rwkv_tensor_header header;
-        RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, rwkv_fread_tensor_header_and_skip(in_file.file, header));
+        RWKV_ASSERT_FALSE(RWKV_ERROR_FILE, rwkv_fread_tensor_header_skip_name_and_data(in_file.file, header));
 
         size_t in_size = header.size();
 
@@ -55,7 +61,6 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
             max_in_size = in_size;
         }
 
-        // f16 type tensors get relocated to out and then converted into f32 at in
         if (header.data_type == TYPE_FP16) {
             if (in_size > max_out_size) {
                 max_out_size = in_size;
@@ -109,7 +114,11 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         // Quantize only 2D tensors, except embedding and head matrices.
         // Embedding and head take not too much space, especially in bigger models;
         // but they significantly increase perplexity when quantized.
-        if ((header.data_type == TYPE_FP32 || header.data_type == TYPE_FP16) && header.dim_count == 2 && name != "emb.weight" && name != "head.weight") {
+        if ((header.data_type == TYPE_FP32 || header.data_type == TYPE_FP16) &&
+            header.dim_count == 2 &&
+            name != "emb.weight" &&
+            name != "head.weight"
+        ) {
             RWKV_MSG("quantizing... ");
 
             size_t nelements = (size_t) header.width * (size_t) header.height;

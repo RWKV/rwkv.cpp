@@ -66,7 +66,7 @@ struct rwkv_file {
 
 // https://stackoverflow.com/a/6458689
 template<typename F>
-bool rwkv_set_params(struct rwkv_model & model, F callback) {
+static bool rwkv_set_params(struct rwkv_model & model, F callback) {
     RWKV_ENSURE_OR_FALSE(callback("emb.weight", model.emb));
     RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.weight", model.ln0_weight));
     RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.bias", model.ln0_bias));
@@ -112,7 +112,7 @@ bool rwkv_set_params(struct rwkv_model & model, F callback) {
 }
 
 // Creates a ggml context and loads all parameter tensors from a model file.
-bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model & model) {
+static bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model & model) {
     struct stat file_stat;
 
     std::unordered_map<std::string, struct ggml_tensor *> parameters;
@@ -148,7 +148,7 @@ bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model & model
         return true;
     }));
 
-    // Verify order of dimensions
+    // Verify order of dimensions.
     struct ggml_tensor * emb = model.emb;
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_SHAPE, emb->n_dims == 2, "Unexpected dimension count of embedding matrix %d", emb->n_dims);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_DIMENSION, emb->ne[0] == model.header.n_embed, "Unexpected dimension of embedding matrix %" PRId64, emb->ne[0]);

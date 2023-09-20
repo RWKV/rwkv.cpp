@@ -1,15 +1,18 @@
 thread_local enum rwkv_error_flags global_last_error = RWKV_ERROR_NONE;
 thread_local bool global_print_errors = true;
 
-inline enum rwkv_error_flags operator|(enum rwkv_error_flags a, enum rwkv_error_flags b) {
+inline static enum rwkv_error_flags operator|(enum rwkv_error_flags a, enum rwkv_error_flags b) {
     return static_cast<enum rwkv_error_flags>(static_cast<int>(a) | static_cast<int>(b));
 }
 
-inline enum rwkv_error_flags operator|=(enum rwkv_error_flags & a, enum rwkv_error_flags b) {
+inline static enum rwkv_error_flags operator|=(enum rwkv_error_flags & a, enum rwkv_error_flags b) {
     return a = a | b;
 }
 
+// Prints a message to stderr if error printing is enabled globally.
 #define RWKV_MSG(...) do { if (global_print_errors) fprintf(stderr, __VA_ARGS__); } while (0)
+
+// Prints a message to stderr if error printing is enabled in the context.
 #define RWKV_CTX_MSG(ctx, ...) do { if (ctx->print_errors) fprintf(stderr, __VA_ARGS__); } while (0)
 
 // If the condition x is false, adds ERR_VAL to the last error, and returns RET_VAL.

@@ -49,7 +49,8 @@ struct rwkv_context {
     bool print_errors;
 };
 
-void rwkv_carry_x(struct ggml_context * ctx,
+static void rwkv_carry_x(
+    struct ggml_context * ctx,
     struct ggml_tensor * weight,
     struct ggml_tensor * bias,
     struct ggml_tensor *& x,
@@ -82,7 +83,7 @@ void rwkv_carry_x(struct ggml_context * ctx,
     }
 }
 
-void rwkv_att_rkv(
+static void rwkv_att_rkv(
     struct ggml_context * ctx,
     struct rwkv_layer layer,
     struct ggml_tensor * x,
@@ -117,7 +118,7 @@ void rwkv_att_rkv(
     v = ggml_mul_mat(ctx, layer.att_value, xv);
 }
 
-struct ggml_tensor * rwkv_att_wkv(
+static struct ggml_tensor * rwkv_att_wkv(
     struct ggml_context * ctx,
     struct ggml_tensor * att_time_first,
     struct ggml_tensor * att_time_decay,
@@ -161,7 +162,7 @@ struct ggml_tensor * rwkv_att_wkv(
     return ggml_div(ctx, a, b);
 }
 
-struct ggml_tensor * rwkv_att(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
+static struct ggml_tensor * rwkv_att(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
     struct ggml_tensor * x_prev;
     rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x, x_prev, state.att_xx);
 
@@ -174,7 +175,7 @@ struct ggml_tensor * rwkv_att(struct ggml_context * ctx, struct ggml_tensor * x,
     return ggml_mul_mat(ctx, layer.att_output, ggml_mul(ctx, r, wkv));
 }
 
-struct ggml_tensor * rwkv_ffn(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
+static struct ggml_tensor * rwkv_ffn(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
     struct ggml_tensor * x_prev;
     rwkv_carry_x(ctx, layer.ln2_weight, layer.ln2_bias, x, x_prev, state.ffn_xx);
 
@@ -203,14 +204,14 @@ struct ggml_tensor * rwkv_ffn(struct ggml_context * ctx, struct ggml_tensor * x,
     return ggml_mul_inplace(ctx, r, ggml_mul_mat(ctx, layer.ffn_value, k));
 }
 
-void rwkv_create_input_and_output_views(
+static void rwkv_create_input_and_output_views(
+    struct ggml_context * ctx,
     struct rwkv_layer_state * inputs,
     struct rwkv_layer_state * outputs,
     struct ggml_tensor * input,
     struct ggml_tensor * output,
-    struct ggml_context * ctx,
-    size_t n_layer,
-    size_t n_embed
+    const size_t n_layer,
+    const size_t n_embed
 ) {
     for (size_t i = 0; i < n_layer; i++) {
         struct rwkv_layer_state & input_state = inputs[i];
@@ -229,10 +230,10 @@ void rwkv_create_input_and_output_views(
     }
 }
 
-// ---
+// Serial graph (token-by-token eval)
 
 // Creates and sets the input and output ggml tensors, builds the computation graph.
-bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_computation_graph & graph) {
+static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_computation_graph & graph) {
     graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
 
     struct rwkv_file_header & header = model.header;
@@ -256,7 +257,7 @@ bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_computation_
     std::unique_ptr<struct rwkv_layer_state[]> outputs(new(std::nothrow) struct rwkv_layer_state[n_layer]);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, outputs.get(), "Failed to allocate output state parts");
 
-    rwkv_create_input_and_output_views(inputs.get(), outputs.get(), input, output, ctx, n_layer, n_embed);
+    rwkv_create_input_and_output_views(ctx, inputs.get(), outputs.get(), input, output, n_layer, n_embed);
 
     graph.logits = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n_vocab);
 
@@ -302,11 +303,11 @@ bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_computation_
     return true;
 }
 
-// Stolen from llama.cpp.
+// Copy-pasted from llama.cpp.
 static const size_t tensor_alignment = 32;
 
 // Prepares the computation graph for inference, measuring and allocating all input and output tensors.
-bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, struct rwkv_computation_graph & graph) {
+static bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, struct rwkv_computation_graph & graph) {
     if (graph.ggml_ctx) {
         ggml_free(graph.ggml_ctx);
 
@@ -339,10 +340,10 @@ bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, struct rwk
     return true;
 }
 
-// ---
+// Sequential graph
 
 // Creates and sets the input and output ggml tensors, builds the computation graph.
-bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_computation_graph & graph, const size_t sequence_length) {
+static bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_computation_graph & graph, const size_t sequence_length) {
     graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
 
     struct rwkv_file_header & header = model.header;
@@ -365,7 +366,7 @@ bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_computat
     std::unique_ptr<struct rwkv_layer_state[]> outputs(new(std::nothrow) struct rwkv_layer_state[n_layer]);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, outputs.get(), "Failed to allocate output state parts");
 
-    rwkv_create_input_and_output_views(inputs.get(), outputs.get(), input, output, ctx, n_layer, n_embed);
+    rwkv_create_input_and_output_views(ctx, inputs.get(), outputs.get(), input, output, n_layer, n_embed);
 
     graph.logits = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n_vocab);
 
@@ -428,7 +429,7 @@ bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_computat
 }
 
 // Prepares the computation graph for inference, measuring and allocating all input and output tensors.
-bool rwkv_measure_and_build_sequential_context(struct rwkv_model & model, struct rwkv_computation_graph & graph, const size_t sequence_length) {
+static bool rwkv_measure_and_build_sequential_context(struct rwkv_model & model, struct rwkv_computation_graph & graph, const size_t sequence_length) {
     if (graph.ggml_ctx) {
         ggml_free(graph.ggml_ctx);
 
@@ -447,7 +448,7 @@ bool rwkv_measure_and_build_sequential_context(struct rwkv_model & model, struct
             + tensor_alignment
             // For some reason, calculation above does not result in enough memory allocated.
             // Instead of diving deep into ggml internals to debug this issue, I will just add some padding.
-            // 64 MB per token seems to be enough for Raven 14B model. It works for sequence_length = 5; not tested on larger lengths.
+            // 64 MB per token seems to be enough for Raven 14B model. It works for sequence_length up to 71 at least.
             + sequence_length * 64 * 1024 * 1024;
 
     ggml_allocr_free(allocator);

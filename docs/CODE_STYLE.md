@@ -27,6 +27,10 @@ Overall, keep code in similar style as it was before.
   - Place braces on the same line as the statement.
   - Always add braces to `if`, `for`, `while`, `do` and other similar statements.
 - Prefix top-level function and struct names with `rwkv_`.
+- Mark all functions that are not members of public API as `static`.
+  - Public API is the set of functions defined in `rwkv.h`.
+- Mark all immutable function arguments as `const`.
+  - This is not required for local variables.
 
 ## Python
 

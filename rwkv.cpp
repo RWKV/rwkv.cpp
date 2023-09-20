@@ -19,20 +19,19 @@
 #include <sys/stat.h>
 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
-#define stat _stat64
-#define fstat _fstat64
-#define ftell _ftelli64
-#define fseek _fseeki64
-
-#ifndef NDEBUG
-#include <intrin.h>
-#define RWKV_MAYBE_BREAK __debugbreak()
-#endif
+#    define stat _stat64
+#    define fstat _fstat64
+#    define ftell _ftelli64
+#    define fseek _fseeki64
+#    if !defined(NDEBUG)
+#        include <intrin.h>
+#        define RWKV_MAYBE_BREAK __debugbreak()
+#    endif
 #else
-#if !defined(__APPLE__)
-#define ftell ftello
-#define fseek fseeko
-#endif
+#    if !defined(__APPLE__)
+#        define ftell ftello
+#        define fseek fseeko
+#    endif
 #endif
 
 static_assert(sizeof(stat::st_size) >= 8, "File offsets should be 64-bit or else rwkv.cpp will not be able to load model files over 2 GB");
@@ -50,6 +49,7 @@ static_assert(sizeof(decltype(ftell(NULL))) >= 8, "File offsets should be 64-bit
 
 #include "rwkv_graph.inc"
 
+// API function.
 struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads) {
     global_last_error = RWKV_ERROR_NONE;
 
@@ -67,6 +67,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     return ctx.release();
 }
 
+// API function.
 struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32_t n_threads) {
     std::unique_ptr<struct rwkv_context> clone(new(std::nothrow) struct rwkv_context());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, clone, "Failed to allocate rwkv_context");
@@ -89,39 +90,51 @@ struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32
 
 #include "rwkv_eval.inc"
 
-// Provided for compatibility.
+// API function.
+// Provided for backwards compatibility.
 extern "C" RWKV_API uint32_t rwkv_get_state_buffer_element_count(const struct rwkv_context * ctx) {
     return rwkv_get_state_len(ctx);
 }
 
-// Provided for compatibility.
+// API function.
+// Provided for backwards compatibility.
 extern "C" RWKV_API uint32_t rwkv_get_logits_buffer_element_count(const struct rwkv_context * ctx) {
     return rwkv_get_logits_len(ctx);
 }
 
-extern "C" RWKV_API size_t rwkv_get_n_vocab(const struct rwkv_context * ctx) {
+// API function.
+size_t rwkv_get_n_vocab(const struct rwkv_context * ctx) {
     return (size_t) ctx->model->header.n_vocab;
 }
 
-extern "C" RWKV_API size_t rwkv_get_n_embed(const struct rwkv_context * ctx) {
+// API function.
+size_t rwkv_get_n_embed(const struct rwkv_context * ctx) {
     return (size_t) ctx->model->header.n_embed;
 }
 
-extern "C" RWKV_API size_t rwkv_get_n_layer(const struct rwkv_context * ctx) {
+// API function.
+size_t rwkv_get_n_layer(const struct rwkv_context * ctx) {
     return (size_t) ctx->model->header.n_layer;
 }
 
+// API function.
 size_t rwkv_get_state_len(const struct rwkv_context * ctx) {
     const struct rwkv_file_header & header = ctx->model->header;
 
     return (size_t) header.n_embed * 5 * (size_t) header.n_layer;
 }
 
+// API function.
 size_t rwkv_get_logits_len(const struct rwkv_context * ctx) {
     return (size_t) ctx->model->header.n_vocab;
 }
 
+// API function.
 void rwkv_free(struct rwkv_context * ctx) {
+    if (ctx == NULL) {
+        return;
+    }
+
     if (--ctx->model->reference_count == 0) {
         ggml_free(ctx->model->ggml_ctx);
 
@@ -137,15 +150,18 @@ void rwkv_free(struct rwkv_context * ctx) {
     std::unique_ptr<struct rwkv_context> rwkv_ctx(ctx);
 }
 
+// API function.
 void rwkv_set_print_errors(struct rwkv_context * ctx, const bool print_errors) {
     bool * ptr = ctx ? &ctx->print_errors : &global_print_errors;
     *ptr = print_errors;
 }
 
+// API function.
 bool rwkv_get_print_errors(const struct rwkv_context * ctx) {
     return ctx ? ctx->print_errors : global_print_errors;
 }
 
+// API function.
 enum rwkv_error_flags rwkv_get_last_error(struct rwkv_context * ctx) {
     enum rwkv_error_flags * ptr = ctx ? &ctx->last_error : &global_last_error;
     enum rwkv_error_flags value = *ptr;
@@ -155,6 +171,7 @@ enum rwkv_error_flags rwkv_get_last_error(struct rwkv_context * ctx) {
 
 #include "rwkv_quantize.inc"
 
+// API function.
 const char * rwkv_get_system_info_string(void) {
     static std::string s;
 

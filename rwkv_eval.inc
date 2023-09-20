@@ -1,4 +1,5 @@
-void rwkv_set_inputs(const struct rwkv_context * ctx, const struct rwkv_computation_graph & graph, const float * state_in) {
+// Copies state from an input buffer to the ggml tensor of the graph.
+static void rwkv_set_inputs(const struct rwkv_context * ctx, const struct rwkv_computation_graph & graph, const float * state_in) {
     if (state_in) {
         memcpy(graph.input_state->data, state_in, rwkv_tensor_nbytes(graph.input_state));
     } else {
@@ -6,7 +7,8 @@ void rwkv_set_inputs(const struct rwkv_context * ctx, const struct rwkv_computat
     }
 }
 
-void rwkv_get_outputs(const struct rwkv_computation_graph & graph, float * state_out, float * logits_out) {
+// Copies state and logits from ggml tensors of the graph to output buffers.
+static void rwkv_get_outputs(const struct rwkv_computation_graph & graph, float * state_out, float * logits_out) {
     if (state_out) {
         memcpy(state_out, graph.output_state->data, rwkv_tensor_nbytes(graph.output_state));
     }
@@ -16,8 +18,8 @@ void rwkv_get_outputs(const struct rwkv_computation_graph & graph, float * state
     }
 }
 
-void rwkv_eval_graph(struct rwkv_computation_graph & graph, const uint32_t n_threads, const bool compute_logits) {
-    // Short circuit computation of logits if they are not needed.
+// Evaluates a computation graph, optionally skipping logit computation.
+static void rwkv_eval_graph(struct rwkv_computation_graph & graph, const uint32_t n_threads, const bool compute_logits) {
     if (!compute_logits) {
         graph.cgraph->n_nodes = graph.pre_logits_nodes;
         graph.cgraph->n_leafs = graph.pre_logits_leafs;
@@ -36,6 +38,7 @@ void rwkv_eval_graph(struct rwkv_computation_graph & graph, const uint32_t n_thr
     free(plan);
 }
 
+// API function.
 bool rwkv_eval(struct rwkv_context * ctx, const uint32_t token, const float * state_in, float * state_out, float * logits_out) {
     ctx->last_error = RWKV_ERROR_NONE;
 
@@ -53,6 +56,7 @@ bool rwkv_eval(struct rwkv_context * ctx, const uint32_t token, const float * st
     return true;
 }
 
+// API function.
 bool rwkv_eval_sequence(
     struct rwkv_context * ctx,
     const uint32_t * sequence,
@@ -65,9 +69,9 @@ bool rwkv_eval_sequence(
 
     RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, sequence_len > 0, "Sequence length is 0");
 
-    const size_t n_vocab = ctx->model->header.n_vocab;
-
     if (sequence) {
+        const size_t n_vocab = ctx->model->header.n_vocab;
+
         for (size_t i = 0; i < sequence_len; i++) {
             const uint32_t token = sequence[i];
 
@@ -81,7 +85,6 @@ bool rwkv_eval_sequence(
         ctx->last_used_sequence_length = sequence_len;
     }
 
-    // Allow building the sequence graph without actually evaluating, by specifying sequence = NULL.
     if (sequence) {
         rwkv_set_inputs(ctx, ctx->sequential_graph, state_in);
         memcpy(ctx->sequential_graph.tokens->data, sequence, sequence_len * sizeof(uint32_t));
@@ -94,6 +97,7 @@ bool rwkv_eval_sequence(
     return true;
 }
 
+// API function.
 void rwkv_init_state(const struct rwkv_context * ctx, float * state) {
     const struct rwkv_file_header & header = ctx->model->header;
     const size_t layer_size = (size_t) header.n_embed * 5;

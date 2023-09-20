@@ -9,6 +9,9 @@
 int main(void) {
     fprintf(stderr, "System info: %s\n", rwkv_get_system_info_string());
 
+    // Silences the overly verbose output during quantization.
+    rwkv_set_print_errors(NULL, false);
+
     float * expected_logits = calloc(N_VOCAB, sizeof(float));
     load_expected_logits(expected_logits);
 

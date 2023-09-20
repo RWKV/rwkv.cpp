@@ -5,9 +5,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef RWKV_SHARED
+#if defined(RWKV_SHARED)
 #    if defined(_WIN32) && !defined(__MINGW32__)
-#        ifdef RWKV_BUILD
+#        if defined(RWKV_BUILD)
 #            define RWKV_API __declspec(dllexport)
 #        else
 #            define RWKV_API __declspec(dllimport)
@@ -29,7 +29,7 @@
 // Default file version is the latest version.
 #define RWKV_FILE_VERSION RWKV_FILE_VERSION_MAX
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 extern "C" {
 #endif
 
@@ -196,7 +196,7 @@ extern "C" {
     // Returns system information string.
     RWKV_API const char * rwkv_get_system_info_string(void);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif
 
