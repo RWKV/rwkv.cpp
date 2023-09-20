@@ -10,7 +10,9 @@ This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrap
 
 Loading LoRA checkpoints in [Blealtan's format](https://github.com/Blealtan/RWKV-LM-LoRA) is supported through [merge_lora_into_ggml.py script](rwkv%2Fmerge_lora_into_ggml.py).
 
-### Quality and performance
+⚠️ **Python API was restructured on 2023-09-20**, you may need to change paths/package names in your code when updating `rwkv.cpp`.
+
+## Quality and performance
 
 If you use `rwkv.cpp` for anything serious, please [test all available formats for perplexity and latency](rwkv%2Fmeasure_pexplexity.py) on a representative dataset, and decide which trade-off is best for you.
 
@@ -26,7 +28,7 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 | `FP16`    | **15.623**        | 117                | 2.82                 |
 | `FP32`    | **15.623**        | 198                | 5.64                 |
 
-#### With cuBLAS
+### With cuBLAS
 
 Measurements were made on Intel i7 13700K & NVIDIA 3060 Ti 8 GB. Latency per token in ms shown.
 
