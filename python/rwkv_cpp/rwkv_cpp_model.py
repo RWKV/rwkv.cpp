@@ -1,7 +1,13 @@
 import os
 import torch
 import multiprocessing
-import rwkv_cpp_shared_library
+
+# I'm sure this is not strictly correct, but let's keep this crutch for now.
+try:
+    import rwkv_cpp_shared_library
+except ModuleNotFoundError:
+    from . import rwkv_cpp_shared_library
+
 from typing import Tuple, Optional, List
 
 class RWKVModel:
@@ -16,7 +22,7 @@ class RWKVModel:
             thread_count: int = max(1, multiprocessing.cpu_count() // 2),
             gpu_layer_count: int = 0,
             **kwargs
-    ):
+    ) -> None:
         """
         Loads the model and prepares it for inference.
         In case of any error, this method will throw an exception.
@@ -40,30 +46,29 @@ class RWKVModel:
         assert thread_count > 0, 'Thread count must be > 0'
         assert gpu_layer_count >= 0, 'GPU layer count must be >= 0'
 
-        self._library = shared_library
+        self._library: rwkv_cpp_shared_library.RWKVSharedLibrary = shared_library
 
-        self._ctx = self._library.rwkv_init_from_file(model_path, thread_count)
+        self._ctx: rwkv_cpp_shared_library.RWKVContext = self._library.rwkv_init_from_file(model_path, thread_count)
 
         if gpu_layer_count > 0:
             self._library.rwkv_gpu_offload_layers(self._ctx, gpu_layer_count)
 
-        self._state_buffer_element_count = self._library.rwkv_get_state_buffer_element_count(self._ctx)
-        self._logits_buffer_element_count = self._library.rwkv_get_logits_buffer_element_count(self._ctx)
+        self._state_buffer_element_count: int = self._library.rwkv_get_state_buffer_element_count(self._ctx)
+        self._logits_buffer_element_count: int = self._library.rwkv_get_logits_buffer_element_count(self._ctx)
 
-        self._valid = True
+        self._valid: bool = True
 
     @property
-    def n_vocab(self):
+    def n_vocab(self) -> int:
         return self._library.rwkv_get_n_vocab(self._ctx)
 
     @property
-    def n_embed(self):
+    def n_embed(self) -> int:
         return self._library.rwkv_get_n_embed(self._ctx)
 
     @property
-    def n_layer(self):
+    def n_layer(self) -> int:
         return self._library.rwkv_get_n_layer(self._ctx)
-
 
     def eval(
             self,
@@ -96,19 +101,19 @@ class RWKVModel:
         assert self._valid, 'Model was freed'
 
         if state_in is not None:
-            validate_tensor(state_in, 'state_in', self._state_buffer_element_count)
+            self._validate_tensor(state_in, 'state_in', self._state_buffer_element_count)
 
             state_in_ptr = state_in.data_ptr()
         else:
             state_in_ptr = 0
 
         if state_out is not None:
-            validate_tensor(state_out, 'state_out', self._state_buffer_element_count)
+            self._validate_tensor(state_out, 'state_out', self._state_buffer_element_count)
         else:
             state_out = torch.zeros(self._state_buffer_element_count, dtype=torch.float32, device='cpu')
 
         if logits_out is not None:
-            validate_tensor(logits_out, 'logits_out', self._logits_buffer_element_count)
+            self._validate_tensor(logits_out, 'logits_out', self._logits_buffer_element_count)
         else:
             logits_out = torch.zeros(self._logits_buffer_element_count, dtype=torch.float32, device='cpu')
 
@@ -138,7 +143,7 @@ class RWKVModel:
         this limit when using large models and/or large sequence lengths.
         Fortunately, rwkv.cpp's fork of ggml has increased limit which was tested to work for sequence lengths up to 64 for 14B models.
 
-        If you get `GGML_ASSERT: ...\ggml.c:16941: cgraph->n_nodes < GGML_MAX_NODES`, this means you've exceeded the limit.
+        If you get `GGML_ASSERT: ...\\ggml.c:16941: cgraph->n_nodes < GGML_MAX_NODES`, this means you've exceeded the limit.
         To get rid of the assertion failure, reduce the model size and/or sequence length.
 
         In case of any error, this method will throw an exception.
@@ -163,19 +168,19 @@ class RWKVModel:
         assert self._valid, 'Model was freed'
 
         if state_in is not None:
-            validate_tensor(state_in, 'state_in', self._state_buffer_element_count)
+            self._validate_tensor(state_in, 'state_in', self._state_buffer_element_count)
 
             state_in_ptr = state_in.data_ptr()
         else:
             state_in_ptr = 0
 
         if state_out is not None:
-            validate_tensor(state_out, 'state_out', self._state_buffer_element_count)
+            self._validate_tensor(state_out, 'state_out', self._state_buffer_element_count)
         else:
             state_out = torch.zeros(self._state_buffer_element_count, dtype=torch.float32, device='cpu')
 
         if logits_out is not None:
-            validate_tensor(logits_out, 'logits_out', self._logits_buffer_element_count)
+            self._validate_tensor(logits_out, 'logits_out', self._logits_buffer_element_count)
         else:
             logits_out = torch.zeros(self._logits_buffer_element_count, dtype=torch.float32, device='cpu')
 
@@ -189,7 +194,7 @@ class RWKVModel:
 
         return logits_out, state_out
 
-    def free(self):
+    def free(self) -> None:
         """
         Frees all allocated resources.
         In case of any error, this method will throw an exception.
@@ -202,13 +207,13 @@ class RWKVModel:
 
         self._library.rwkv_free(self._ctx)
 
-    def __del__(self):
+    def __del__(self) -> None:
         # Free the context on GC in case user forgot to call free() explicitly.
         if hasattr(self, '_valid') and self._valid:
             self.free()
 
-def validate_tensor(buf: torch.Tensor, name: str, size: int) -> None:
-    assert buf.device == torch.device('cpu'), f'{name} is not on CPU'
-    assert buf.dtype == torch.float32, f'{name} is not of type float32'
-    assert buf.shape == (size,), f'{name} has invalid shape {buf.shape}, expected ({size})'
-    assert buf.is_contiguous(), f'{name} is not contiguous'
+    def _validate_tensor(self, buf: torch.Tensor, name: str, size: int) -> None:
+        assert buf.device == torch.device('cpu'), f'{name} is not on CPU'
+        assert buf.dtype == torch.float32, f'{name} is not of type float32'
+        assert buf.shape == (size,), f'{name} has invalid shape {buf.shape}, expected ({size})'
+        assert buf.is_contiguous(), f'{name} is not contiguous'

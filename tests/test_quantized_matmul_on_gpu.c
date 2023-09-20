@@ -1,27 +1,21 @@
 // Tests that quantized matmul on GPU works.
-#include <ggml.h>
-
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
+
+#if defined(GGML_USE_CUBLAS)
+
 #include <math.h>
 
-// TODO Move to inc
-#define ASSERT(x, ...) {\
-        if (!(x)) {\
-            fprintf(stderr, "*** Assertion failed ***\n");\
-            fprintf(stderr, __VA_ARGS__);\
-            fprintf(stderr, "\n%s:%d\n", __FILE__, __LINE__);\
-            abort();\
-        }\
-    }
+#include <ggml.h>
+#include "ggml/src/ggml-cuda.h"
+
+#include "assertions.inc"
 
 #define SET_ELEMENT_F32(tensor, i, value) ((float *) tensor->data)[i] = value
 
 #define ELEMENT_COUNT 32
 
 int main(void) {
-    #ifdef GGML_USE_CUBLAS
-
     struct ggml_init_params params = {
         .mem_size   = 16 * 1024,
         .mem_buffer = NULL,
@@ -87,7 +81,15 @@ int main(void) {
 
     ggml_free(ctx);
 
-    #endif
+    return 0;
+}
+
+#else
+
+int main(void) {
+    fprintf(stderr, "Skipping test_quantized_matmul_on_gpu.c: GGML_USE_CUBLAS is not defined\n");
 
     return 0;
 }
+
+#endif

@@ -1,11 +1,11 @@
-#include "ggml.h"
-#include "rwkv.h"
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
-#ifdef _WIN32
+#include <ggml.h>
+#include <rwkv.h>
+
+#if defined(_WIN32)
 bool QueryPerformanceFrequency(uint64_t* lpFrequency);
 bool QueryPerformanceCounter(uint64_t* lpPerformanceCount);
 
@@ -22,7 +22,7 @@ bool QueryPerformanceCounter(uint64_t* lpPerformanceCount);
 #define TIME_DIFF(freq, start, end) (double) ((end.tv_nsec - start.tv_nsec) / 1000000) / 1000
 #endif
 
-enum ggml_type type_from_string(const char* string) {
+static enum ggml_type type_from_string(const char * string) {
     if (strcmp(string, "Q4_0") == 0) return GGML_TYPE_Q4_0;
     if (strcmp(string, "Q4_1") == 0) return GGML_TYPE_Q4_1;
     if (strcmp(string, "Q5_0") == 0) return GGML_TYPE_Q5_0;
@@ -31,9 +31,10 @@ enum ggml_type type_from_string(const char* string) {
     return GGML_TYPE_COUNT;
 }
 
-int main(int argc, char * argv[]) {
+int main(const int argc, const char * argv[]) {
     if (argc != 4 || type_from_string(argv[3]) == GGML_TYPE_COUNT) {
-        fprintf(stderr, "Usage: %s INPUT OUTPUT FORMAT\n\nAvailable formats: Q4_0 Q4_1 Q5_0 Q5_1 Q8_0\n", argv[0]);
+        fprintf(stderr, "Usage: %s INPUT_FILE OUTPUT_FILE FORMAT\n\nAvailable formats: Q4_0 Q4_1 Q5_0 Q5_1 Q8_0\n", argv[0]);
+
         return EXIT_FAILURE;
     }
 
@@ -48,11 +49,15 @@ int main(int argc, char * argv[]) {
 
     double diff = TIME_DIFF(freq, start, end);
 
+    fprintf(stderr, "Took %.3f s\n", diff);
+
     if (success) {
-        fprintf(stderr, "Succeeded in %.3fs\n", diff);
+        fprintf(stderr, "Success\n");
+
         return EXIT_SUCCESS;
     } else {
-        fprintf(stderr, "Error in %.3fs: 0x%.8X\n", diff, rwkv_get_last_error(NULL));
+        fprintf(stderr, "Error: 0x%.8X\n", rwkv_get_last_error(NULL));
+
         return EXIT_FAILURE;
     }
 }

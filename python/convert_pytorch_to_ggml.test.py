@@ -5,7 +5,7 @@ import convert_pytorch_to_ggml
 from typing import Dict
 
 def test() -> None:
-    test_file_path = 'convert_pytorch_rwkv_to_ggml_test.tmp'
+    test_file_path: str = 'convert_pytorch_rwkv_to_ggml_test.tmp'
 
     try:
         state_dict: Dict[str, torch.Tensor] = {
@@ -15,8 +15,8 @@ def test() -> None:
 
         convert_pytorch_to_ggml.write_state_dict(state_dict, dest_path=test_file_path, data_type='FP32')
 
-        with open(test_file_path, 'rb') as input:
-            actual_bytes: bytes = input.read()
+        with open(test_file_path, 'rb') as test_file:
+            actual_bytes: bytes = test_file.read()
 
         expected_bytes: bytes = struct.pack(
             '=iiiiii' + 'iiiii10sffffff' + 'iiii19sf',

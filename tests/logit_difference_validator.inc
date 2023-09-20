@@ -1,16 +1,16 @@
-// TODO Move to inc
-#define ASSERT(x, ...) {\
-        if (!(x)) {\
-            fprintf(stderr, "*** Assertion failed ***\n");\
-            fprintf(stderr, __VA_ARGS__);\
-            fprintf(stderr, "\n%s:%d\n", __FILE__, __LINE__);\
-            abort();\
-        }\
-    }
+#ifndef LOGIT_DIFFERENCE_VALIDATOR_INC
+#define LOGIT_DIFFERENCE_VALIDATOR_INC
 
-// RWKV Tiny is a byte-level model
+#include <string.h>
+#include <math.h>
+
+#include <rwkv.h>
+
+#include "assertions.inc"
+
+// RWKV Tiny is a byte-level model.
 #define N_VOCAB 256
-// Also test multithreading
+// Also test multithreading.
 #define N_THREADS 2
 
 void load_expected_logits(float * expected_logits) {
@@ -28,7 +28,7 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     enum rwkv_error_flags error = rwkv_get_last_error(NULL);
     ASSERT(error == 0, "Unexpected error %d", error);
 
-#ifdef GGML_USE_CUBLAS
+#if defined(GGML_USE_CUBLAS)
     ASSERT(rwkv_gpu_offload_layers(model, rwkv_get_n_layer(model)), "Failed to offload layers to GPU");
 #endif
 
@@ -36,17 +36,21 @@ void test_model(const char * model_path, const float * expected_logits, const fl
 
     ASSERT(n_vocab == N_VOCAB, "Unexpected n_vocab in the model");
 
-    float * state = malloc(sizeof(float) * rwkv_get_state_len(model));
-    float * logits = malloc(sizeof(float) * n_vocab);
+    float * state = calloc(rwkv_get_state_len(model), sizeof(float));
+    float * logits = calloc(n_vocab, sizeof(float));
 
-    char * prompt = "\"in";
-    uint32_t prompt_seq[] = { '"', 'i', 'n' };
+    ASSERT(state != NULL, "Failed to allocate state");
+    ASSERT(logits != NULL, "Failed to allocate logits");
 
+    const char * prompt = "\"in";
+    const uint32_t prompt_seq[] = { '"', 'i', 'n' };
     const size_t prompt_length = strlen(prompt);
+
+    // ---
 
     rwkv_init_state(model, state);
 
-    for (size_t i = 0; i < prompt_length; i++) {
+    for (size_t i = 0; prompt[i] != 0; i++) {
         rwkv_eval(model, prompt[i], state, state, logits);
     }
 
@@ -56,10 +60,12 @@ void test_model(const char * model_path, const float * expected_logits, const fl
         diff_sum += logits[i] - expected_logits[i];
     }
 
-    fprintf(stderr, "Difference sum: %f\n", diff_sum);
+    fprintf(stderr, "Serial difference sum: %f\n", diff_sum);
 
     // When something breaks, difference would be way more than 10
-    ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
+    ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big serial difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
+
+    // ---
 
     rwkv_init_state(model, state);
     rwkv_eval_sequence(model, prompt_seq, prompt_length, state, state, logits);
@@ -75,8 +81,12 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     // When something breaks, difference would be way more than 10
     ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big sequence difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
 
+    // ---
+
     rwkv_free(model);
 
     free(state);
     free(logits);
 }
+
+#endif

@@ -16,7 +16,7 @@ def parse_args():
     return parser.parse_args()
 
 def get_layer_count(state_dict: Dict[str, torch.Tensor]) -> int:
-    n_layer = 0
+    n_layer: int = 0
 
     while f'blocks.{n_layer}.ln1.weight' in state_dict:
         n_layer += 1
@@ -28,9 +28,9 @@ def get_layer_count(state_dict: Dict[str, torch.Tensor]) -> int:
 def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_type: str) -> None:
     emb_weight: torch.Tensor = state_dict['emb.weight']
 
-    n_layer = get_layer_count(state_dict)
-    n_vocab = emb_weight.shape[0]
-    n_embed = emb_weight.shape[1]
+    n_layer: int = get_layer_count(state_dict)
+    n_vocab: int = emb_weight.shape[0]
+    n_embed: int = emb_weight.shape[1]
 
     with open(dest_path, 'wb') as out_file:
         is_FP16: bool = data_type == 'FP16' or data_type == 'float16'
@@ -48,7 +48,7 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
         ))
 
         for k in state_dict.keys():
-            tensor = state_dict[k].float()
+            tensor: torch.Tensor = state_dict[k].float()
 
             # Same processing as in "RWKV_in_150_lines.py"
             if '.time_' in k:

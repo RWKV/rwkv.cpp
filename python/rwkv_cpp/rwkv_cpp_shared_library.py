@@ -2,9 +2,9 @@ import os
 import sys
 import ctypes
 import pathlib
-from typing import Optional, List
+from typing import Optional, List, Tuple, Callable
 
-QUANTIZED_FORMAT_NAMES = (
+QUANTIZED_FORMAT_NAMES: Tuple[str, str, str, str, str] = (
     'Q4_0',
     'Q4_1',
     'Q5_0',
@@ -17,15 +17,15 @@ P_INT = ctypes.POINTER(ctypes.c_int32)
 
 class RWKVContext:
 
-    def __init__(self, ptr: ctypes.pointer):
-        self.ptr = ptr
+    def __init__(self, ptr: ctypes.pointer) -> None:
+        self.ptr: ctypes.pointer = ptr
 
 class RWKVSharedLibrary:
     """
     Python wrapper around rwkv.cpp shared library.
     """
 
-    def __init__(self, shared_library_path: str):
+    def __init__(self, shared_library_path: str) -> None:
         """
         Loads the shared library from specified file.
         In case of any error, this method will throw an exception.
@@ -146,7 +146,7 @@ class RWKVSharedLibrary:
         this limit when using large models and/or large sequence lengths.
         Fortunately, rwkv.cpp's fork of ggml has increased limit which was tested to work for sequence lengths up to 64 for 14B models.
 
-        If you get `GGML_ASSERT: ...\ggml.c:16941: cgraph->n_nodes < GGML_MAX_NODES`, this means you've exceeded the limit.
+        If you get `GGML_ASSERT: ...\\ggml.c:16941: cgraph->n_nodes < GGML_MAX_NODES`, this means you've exceeded the limit.
         To get rid of the assertion failure, reduce the model size and/or sequence length.
 
         Throws an exception in case of any error. Error messages would be printed to stderr.
@@ -297,7 +297,6 @@ class RWKVSharedLibrary:
 
         return self.library.rwkv_get_n_vocab(ctx.ptr)
 
-
 def load_rwkv_shared_library() -> RWKVSharedLibrary:
     """
     Attempts to find rwkv.cpp shared library and load it.
@@ -313,25 +312,40 @@ def load_rwkv_shared_library() -> RWKVSharedLibrary:
     else:
         file_name = 'librwkv.so'
 
-    repo_root_dir: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent.parent
-
-    paths = [
-        # If we are in "rwkv" directory
-        f'../bin/Release/{file_name}',
-        # If we are in repo root directory
-        f'bin/Release/{file_name}',
-        # If we compiled in build directory
-        f'build/bin/Release/{file_name}',
-        # If we compiled in build directory
-        f'build/{file_name}',
-        # Search relative to this file
-        str(repo_root_dir / 'bin' / 'Release' / file_name),
-        # Fallback
-        str(repo_root_dir / file_name)
+    # Possible sub-paths to the library relative to the repo dir.
+    child_paths: List[Callable[[pathlib.Path], pathlib.Path]] = [
+        # No lookup for Debug config here.
+        # I assume that if a user wants to debug the library,
+        # they will be able to find the library and set the exact path explicitly.
+        lambda p: p / 'bin' / 'Release' / file_name,
+        lambda p: p / 'bin' / file_name,
+        # Some people prefer to build in the "build" subdirectory.
+        lambda p: p / 'build' / 'bin' / 'Release' / file_name,
+        lambda p: p / 'build' / file_name,
+        # Fallback.
+        lambda p: p / file_name
     ]
 
-    for path in paths:
-        if os.path.isfile(path):
-            return RWKVSharedLibrary(path)
+    working_dir: pathlib.Path = pathlib.Path(os.path.abspath(os.getcwd()))
 
-    return RWKVSharedLibrary(paths[-1])
+    parent_paths: List[pathlib.Path] = [
+        # Possible repo dirs relative to the working dir.
+        # ./python/rwkv_cpp
+        working_dir.parent.parent,
+        # ./python
+        working_dir.parent,
+        # .
+        working_dir,
+        # Repo dir relative to this Python file.
+        pathlib.Path(os.path.abspath(__file__)).parent.parent.parent
+    ]
+
+    for parent_path in parent_paths:
+        for child_path in child_paths:
+            full_path: pathlib.Path = child_path(parent_path)
+
+            if os.path.isfile(full_path):
+                return RWKVSharedLibrary(str(full_path))
+
+    assert False, (f'Failed to find {file_name} automatically; '
+                   f'you need to find the library and create RWKVSharedLibrary specifying the path to it')
