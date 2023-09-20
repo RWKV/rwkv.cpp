@@ -1,7 +1,7 @@
 import os
 import tokenizers
 import pathlib
-from rwkv import rwkv_world_tokenizer
+from rwkv_cpp import rwkv_world_tokenizer
 from typing import List, Tuple, Callable
 
 def get_tokenizer(tokenizer: str = '20B') -> Tuple[

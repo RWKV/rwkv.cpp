@@ -6,7 +6,7 @@ import os
 import time
 import argparse
 import torch
-from rwkv import rwkv_cpp_shared_library, rwkv_cpp_model
+from rwkv_cpp import rwkv_cpp_shared_library, rwkv_cpp_model
 from tokenizer_util import get_tokenizer
 
 def parse_args():

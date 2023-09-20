@@ -315,7 +315,7 @@ def load_rwkv_shared_library() -> RWKVSharedLibrary:
     repo_root_dir: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent.parent.parent
 
     paths = [
-        # If the current directory is ./python/rwkv
+        # If the current directory is ./python/rwkv_cpp
         f'../../bin/Release/{file_name}',
         f'../../build/bin/Release/{file_name}',
         f'../../build/{file_name}',

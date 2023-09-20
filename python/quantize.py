@@ -3,7 +3,7 @@
 # Usage: python quantize.py C:\rwkv.cpp-169M-FP32.bin C:\rwkv.cpp-169M-Q5_1.bin Q5_1
 
 import argparse
-from rwkv import rwkv_cpp_shared_library
+from rwkv_cpp import rwkv_cpp_shared_library
 
 def parse_args():
     format_names = rwkv_cpp_shared_library.QUANTIZED_FORMAT_NAMES
