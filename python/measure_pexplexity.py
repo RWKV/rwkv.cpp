@@ -8,6 +8,7 @@ import argparse
 import torch
 from rwkv_cpp import rwkv_cpp_shared_library, rwkv_cpp_model
 from tokenizer_util import get_tokenizer
+from typing import List
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Measure perplexity and per-token latency of an RWKV model on a given text file')
@@ -25,7 +26,7 @@ text: str = open(args.text_path, encoding='utf-8').read()
 
 _, tokenizer_encode = get_tokenizer(args.tokenizer)
 
-tokens = tokenizer_encode(text)
+tokens: List[int] = tokenizer_encode(text)
 
 token_count: int = len(tokens)
 print(f'{token_count} tokens in the text')

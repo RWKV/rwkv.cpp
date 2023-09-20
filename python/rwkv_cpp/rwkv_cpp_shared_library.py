@@ -2,9 +2,9 @@ import os
 import sys
 import ctypes
 import pathlib
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
-QUANTIZED_FORMAT_NAMES = (
+QUANTIZED_FORMAT_NAMES: Tuple[str, str, str, str, str] = (
     'Q4_0',
     'Q4_1',
     'Q5_0',
@@ -18,7 +18,7 @@ P_INT = ctypes.POINTER(ctypes.c_int32)
 class RWKVContext:
 
     def __init__(self, ptr: ctypes.pointer) -> None:
-        self.ptr = ptr
+        self.ptr: ctypes.pointer = ptr
 
 class RWKVSharedLibrary:
     """

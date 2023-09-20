@@ -5,6 +5,7 @@ import argparse
 import sampling
 from rwkv_cpp import rwkv_cpp_shared_library, rwkv_cpp_model
 from tokenizer_util import get_tokenizer
+from typing import List
 
 # Parse received arguments.
 parser = argparse.ArgumentParser(description='Generate some text with an RWKV model')
@@ -21,7 +22,7 @@ tokenizer_decode, tokenizer_encode = get_tokenizer(args.tokenizer)
 
 # Prepare the prompt.
 prompt: str = """One upon a time,"""
-prompt_tokens = tokenizer_encode(prompt)
+prompt_tokens: List[int] = tokenizer_encode(prompt)
 
 # Process the prompt.
 init_logits, init_state = None, None
@@ -35,7 +36,7 @@ logits, state = init_logits.clone(), init_state.clone()
 print(prompt, end='')
 
 for i in range(32):
-    token = sampling.sample_logits(logits, temperature=0.8, top_p=0.5)
+    token: int = sampling.sample_logits(logits, temperature=0.8, top_p=0.5)
 
     print(tokenizer_decode([token]), end='', flush=True)
 

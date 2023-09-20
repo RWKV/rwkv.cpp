@@ -5,7 +5,7 @@ import convert_pytorch_to_ggml
 from typing import Dict
 
 def test() -> None:
-    test_file_path = 'convert_pytorch_rwkv_to_ggml_test.tmp'
+    test_file_path: str = 'convert_pytorch_rwkv_to_ggml_test.tmp'
 
     try:
         state_dict: Dict[str, torch.Tensor] = {

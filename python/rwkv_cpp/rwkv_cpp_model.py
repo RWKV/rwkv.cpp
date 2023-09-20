@@ -46,17 +46,17 @@ class RWKVModel:
         assert thread_count > 0, 'Thread count must be > 0'
         assert gpu_layer_count >= 0, 'GPU layer count must be >= 0'
 
-        self._library = shared_library
+        self._library: rwkv_cpp_shared_library.RWKVSharedLibrary = shared_library
 
-        self._ctx = self._library.rwkv_init_from_file(model_path, thread_count)
+        self._ctx: rwkv_cpp_shared_library.RWKVContext = self._library.rwkv_init_from_file(model_path, thread_count)
 
         if gpu_layer_count > 0:
             self._library.rwkv_gpu_offload_layers(self._ctx, gpu_layer_count)
 
-        self._state_buffer_element_count = self._library.rwkv_get_state_buffer_element_count(self._ctx)
-        self._logits_buffer_element_count = self._library.rwkv_get_logits_buffer_element_count(self._ctx)
+        self._state_buffer_element_count: int = self._library.rwkv_get_state_buffer_element_count(self._ctx)
+        self._logits_buffer_element_count: int = self._library.rwkv_get_logits_buffer_element_count(self._ctx)
 
-        self._valid = True
+        self._valid: bool = True
 
     @property
     def n_vocab(self) -> int:

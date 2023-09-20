@@ -4,7 +4,7 @@ from typing import Dict
 from torch.nn import functional as F
 
 def sample_logits(out: torch.Tensor, temperature: float = 1.0, top_p: float = 0.8, logit_bias: Dict[int, float] = None) -> int:
-    probs = F.softmax(out.cpu(), dim=-1).numpy()
+    probs: np.ndarray = F.softmax(out.cpu(), dim=-1).numpy()
 
     return sample_probs(probs, temperature, top_p, logit_bias)
 
@@ -16,7 +16,7 @@ def sample_probs(probs: np.ndarray, temperature: float = 1.0, top_p: float = 0.8
         top_p = 1.0
 
     if logit_bias is not None and len(logit_bias) > 0:
-        logits = np.log(probs)
+        logits: np.ndarray = np.log(probs)
 
         ids, values = zip(*logit_bias.items())
         logits[list(ids)] += values
