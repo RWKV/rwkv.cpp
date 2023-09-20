@@ -1,6 +1,7 @@
 #ifndef LOGIT_DIFFERENCE_VALIDATOR_INC
 #define LOGIT_DIFFERENCE_VALIDATOR_INC
 
+#include <string.h>
 #include <math.h>
 
 #include <rwkv.h>
