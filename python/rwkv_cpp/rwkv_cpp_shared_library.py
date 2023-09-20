@@ -2,7 +2,7 @@ import os
 import sys
 import ctypes
 import pathlib
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Callable
 
 QUANTIZED_FORMAT_NAMES: Tuple[str, str, str, str, str] = (
     'Q4_0',
@@ -312,27 +312,40 @@ def load_rwkv_shared_library() -> RWKVSharedLibrary:
     else:
         file_name = 'librwkv.so'
 
-    repo_root_dir: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent.parent.parent
-
-    paths = [
-        # If the current directory is ./python/rwkv_cpp
-        f'../../bin/Release/{file_name}',
-        f'../../build/bin/Release/{file_name}',
-        f'../../build/{file_name}',
-        # If the current directory is the repo root directory
-        f'bin/Release/{file_name}',
-        f'build/bin/Release/{file_name}',
-        f'build/{file_name}',
-        # Search relative to this file
-        str(repo_root_dir / 'bin' / 'Release' / file_name),
-        str(repo_root_dir / 'build' / 'bin' / 'Release' / file_name),
-        str(repo_root_dir / 'build' / file_name),
-        # Fallback
-        str(repo_root_dir / file_name)
+    # Possible sub-paths to the library relative to the repo dir.
+    child_paths: List[Callable[[pathlib.Path], pathlib.Path]] = [
+        # No lookup for Debug config here.
+        # I assume that if a user wants to debug the library,
+        # they will be able to find the library and set the exact path explicitly.
+        lambda p: p / 'bin' / 'Release' / file_name,
+        lambda p: p / 'bin' / file_name,
+        # Some people prefer to build in the "build" subdirectory.
+        lambda p: p / 'build' / 'bin' / 'Release' / file_name,
+        lambda p: p / 'build' / file_name,
+        # Fallback.
+        lambda p: p / file_name
     ]
 
-    for path in paths:
-        if os.path.isfile(path):
-            return RWKVSharedLibrary(path)
+    working_dir: pathlib.Path = pathlib.Path(os.path.abspath(os.getcwd()))
 
-    return RWKVSharedLibrary(paths[-1])
+    parent_paths: List[pathlib.Path] = [
+        # Possible repo dirs relative to the working dir.
+        # ./python/rwkv_cpp
+        working_dir.parent.parent,
+        # ./python
+        working_dir.parent,
+        # .
+        working_dir,
+        # Repo dir relative to this Python file.
+        pathlib.Path(os.path.abspath(__file__)).parent.parent.parent
+    ]
+
+    for parent_path in parent_paths:
+        for child_path in child_paths:
+            full_path: pathlib.Path = child_path(parent_path)
+
+            if os.path.isfile(full_path):
+                return RWKVSharedLibrary(str(full_path))
+
+    assert False, (f'Failed to find {file_name} automatically; '
+                   f'you need to find the library and create RWKVSharedLibrary specifying the path to it')
