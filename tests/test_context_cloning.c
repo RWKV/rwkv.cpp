@@ -1,6 +1,7 @@
 // Tests that evaluation works after the context was cloned.
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <rwkv.h>
 

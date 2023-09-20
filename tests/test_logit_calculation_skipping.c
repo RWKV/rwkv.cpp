@@ -1,6 +1,7 @@
 // Tests that evaluation works when the logits parameter was set to NULL.
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <rwkv.h>
 
