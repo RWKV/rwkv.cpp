@@ -4,13 +4,13 @@
 import argparse
 import sampling
 from rwkv_cpp import rwkv_cpp_shared_library, rwkv_cpp_model
-from tokenizer_util import get_tokenizer
+from tokenizer_util import add_tokenizer_argument, get_tokenizer
 from typing import List
 
 # Parse received arguments.
 parser = argparse.ArgumentParser(description='Generate some text with an RWKV model')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
-parser.add_argument('tokenizer', help='Tokenizer to use; supported tokenizers: 20B, world', nargs='?', type=str, default='20B')
+add_tokenizer_argument(parser)
 args = parser.parse_args()
 
 # Load the model.
@@ -18,7 +18,7 @@ library = rwkv_cpp_shared_library.load_rwkv_shared_library()
 model = rwkv_cpp_model.RWKVModel(library, args.model_path)
 
 # Set up the tokenizer.
-tokenizer_decode, tokenizer_encode = get_tokenizer(args.tokenizer)
+tokenizer_decode, tokenizer_encode = get_tokenizer(args.tokenizer, model.n_vocab)
 
 # Prepare the prompt.
 prompt: str = """One upon a time,"""
