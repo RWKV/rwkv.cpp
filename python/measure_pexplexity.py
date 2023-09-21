@@ -5,6 +5,7 @@
 import os
 import time
 import argparse
+# TODO Get rid of this PyTorch dependency by writing a cross_entropy impl for numpy
 import torch
 from rwkv_cpp import rwkv_cpp_shared_library, rwkv_cpp_model
 from tokenizer_util import add_tokenizer_argument, get_tokenizer

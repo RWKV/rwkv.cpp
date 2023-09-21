@@ -1,5 +1,4 @@
 import os
-import tokenizers
 import pathlib
 from rwkv_cpp import rwkv_world_tokenizer
 from typing import List, Tuple, Callable
@@ -32,6 +31,7 @@ def get_tokenizer(tokenizer_name: str, n_vocab: int) -> Tuple[
         return rwkv_world_tokenizer.get_world_tokenizer_v20230424()
     elif tokenizer_name == '20B':
         print('Loading 20B tokenizer')
+        import tokenizers
         tokenizer: tokenizers.Tokenizer = tokenizers.Tokenizer.from_file(str(parent / '20B_tokenizer.json'))
         return tokenizer.decode, lambda x: tokenizer.encode(x).ids
     else:

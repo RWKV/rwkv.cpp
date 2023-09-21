@@ -28,9 +28,9 @@ prompt_tokens: List[int] = tokenizer_encode(prompt)
 init_logits, init_state = None, None
 
 for token in prompt_tokens:
-    init_logits, init_state = model.eval(token, init_state, init_state, init_logits)
+    init_logits, init_state = model.eval(token, init_state, init_state, init_logits, use_numpy=True)
 
-logits, state = init_logits.clone(), init_state.clone()
+logits, state = init_logits.copy(), init_state.copy()
 
 # Generate and print the completion.
 print(prompt, end='')
@@ -40,7 +40,7 @@ for i in range(32):
 
     print(tokenizer_decode([token]), end='', flush=True)
 
-    logits, state = model.eval(token, state, state, logits)
+    logits, state = model.eval(token, state, state, logits, use_numpy=True)
 
 # Don't forget to free the memory after you are done working with the model!
 model.free()

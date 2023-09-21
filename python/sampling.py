@@ -1,10 +1,17 @@
 import numpy as np
-import torch
 from typing import Dict
-from torch.nn import functional as F
 
-def sample_logits(out: torch.Tensor, temperature: float = 1.0, top_p: float = 0.8, logit_bias: Dict[int, float] = None) -> int:
-    probs: np.ndarray = F.softmax(out.cpu(), dim=-1).numpy()
+# https://stackoverflow.com/a/50425683
+def softmax(x: np.ndarray, axis: int):
+    x -= x.max(axis=axis, keepdims=True)
+    e: np.ndarray = np.exp(x)
+    return e / e.sum(axis=axis, keepdims=True)
+
+def sample_logits(out, temperature: float = 1.0, top_p: float = 0.8, logit_bias: Dict[int, float] = None) -> int:
+    if hasattr(out, '__module__') and out.__module__ == 'torch':
+        out = out.cpu().numpy()
+
+    probs: np.ndarray = softmax(out, axis=-1)
 
     return sample_probs(probs, temperature, top_p, logit_bias)
 
