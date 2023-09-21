@@ -46,6 +46,8 @@ struct rwkv_model {
     struct ggml_tensor * head;
 
     // How many layers were offloaded to the GPU.
+    // Model head is counted as an additional layer,
+    // so the max value for this field is n_layers + 1.
     size_t offloaded_layer_count;
 
     // How many RWKV contexts reference this model.

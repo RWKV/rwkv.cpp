@@ -113,9 +113,12 @@ class RWKVSharedLibrary:
 
     def rwkv_gpu_offload_layers(self, ctx: RWKVContext, layer_count: int) -> bool:
         """
-        Offloads specified count of model layers onto the GPU. Offloaded layers are evaluated using cuBLAS.
+        Offloads specified count of model layers onto the GPU. Offloaded layers are evaluated using cuBLAS or CLBlast.
+        For the purposes of this function, model head (unembedding matrix) is treated as an additional layer:
+        - pass `rwkv_get_n_layer(ctx)` to offload all layers except model head
+        - pass `rwkv_get_n_layer(ctx) + 1` to offload all layers, including model head
         Returns true if at least one layer was offloaded.
-        If rwkv.cpp was compiled without cuBLAS support, this function is a no-op and always returns false.
+        If rwkv.cpp was compiled without cuBLAS and CLBlast support, this function is a no-op and always returns false.
 
         Parameters
         ----------
@@ -208,6 +211,47 @@ class RWKVSharedLibrary:
             ctypes.cast(logits_out_address, P_FLOAT)
         ), 'rwkv_eval failed, check stderr'
 
+    def rwkv_get_n_vocab(self, ctx: RWKVContext) -> int:
+        """
+        Returns the number of tokens in the given model's vocabulary.
+        Useful for telling 20B_tokenizer models (n_vocab = 50277) apart from World models (n_vocab = 65536).
+
+        Parameters
+        ----------
+        ctx : RWKVContext
+            RWKV context obtained from rwkv_init_from_file.
+        """
+
+        return self.library.rwkv_get_n_vocab(ctx.ptr)
+
+    def rwkv_get_n_embed(self, ctx: RWKVContext) -> int:
+        """
+        Returns the number of elements in the given model's embedding.
+        Useful for reading individual fields of a model's hidden state.
+
+        Parameters
+        ----------
+        ctx : RWKVContext
+            RWKV context obtained from rwkv_init_from_file.
+        """
+
+        return self.library.rwkv_get_n_embed(ctx.ptr)
+
+    def rwkv_get_n_layer(self, ctx: RWKVContext) -> int:
+        """
+        Returns the number of layers in the given model.
+        A layer is a pair of RWKV and FFN operations, stacked multiple times throughout the model.
+        Embedding matrix and model head (unembedding matrix) are NOT counted in `n_layer`.
+        Useful for always offloading the entire model to GPU.
+
+        Parameters
+        ----------
+        ctx : RWKVContext
+            RWKV context obtained from rwkv_init_from_file.
+        """
+
+        return self.library.rwkv_get_n_layer(ctx.ptr)
+
     def rwkv_get_state_buffer_element_count(self, ctx: RWKVContext) -> int:
         """
         Returns count of FP32 elements in state buffer.
@@ -275,27 +319,6 @@ class RWKVSharedLibrary:
         """
 
         return self.library.rwkv_get_system_info_string().decode('utf-8')
-
-    def rwkv_get_n_embed(self, ctx: RWKVContext) -> int:
-        """
-        Returns the size of one embedding vector.
-        """
-
-        return self.library.rwkv_get_n_embed(ctx.ptr)
-
-    def rwkv_get_n_layer(self, ctx: RWKVContext) -> int:
-        """
-        Returns the number of layers.
-        """
-
-        return self.library.rwkv_get_n_layer(ctx.ptr)
-
-    def rwkv_get_n_vocab(self, ctx: RWKVContext) -> int:
-        """
-        Returns vocab size.
-        """
-
-        return self.library.rwkv_get_n_vocab(ctx.ptr)
 
 def load_rwkv_shared_library() -> RWKVSharedLibrary:
     """

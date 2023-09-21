@@ -8,7 +8,7 @@ try:
 except ModuleNotFoundError:
     from . import rwkv_cpp_shared_library
 
-from typing import Tuple, Optional, List
+from typing import Optional, Tuple, List
 
 class RWKVModel:
     """
@@ -37,6 +37,7 @@ class RWKVModel:
             Thread count to use. If not set, defaults to CPU count / 2.
         gpu_layer_count : int
             Count of layers to offload onto the GPU, must be >= 0.
+            See documentation of `RWKVSharedLibrary.rwkv_gpu_offload_layers` for details about layer offloading.
         """
 
         if 'gpu_layers_count' in kwargs:

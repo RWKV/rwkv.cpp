@@ -97,9 +97,12 @@ extern "C" {
     // - n_threads: count of threads to use, must be positive.
     RWKV_API struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32_t n_threads);
 
-    // Offloads specified count of model layers onto the GPU. Offloaded layers are evaluated using cuBLAS.
+    // Offloads specified count of model layers onto the GPU. Offloaded layers are evaluated using cuBLAS or CLBlast.
+    // For the purposes of this function, model head (unembedding matrix) is treated as an additional layer:
+    // - pass `rwkv_get_n_layer(ctx)` to offload all layers except model head
+    // - pass `rwkv_get_n_layer(ctx) + 1` to offload all layers, including model head
     // Returns true if at least one layer was offloaded.
-    // If rwkv.cpp was compiled without cuBLAS support, this function is a no-op and always returns false.
+    // If rwkv.cpp was compiled without cuBLAS and CLBlast support, this function is a no-op and always returns false.
     RWKV_API bool rwkv_gpu_offload_layers(struct rwkv_context * ctx, const uint32_t n_layers);
 
     // Evaluates the model for a single token.
@@ -159,6 +162,8 @@ extern "C" {
     RWKV_API size_t rwkv_get_n_embed(const struct rwkv_context * ctx);
 
     // Returns the number of layers in the given model.
+    // A layer is a pair of RWKV and FFN operations, stacked multiple times throughout the model.
+    // Embedding matrix and model head (unembedding matrix) are NOT counted in `n_layer`.
     // Useful for always offloading the entire model to GPU.
     RWKV_API size_t rwkv_get_n_layer(const struct rwkv_context * ctx);
 

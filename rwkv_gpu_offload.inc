@@ -18,13 +18,20 @@ bool rwkv_gpu_offload_layers(struct rwkv_context * ctx, const uint32_t n_layers)
 #endif
     };
 
-    const size_t n_gpu = std::min(n_layers, ctx->model->header.n_layer);
+    const size_t n_gpu = std::min(n_layers, ctx->model->header.n_layer + 1);
 
     if (ctx->model->offloaded_layer_count >= n_gpu) {
         return false;
     }
 
     for (size_t & i = ctx->model->offloaded_layer_count; i < n_gpu; i++) {
+        if (i == ctx->model->header.n_layer) {
+            // This is the index of the model head.
+            offload(ctx->model->head);
+
+            continue;
+        }
+
         const struct rwkv_layer & layer = ctx->model->layers[i];
 
         // TODO Also offload other supported operations to GPU
