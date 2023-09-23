@@ -69,6 +69,17 @@ bool rwkv_eval_sequence(
 
     RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, sequence_len > 0, "Sequence length is 0");
 
+    if (sequence_len == 1) {
+        // Avoid building single-token sequence graph, we already have regular eval for this.
+        return rwkv_eval(
+            ctx,
+            sequence[0],
+            state_in,
+            state_out,
+            logits_out
+        );
+    }
+
     if (sequence) {
         const size_t n_vocab = ctx->model->header.n_vocab;
 
@@ -92,6 +103,72 @@ bool rwkv_eval_sequence(
         rwkv_eval_graph(ctx->sequential_graph, ctx->n_threads, logits_out != NULL);
 
         rwkv_get_outputs(ctx->sequential_graph, state_out, logits_out);
+    }
+
+    return true;
+}
+
+// API function.
+bool rwkv_eval_sequence_in_chunks(
+    struct rwkv_context * ctx,
+    const uint32_t * tokens,
+    const size_t sequence_len,
+    const size_t chunk_size,
+    const float * state_in,
+    float * state_out,
+    float * logits_out
+) {
+    RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, sequence_len > 0, "Sequence length is 0");
+    RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, chunk_size > 0, "Chunk size is 0");
+
+    // Will be de-allocated automatically on return.
+    std::unique_ptr<float[]> state{ new(std::nothrow) float[rwkv_get_state_len(ctx)] };
+
+    if (state_in != NULL) {
+        memcpy(state.get(), state_in, rwkv_get_state_len(ctx) * sizeof(float));
+    } else {
+        rwkv_init_state(ctx, state.get());
+    }
+
+    size_t chunk_count = sequence_len / chunk_size;
+    size_t remainder = sequence_len % chunk_size;
+    uint32_t * tokens_offset = (uint32_t *) tokens;
+
+    for (size_t c = 0; c < chunk_count; c++) {
+        bool is_last_eval = c == chunk_count - 1 && remainder == 0;
+
+        bool result = rwkv_eval_sequence(
+            ctx,
+            tokens_offset,
+            chunk_size,
+            state.get(),
+            // On the last eval call, copy the state into the user-provided buffer.
+            is_last_eval ? state_out : state.get(),
+            // If this is not the last call, we don't have the use for logits and can skip their calculation.
+            is_last_eval ? logits_out : NULL
+        );
+
+        if (!result) {
+            return false;
+        }
+
+        tokens_offset += chunk_size;
+    }
+
+    if (remainder > 0) {
+        bool result = rwkv_eval_sequence(
+            ctx,
+            tokens_offset,
+            remainder,
+            state.get(),
+            // This eval call is always the last.
+            state_out,
+            logits_out
+        );
+
+        if (!result) {
+            return false;
+        }
     }
 
     return true;

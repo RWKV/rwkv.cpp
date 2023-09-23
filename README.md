@@ -146,7 +146,7 @@ python python/quantize.py ~/Downloads/rwkv.cpp-169M.bin ~/Downloads/rwkv.cpp-169
 
 #### Using the command line
 
-**Requirements**: Python 3.x with [PyTorch](https://pytorch.org/get-started/locally/) and [tokenizers](https://pypi.org/project/tokenizers/).
+**Requirements**: Python 3.x with [numpy](https://numpy.org/). If using `Pile` or `Raven` models, [tokenizers](https://pypi.org/project/tokenizers/) is also required.
 
 To generate some text, run:
 

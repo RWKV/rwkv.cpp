@@ -29,7 +29,7 @@ void test_model(const char * model_path, const float * expected_logits, const fl
     ASSERT(error == 0, "Unexpected error %d", error);
 
 #if defined(GGML_USE_CUBLAS)
-    ASSERT(rwkv_gpu_offload_layers(model, rwkv_get_n_layer(model)), "Failed to offload layers to GPU");
+    ASSERT(rwkv_gpu_offload_layers(model, rwkv_get_n_layer(model) + 1), "Failed to offload layers to GPU");
 #endif
 
     const size_t n_vocab = rwkv_get_logits_len(model);

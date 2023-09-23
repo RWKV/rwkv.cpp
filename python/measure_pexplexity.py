@@ -5,9 +5,10 @@
 import os
 import time
 import argparse
+# TODO Get rid of this PyTorch dependency by writing a cross_entropy impl for numpy
 import torch
 from rwkv_cpp import rwkv_cpp_shared_library, rwkv_cpp_model
-from tokenizer_util import get_tokenizer
+from tokenizer_util import add_tokenizer_argument, get_tokenizer
 from typing import List
 
 def parse_args():
@@ -16,15 +17,21 @@ def parse_args():
     parser.add_argument('text_path', help='Path to text file in UTF-8 encoding', type=str)
     parser.add_argument('ignore_first_n_tokens', help='How many tokens should be skipped before loss is measured', type=int)
     parser.add_argument('token_limit', help='How many tokens to process; set to -1 to process all text', nargs='?', type=int, default=-1)
-    parser.add_argument('tokenizer', help='Tokenizer to use; supported tokenizers: 20B, world', nargs='?', type=str, default='20B')
+    add_tokenizer_argument(parser)
     return parser.parse_args()
 
 args = parse_args()
 
+print('Loading model')
+model: rwkv_cpp_model.RWKVModel = rwkv_cpp_model.RWKVModel(
+    rwkv_cpp_shared_library.load_rwkv_shared_library(),
+    args.model_path
+)
+
 print('Loading text')
 text: str = open(args.text_path, encoding='utf-8').read()
 
-_, tokenizer_encode = get_tokenizer(args.tokenizer)
+_, tokenizer_encode = get_tokenizer(args.tokenizer, model.n_vocab)
 
 tokens: List[int] = tokenizer_encode(text)
 
@@ -51,11 +58,6 @@ def format_loss_with_perplexity(loss: torch.Tensor) -> str:
     return f'loss [{format_loss(loss)}], perplexity {"%.3f" % (torch.exp(loss[0]).item(),)}'
 
 # ---
-
-model: rwkv_cpp_model.RWKVModel = rwkv_cpp_model.RWKVModel(
-    rwkv_cpp_shared_library.load_rwkv_shared_library(),
-    args.model_path
-)
 
 logits, state = None, None
 
