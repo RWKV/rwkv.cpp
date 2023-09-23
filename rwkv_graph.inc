@@ -322,12 +322,13 @@ static bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, str
     struct ggml_allocr * allocator = ggml_allocr_new_measure(tensor_alignment);
 
     size_t required_context_size = ggml_allocr_alloc_graph(allocator, graph.cgraph.get()) +
+            // With the node limit set 80K, this overhead would be 28 MB.
             + rwkv_ggml_overhead()
             + tensor_alignment
-            // For some reason, calculation above does not result in enough memory allocated.
+            // For some reason, `ggml_allocr_alloc_graph` underestimates required memory amount.
             // Instead of diving deep into ggml internals to debug this issue, I will just add some padding.
-            // 64 MB seems to be enough for Raven 14B model.
-            + size_t(64) * 1024 * 1024;
+            // 40 MB seems to be enough for Raven 14B model when GGML_MAX_NODES is set to default value of 4096.
+            + size_t(40) * 1024 * 1024;
 
     ggml_allocr_free(allocator);
     ggml_free(graph.ggml_ctx);
@@ -444,12 +445,13 @@ static bool rwkv_measure_and_build_sequential_context(struct rwkv_model & model,
     struct ggml_allocr * allocator = ggml_allocr_new_measure(tensor_alignment);
 
     size_t required_context_size = ggml_allocr_alloc_graph(allocator, graph.cgraph.get()) +
+            // With the node limit set 80K, this overhead would be 28 MB.
             + rwkv_ggml_overhead()
             + tensor_alignment
-            // For some reason, calculation above does not result in enough memory allocated.
+            // For some reason, `ggml_allocr_alloc_graph` underestimates required memory amount.
             // Instead of diving deep into ggml internals to debug this issue, I will just add some padding.
-            // 64 MB per token seems to be enough for Raven 14B model. It works for sequence_length up to 71 at least.
-            + sequence_length * 64 * 1024 * 1024;
+            // 40 MB per token seems to be enough for Raven 14B model. It works for sequence_length at least up to 71.
+            + sequence_length * 40 * 1024 * 1024;
 
     ggml_allocr_free(allocator);
     ggml_free(graph.ggml_ctx);
