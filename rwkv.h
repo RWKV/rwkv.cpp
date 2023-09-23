@@ -122,7 +122,7 @@ extern "C" {
     );
 
     // Evaluates the model for a sequence of tokens.
-    // Uses a faster algorithm than rwkv_eval if you do not need the state and logits for every token. Best used with sequence lengths of 64 or so.
+    // Uses a faster algorithm than `rwkv_eval` if you do not need the state and logits for every token. Best used with sequence lengths of 64 or so.
     // Has to build a computation graph on the first call for a given sequence, but will use this cached graph for subsequent calls of the same sequence length.
     //
     // NOTE ON GGML NODE LIMIT
@@ -137,7 +137,7 @@ extern "C" {
     // TODO When Metal (MPS) support is implemented, check that large sequence lengths work
     //
     // You can pass NULL to logits_out whenever logits are not needed. This can improve speed by ~10 ms per iteration, because logits are not calculated.
-    // Not thread-safe. For parallel inference, call rwkv_clone_context to create one rwkv_context for each thread.
+    // Not thread-safe. For parallel inference, call `rwkv_clone_context` to create one rwkv_context for each thread.
     // Returns false on any error.
     // - tokens: pointer to an array of tokens. If NULL, the graph will be built and cached, but not executed: this can be useful for initialization.
     // - sequence_len: number of tokens to read from the array.
@@ -148,6 +148,32 @@ extern "C" {
         struct rwkv_context * ctx,
         const uint32_t * tokens,
         const size_t sequence_len,
+        const float * state_in,
+        float * state_out,
+        float * logits_out
+    );
+
+    // Evaluates the model for a sequence of tokens using `rwkv_eval_sequence`, splitting a potentially long sequence into fixed-length chunks.
+    // This function is useful for processing complete prompts and user input in chat & role-playing use-cases.
+    // It is recommended to use this function instead of `rwkv_eval_sequence` to avoid mistakes and get maximum performance.
+    //
+    // Chunking allows processing sequences of thousands of tokens, while not reaching the ggml's node limit and not consuming too much memory.
+    // A reasonable and recommended value of chunk size is 16. If you want maximum performance, try different chunk sizes in range [2..64]
+    // and choose one that works the best in your use case.
+    //
+    // Not thread-safe. For parallel inference, call `rwkv_clone_context` to create one rwkv_context for each thread.
+    // Returns false on any error.
+    // - tokens: pointer to an array of tokens. If NULL, the graph will be built and cached, but not executed: this can be useful for initialization.
+    // - sequence_len: number of tokens to read from the array.
+    // - chunk_size: size of each chunk in tokens, must be positive.
+    // - state_in: FP32 buffer of size rwkv_get_state_len(), or NULL if this is a first pass.
+    // - state_out: FP32 buffer of size rwkv_get_state_len(). This buffer will be written to if non-NULL.
+    // - logits_out: FP32 buffer of size rwkv_get_logits_len(). This buffer will be written to if non-NULL.
+    RWKV_API bool rwkv_eval_sequence_in_chunks(
+        struct rwkv_context * ctx,
+        const uint32_t * tokens,
+        const size_t sequence_len,
+        const size_t chunk_size,
         const float * state_in,
         float * state_out,
         float * logits_out

@@ -63,6 +63,17 @@ class RWKVSharedLibrary:
         ]
         self.library.rwkv_eval_sequence.restype = ctypes.c_bool
 
+        self.library.rwkv_eval_sequence_in_chunks.argtypes = [
+            ctypes.c_void_p, # ctx
+            P_INT, # tokens
+            ctypes.c_size_t, # token count
+            ctypes.c_size_t, # chunk size
+            P_FLOAT, # state_in
+            P_FLOAT, # state_out
+            P_FLOAT  # logits_out
+        ]
+        self.library.rwkv_eval_sequence_in_chunks.restype = ctypes.c_bool
+
         self.library.rwkv_get_n_vocab.argtypes = [ctypes.c_void_p]
         self.library.rwkv_get_n_vocab.restype = ctypes.c_size_t
 
@@ -142,17 +153,8 @@ class RWKVSharedLibrary:
     ) -> None:
         """
         Evaluates the model for a single token.
-
-        NOTE ON GGML NODE LIMIT
-
-        ggml has a hard-coded limit on max amount of nodes in a computation graph. The sequence graph is built in a way that quickly exceedes
-        this limit when using large models and/or large sequence lengths.
-        Fortunately, rwkv.cpp's fork of ggml has increased limit which was tested to work for sequence lengths up to 64 for 14B models.
-
-        If you get `GGML_ASSERT: ...\\ggml.c:16941: cgraph->n_nodes < GGML_MAX_NODES`, this means you've exceeded the limit.
-        To get rid of the assertion failure, reduce the model size and/or sequence length.
-
         Throws an exception in case of any error. Error messages would be printed to stderr.
+        Not thread-safe. For parallel inference, call rwkv_clone_context to create one rwkv_context for each thread.
 
         Parameters
         ----------
@@ -186,6 +188,19 @@ class RWKVSharedLibrary:
     ) -> None:
         """
         Evaluates the model for a sequence of tokens.
+        Uses a faster algorithm than `rwkv_eval` if you do not need the state and logits for every token. Best used with sequence lengths of 64 or so.
+        Has to build a computation graph on the first call for a given sequence, but will use this cached graph for subsequent calls of the same sequence length.
+
+        NOTE ON GGML NODE LIMIT
+
+        ggml has a hard-coded limit on max amount of nodes in a computation graph. The sequence graph is built in a way that quickly exceedes
+        this limit when using large models and/or large sequence lengths.
+        Fortunately, rwkv.cpp's fork of ggml has increased limit which was tested to work for sequence lengths up to 64 for 14B models.
+
+        If you get `GGML_ASSERT: ...\\ggml.c:16941: cgraph->n_nodes < GGML_MAX_NODES`, this means you've exceeded the limit.
+        To get rid of the assertion failure, reduce the model size and/or sequence length.
+
+        Not thread-safe. For parallel inference, call `rwkv_clone_context` to create one rwkv_context for each thread.
         Throws an exception in case of any error. Error messages would be printed to stderr.
 
         Parameters
@@ -209,7 +224,54 @@ class RWKVSharedLibrary:
             ctypes.cast(0 if state_in_address is None else state_in_address, P_FLOAT),
             ctypes.cast(state_out_address, P_FLOAT),
             ctypes.cast(logits_out_address, P_FLOAT)
-        ), 'rwkv_eval failed, check stderr'
+        ), 'rwkv_eval_sequence failed, check stderr'
+
+    def rwkv_eval_sequence_in_chunks(
+            self,
+            ctx: RWKVContext,
+            tokens: List[int],
+            chunk_size: int,
+            state_in_address: Optional[int],
+            state_out_address: int,
+            logits_out_address: int
+    ) -> None:
+        """
+        Evaluates the model for a sequence of tokens using `rwkv_eval_sequence`, splitting a potentially long sequence into fixed-length chunks.
+        This function is useful for processing complete prompts and user input in chat & role-playing use-cases.
+        It is recommended to use this function instead of `rwkv_eval_sequence` to avoid mistakes and get maximum performance.
+
+        Chunking allows processing sequences of thousands of tokens, while not reaching the ggml's node limit and not consuming too much memory.
+        A reasonable and recommended value of chunk size is 16. If you want maximum performance, try different chunk sizes in range [2..64]
+        and choose one that works the best in your use case.
+
+        Not thread-safe. For parallel inference, call `rwkv_clone_context` to create one rwkv_context for each thread.
+        Throws an exception in case of any error. Error messages would be printed to stderr.
+
+        Parameters
+        ----------
+        ctx : RWKVContext
+            RWKV context obtained from rwkv_init_from_file.
+        tokens : List[int]
+            Next token indices, in range 0 <= token < n_vocab.
+        chunk_size : int
+            Size of each chunk in tokens, must be positive.
+        state_in_address : int
+            Address of the first element of a FP32 buffer of size rwkv_get_state_buffer_element_count; or None, if this is a first pass.
+        state_out_address : int
+            Address of the first element of a FP32 buffer of size rwkv_get_state_buffer_element_count. This buffer will be written to.
+        logits_out_address : int
+            Address of the first element of a FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to.
+        """
+
+        assert self.library.rwkv_eval_sequence_in_chunks(
+            ctx.ptr,
+            ctypes.cast((ctypes.c_int32 * len(tokens))(*tokens), P_INT),
+            ctypes.c_size_t(len(tokens)),
+            ctypes.c_size_t(chunk_size),
+            ctypes.cast(0 if state_in_address is None else state_in_address, P_FLOAT),
+            ctypes.cast(state_out_address, P_FLOAT),
+            ctypes.cast(logits_out_address, P_FLOAT)
+        ), 'rwkv_eval_sequence_in_chunks failed, check stderr'
 
     def rwkv_get_n_vocab(self, ctx: RWKVContext) -> int:
         """

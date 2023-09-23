@@ -69,10 +69,9 @@ state: Optional[rwkv_cpp_model.NumpyArrayOrPyTorchTensor] = None
 def process_tokens(_tokens: List[int], new_line_logit_bias: float = 0.0) -> None:
     global processed_tokens, logits, state
 
-    processed_tokens += _tokens
+    logits, state = model.eval_sequence_in_chunks(_tokens, state, state, logits, use_numpy=True)
 
-    for _token in _tokens:
-        logits, state = model.eval(_token, state, state, logits, use_numpy=True)
+    processed_tokens += _tokens
 
     logits[END_OF_LINE_TOKEN] += new_line_logit_bias
 

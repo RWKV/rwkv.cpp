@@ -25,12 +25,7 @@ prompt: str = """One upon a time,"""
 prompt_tokens: List[int] = tokenizer_encode(prompt)
 
 # Process the prompt.
-init_logits, init_state = None, None
-
-for token in prompt_tokens:
-    init_logits, init_state = model.eval(token, init_state, init_state, init_logits, use_numpy=True)
-
-logits, state = init_logits.copy(), init_state.copy()
+logits, state = model.eval_sequence_in_chunks(prompt_tokens, None, None, None, use_numpy=True)
 
 # Generate and print the completion.
 print(prompt, end='')
