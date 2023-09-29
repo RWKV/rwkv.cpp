@@ -86,6 +86,17 @@ If everything went OK, `bin\Release\rwkv.dll` file should appear.
 
 Refer to [docs/cuBLAS_on_Windows.md](docs%2FcuBLAS_on_Windows.md) for a comprehensive guide.
 
+##### Windows + hipBLAS
+
+You must set ROCM as environment variables before running cmake.
+
+```commandline
+mkdir build
+cd build
+cmake .. -G "Ninja" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DRWKV_HIPBLAS=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+```
+
 ##### Linux / MacOS
 
 **Requirements**: CMake (Linux: `sudo apt install cmake`, MacOS: `brew install cmake`, anaconoda: [cmake package](https://anaconda.org/conda-forge/cmake)).
