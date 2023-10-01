@@ -2,6 +2,7 @@ import os
 import sys
 import ctypes
 import pathlib
+import platform
 from typing import Optional, List, Tuple, Callable
 
 QUANTIZED_FORMAT_NAMES: Tuple[str, str, str, str, str] = (
@@ -35,8 +36,13 @@ class RWKVSharedLibrary:
         shared_library_path : str
             Path to rwkv.cpp shared library. On Windows, it would look like 'rwkv.dll'. On UNIX, 'rwkv.so'.
         """
-
-        self.library = ctypes.cdll.LoadLibrary(shared_library_path)
+        #  When Python is greater than 3.8, we need to reprocess the custom dll
+        #  according to the documentation to prevent loading failure errors.
+        #  https://docs.python.org/3/whatsnew/3.8.html#ctypes
+        if platform.system().lower() == 'windows':
+            self.library = ctypes.CDLL(shared_library_path, winmode=0)
+        else:
+            self.library = ctypes.cdll.LoadLibrary(shared_library_path)
 
         self.library.rwkv_init_from_file.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
         self.library.rwkv_init_from_file.restype = ctypes.c_void_p
@@ -406,6 +412,7 @@ def load_rwkv_shared_library() -> RWKVSharedLibrary:
         lambda p: p / 'bin' / file_name,
         # Some people prefer to build in the "build" subdirectory.
         lambda p: p / 'build' / 'bin' / 'Release' / file_name,
+        lambda p: p / 'build' / 'bin' / file_name,
         lambda p: p / 'build' / file_name,
         # Fallback.
         lambda p: p / file_name
