@@ -19,15 +19,15 @@ Download latest `Windows x64 Installer` from [Download | CMake](https://cmake.or
 
 Skip this step if you already have Build Tools installed.
 
-[validation tools](https://rocm.docs.amd.com/en/latest/reference/ validation_tools.html) not support on Windows. So you confirm the Version of `ROCM` by yourself. 
+The [validation tools](https://rocm.docs.amd.com/en/latest/reference/validation_tools.html) not support on Windows. So you should confirm the Version of `ROCM` by yourself. 
 
 Fortunately `AMD` provides complete help documentation, you can use the help documentation to install [ROCM](https://rocm.docs.amd.com/en/latest/deploy/windows/quick_start.html)
 
-**If you encounter an error, if it is [AMD ROCm Windows Installation Error 215](https://github.com/RadeonOpenCompute/ROCm/issues/2363), don't worry about this error. ROCM has been installed correctly, but the vs studio plugin installation failed, we can ignore it.**
+>**If you encounter an error, if it is [AMD ROCm Windows Installation Error 215](https://github.com/RadeonOpenCompute/ROCm/issues/2363), don't worry about this error. ROCM has been installed correctly, but the vs studio plugin installation failed, we can ignore it.**
 
 Then we must set `ROCM` as environment variables before running cmake.
 
-Usually if you install according to the official tutorial and do not modify the ROCM path, then there is a high probability that it is here
+Usually if you install according to the official tutorial and do not modify the ROCM path, then there is a high probability that it is here `C:\Program Files\AMD\ROCm\5.5\bin`
 
 This is what I use to set the clang:
 ```Commandline
@@ -39,7 +39,7 @@ set CXX=C:\Program Files\AMD\ROCm\5.5\bin\clang++.exe
 
 Skip this step if you already have Ninja installed: running `ninja --version` should output `1.11.1`.
 
-Download latest `ninja-win.zip` from [GitHub Releases Page](https://github.com/ninja-build/ninja/releases/tag/v1.11.1) unzip,and set as environment variables.
+Download latest `ninja-win.zip` from [GitHub Releases Page](https://github.com/ninja-build/ninja/releases/tag/v1.11.1) and unzip.Then set as environment variables.
 I unzipped it in `C:\Program Files\ninja`, so I set it like this:
 
 ```Commandline
@@ -50,7 +50,7 @@ set ninja=C:\Program Files\ninja\ninja.exe
 The thing different from the regular CPU build is `-DRWKV_HIPBLAS=ON` ,
 `-G "Ninja"`, `-DCMAKE_C_COMPILER=clang`, `-DCMAKE_CXX_COMPILER=clang++`, `-DAMDGPU_TARGETS=gfx1100`
 
-**Notice** check the `clang` and `clang++` information:
+>**Notice** check the `clang` and `clang++` information:
 ```Commandline
 clang --version
 clang++ --version
@@ -71,7 +71,7 @@ Thread model: posix
 InstalledDir: C:\Program Files\AMD\ROCm\5.5\bin
 ```
 
-**Notice** that the `gfx1100` is the GPU architecture of my GPU, you can change it to your GPU architecture. Click here to see your architecture [LLVM Target](https://rocm.docs.amd.com/en/latest/release/windows_support.html#windows-supported-gpus)
+>**Notice** that the `gfx1100` is the GPU architecture of my GPU, you can change it to your GPU architecture. Click here to see your architecture [LLVM Target](https://rocm.docs.amd.com/en/latest/release/windows_support.html#windows-supported-gpus)
 
 My GPU is AMD Radeon™ RX 7900 XTX Graphics, so I set it to `gfx1100`.
 
