@@ -88,14 +88,7 @@ Refer to [docs/cuBLAS_on_Windows.md](docs%2FcuBLAS_on_Windows.md) for a comprehe
 
 ##### Windows + hipBLAS
 
-You must set ROCM as environment variables before running cmake.
-
-```commandline
-mkdir build
-cd build
-cmake .. -G "Ninja" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DRWKV_HIPBLAS=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build . --config Release
-```
+Refer to [docs/hipBLAS_on_Windows.md](docs%2FhipBLAS_on_Windows.md) for a comprehensive guide.
 
 ##### Linux / MacOS
 
