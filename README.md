@@ -46,6 +46,18 @@ Measurements were made on Intel i7 13700K & NVIDIA 3060 Ti 8 GB. Latency per tok
 
 Note: since cuBLAS is supported only for `ggml_mul_mat()`, we still need to use few CPU resources to execute remaining operations.
 
+### With hipBLAS
+Measurements were made on CPU AMD Ryzen 9 5900X & GPU AMD Radeon RX 7900 XTX. Latency per token in ms shown.
+
+| Model                                    | Layers on GPU | Format | 1 thread | 2 threads | 4 threads | 8 threads | 24 threads |
+|------------------------------------------|---------------|--------|----------|-----------|-----------|-----------|------------|
+| `RWKV-novel-4-World-7B-20230810-ctx128k` | 32            | `f16`  | 94       | 91        | 94        | 106       | 944        |
+| `RWKV-novel-4-World-7B-20230810-ctx128k` | 32            | `Q4_0` | 83       | 77        | 75        | 110       | 1692       |
+| `RWKV-novel-4-World-7B-20230810-ctx128k` | 32            | `Q4_1` | 85       | 80        | 85        | 93        | 1691       |
+| `RWKV-novel-4-World-7B-20230810-ctx128k` | 32            | `Q5_1` | 83       | 78        | 83        | 90        | 1115       |
+
+Note: hipBLAS is same as cuBLAS.They only support `ggml_mul_mat()`, we still need to use few CPU resources to execute remaining operations.
+
 ## How to use
 
 ### 1. Clone the repo
