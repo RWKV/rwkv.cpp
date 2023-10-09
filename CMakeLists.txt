@@ -90,19 +90,20 @@ if (APPLE AND RWKV_ACCELERATE)
 endif()
 
 if (APPLE AND RWKV_METAL)
+    find_library(FOUNDATION_LIBRARY Foundation)
     find_library(METAL_FRAMEWORK Metal)
     find_library(METALKIT_FRAMEWORK MetalKit)
+
     if (METAL_FRAMEWORK AND METALKIT_FRAMEWORK)
         message(STATUS "Metal framework found")
 
-        set(GGML_HEADERS_METAL ${CMAKE_SOURCE_DIR}/ggml/src/ggml-metal.h)
-        set(GGML_SOURCES_METAL ${CMAKE_SOURCE_DIR}/ggml/src/ggml-metal.m)
+        set(GGML_METAL_SOURCES ${CMAKE_SOURCE_DIR}/ggml/src/ggml-metal.h ${CMAKE_SOURCE_DIR}/ggml/src/ggml-metal.m)
 
         add_compile_definitions(GGML_USE_METAL)
         
         configure_file(${CMAKE_SOURCE_DIR}/ggml/src/ggml-metal.metal bin/ggml-metal.metal COPYONLY)
 
-        set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} ${METAL_FRAMEWORK} ${METALKIT_FRAMEWORK})
+        set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} ${FOUNDATION_LIBRARY} ${METAL_FRAMEWORK} ${METALKIT_FRAMEWORK})
     else()
         message(WARNING "Metal not found")
     endif()
@@ -419,6 +420,7 @@ add_library(ggml OBJECT
             ${CMAKE_SOURCE_DIR}/ggml/src/ggml-alloc.c
             ${CMAKE_SOURCE_DIR}/ggml/include/ggml/ggml.h
             ${CMAKE_SOURCE_DIR}/ggml/include/ggml/ggml-alloc.h
+            ${GGML_METAL_SOURCES}
             ${GGML_CUDA_SOURCES}
             ${GGML_OPENCL_SOURCES})
 
