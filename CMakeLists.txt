@@ -42,6 +42,7 @@ option(RWKV_OPENBLAS               "rwkv: use OpenBLAS"                         
 option(RWKV_CUBLAS                 "rwkv: use cuBLAS"                                     OFF)
 option(RWKV_CLBLAST                "rwkv: use CLBlast"                                    OFF)
 option(RWKV_HIPBLAS                "rwkv: use hipBLAS"                                    OFF)
+option(RWKV_METAL                  "rwkv: use Metal"                                      ON)
 
 # Build only shared library without building tests and extras
 option(RWKV_STANDALONE             "rwkv: build only RWKV library"                        OFF)
@@ -83,6 +84,25 @@ if (APPLE AND RWKV_ACCELERATE)
         set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} ${ACCELERATE_FRAMEWORK})
     else()
         message(WARNING "Accelerate framework not found")
+    endif()
+endif()
+
+if (APPLE AND RWKV_METAL)
+    find_library(METAL_FRAMEWORK Metal)
+    find_library(METALKIT_FRAMEWORK MetalKit)
+    if (METAL_FRAMEWORK AND METALKIT_FRAMEWORK)
+        message(STATUS "Metal framework found")
+
+        set(GGML_HEADERS_METAL ${CMAKE_SOURCE_DIR}/ggml/src/ggml-metal.h)
+        set(GGML_SOURCES_METAL ${CMAKE_SOURCE_DIR}/ggml/src/ggml-metal.m)
+
+        add_compile_definitions(GGML_USE_METAL)
+        
+        configure_file(${CMAKE_SOURCE_DIR}/ggml/src/ggml-metal.metal bin/ggml-metal.metal COPYONLY)
+
+        set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} ${METAL_FRAMEWORK} ${METALKIT_FRAMEWORK})
+    else()
+        message(WARNING "Metal not found")
     endif()
 endif()
 
