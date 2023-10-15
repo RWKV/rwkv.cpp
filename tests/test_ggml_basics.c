@@ -46,8 +46,9 @@ int main(void) {
     struct ggml_tensor * sum = ggml_add(ctx, x, y);
 
     struct ggml_cgraph graph = ggml_build_forward(sum);
-    graph.n_threads = 2;
-    ggml_graph_compute(ctx, &graph);
+    struct ggml_cplan cplan = ggml_graph_plan(&graph, 2);
+    cplan.work_data = malloc(cplan.work_size);
+    ggml_graph_compute(&graph, &cplan);
 
     ASSERT_ELEMENT_F32(sum, 0, -9.0F);
     ASSERT_ELEMENT_F32(sum, 1, 2.0F);
@@ -56,6 +57,7 @@ int main(void) {
 
     ggml_print_objects(ctx);
 
+    free(cplan.work_data);
     ggml_free(ctx);
 
     return 0;

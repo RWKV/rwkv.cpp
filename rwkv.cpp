@@ -472,7 +472,7 @@ struct ggml_tensor * rwkv_max(ggml_context * ctx, struct ggml_tensor * x, struct
 struct ggml_tensor * rwkv_layer_norm(ggml_context * ctx, struct ggml_tensor * x, struct ggml_tensor * weight, struct ggml_tensor * bias) {
     // LayerNorm in RWKV is `x = (x - mean(x)) / sqrt(variance(x) + 1e-5) * weight + bias`
     // Looks like ggml_norm does the first part, we only need to apply weight & bias.
-    return ggml_add_inplace(ctx, ggml_mul_inplace(ctx, ggml_norm(ctx, x), weight), bias);
+    return ggml_add_inplace(ctx, ggml_mul_inplace(ctx, ggml_norm(ctx, x, 1e-5f), weight), bias);
 }
 
 // --- Implementation ---
@@ -685,6 +685,8 @@ struct rwkv_graph {
 
     // ggml_cgraph is so large that it can cause stack overflows if not stored on the heap
     std::unique_ptr<struct ggml_cgraph> cgraph;
+    struct ggml_cplan cplan;
+    std::vector<uint8_t> work_buffer;
 
     size_t pre_logits_nodes;
     size_t pre_logits_leafs;
@@ -1501,7 +1503,6 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
     serial_graph.tokens = ggml_new_i32(serial_graph.ctx.ctx, 0);
     serial_graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_ALLOC, serial_graph.cgraph, "Failed to allocate serial graph");
-    serial_graph.cgraph->n_threads = n_threads;
 
     RWKV_ASSERT_NULL(RWKV_ERROR_GRAPH, rwkv_build_serial_graph(
         serial_graph.ctx.ctx, instance->model,
@@ -1509,6 +1510,9 @@ struct rwkv_context * rwkv_new_context_impl(std::shared_ptr<struct rwkv_instance
         serial_graph.cgraph.get(),
         &serial_graph.pre_logits_nodes, &serial_graph.pre_logits_leafs, &serial_graph.post_logits_nodes, &serial_graph.post_logits_leafs
     ));
+    serial_graph.cplan = ggml_graph_plan(serial_graph.cgraph.get(), n_threads);
+    serial_graph.work_buffer.resize(serial_graph.cplan.work_size);
+    serial_graph.cplan.work_data = serial_graph.work_buffer.data();
 
     std::unique_ptr<struct rwkv_context> rwkv_ctx(new(std::nothrow) struct rwkv_context());
     RWKV_ASSERT_NULL_MSG(RWKV_ERROR_CTX | RWKV_ERROR_ALLOC, rwkv_ctx, "Failed to allocate rwkv_context");
@@ -1617,7 +1621,7 @@ bool rwkv_eval(struct rwkv_context * ctx, const uint32_t token, const float * st
         ctx->serial_graph.cgraph->n_leafs = ctx->serial_graph.post_logits_leafs;
     }
 
-    ggml_graph_compute(ctx->serial_graph.ctx.ctx, ctx->serial_graph.cgraph.get());
+    ggml_graph_compute(ctx->serial_graph.cgraph.get(), &ctx->serial_graph.cplan);
     rwkv_get_outputs(ctx, state_out, logits_out);
 
     return true;
@@ -1679,7 +1683,6 @@ bool rwkv_eval_sequence(struct rwkv_context * ctx, const uint32_t * sequence, co
         sequence_graph.tokens = ggml_new_tensor_1d(sequence_graph.ctx.ctx, GGML_TYPE_I32, sequence_len);
         sequence_graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, sequence_graph.cgraph, "Failed to allocate sequence graph");
-        sequence_graph.cgraph->n_threads = 1;
 
         RWKV_ASSERT_FALSE(RWKV_ERROR_GRAPH, rwkv_build_sequence_graph(
             sequence_graph.ctx.ctx, ctx->instance->model,
@@ -1687,6 +1690,9 @@ bool rwkv_eval_sequence(struct rwkv_context * ctx, const uint32_t * sequence, co
             sequence_graph.cgraph.get(),
             &sequence_graph.pre_logits_nodes, &sequence_graph.pre_logits_leafs, &sequence_graph.post_logits_nodes, &sequence_graph.post_logits_leafs
         ));
+        sequence_graph.cplan = ggml_graph_plan(ctx->sequence_graph.cgraph.get(), 1);
+        sequence_graph.work_buffer.resize(sequence_graph.cplan.work_size);
+        sequence_graph.cplan.work_data = sequence_graph.work_buffer.data();
 
         ctx->sequence_len = sequence_len;
         ctx->sequence_graph = std::move(sequence_graph);
@@ -1706,7 +1712,7 @@ bool rwkv_eval_sequence(struct rwkv_context * ctx, const uint32_t * sequence, co
             ctx->sequence_graph.cgraph->n_leafs = ctx->sequence_graph.post_logits_leafs;
         }
 
-        ggml_graph_compute(ctx->sequence_graph.ctx.ctx, ctx->sequence_graph.cgraph.get());
+        ggml_graph_compute(ctx->sequence_graph.cgraph.get(), &ctx->sequence_graph.cplan);
         rwkv_get_outputs(ctx, state_out, logits_out);
     }
 
