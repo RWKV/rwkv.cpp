@@ -191,6 +191,7 @@ if (RWKV_HIPBLAS)
     if (NOT ${CMAKE_C_COMPILER_ID} MATCHES "Clang")
         message(WARNING "Only LLVM is supported for HIP, hint: CC=/opt/rocm/llvm/bin/clang")
     endif()
+
     if (NOT ${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
         message(WARNING "Only LLVM is supported for HIP, hint: CXX=/opt/rocm/llvm/bin/clang++")
     endif()
@@ -204,16 +205,20 @@ if (RWKV_HIPBLAS)
         add_compile_definitions(GGML_USE_HIPBLAS GGML_USE_CUBLAS)
         add_library(ggml-rocm OBJECT 
                     ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu 
-                    ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.h )
+                    ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.h)
+
         if (BUILD_SHARED_LIBS)
             set_target_properties(ggml-rocm PROPERTIES POSITION_INDEPENDENT_CODE ON)
         endif()
+
         target_include_directories(ggml-rocm PUBLIC ${CMAKE_SOURCE_DIR}/ggml/include/ggml)
         set_source_files_properties(${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu PROPERTIES LANGUAGE CXX)
         target_link_libraries(ggml-rocm PRIVATE hip::device PUBLIC hip::host roc::rocblas roc::hipblas)
+
         if (RWKV_STATIC)
             message(FATAL_ERROR "Static linking not supported for HIP/ROCm")
         endif()
+
         set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} ggml-rocm)
     else()
         message(WARNING "hipBLAS or HIP not found. Try setting CMAKE_PREFIX_PATH=/opt/rocm")
@@ -406,7 +411,7 @@ target_compile_features(ggml PUBLIC c_std_11) # Don't bump
 if (MSVC)
     target_link_libraries(ggml PUBLIC ${RWKV_EXTRA_LIBS} Threads::Threads)
 else()
-    if(WIN32 AND RWKV_HIPBLAS)
+    if (WIN32 AND RWKV_HIPBLAS)
         target_link_libraries(ggml PUBLIC ${RWKV_EXTRA_LIBS} Threads::Threads)
     else()
         target_link_libraries(ggml PUBLIC m ${RWKV_EXTRA_LIBS} Threads::Threads)
