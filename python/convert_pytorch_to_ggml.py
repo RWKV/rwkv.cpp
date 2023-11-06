@@ -32,6 +32,16 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
     n_vocab: int = emb_weight.shape[0]
     n_embed: int = emb_weight.shape[1]
 
+    is_v5_1_or_2: bool = 'blocks.0.att.ln_x.weight' in state_dict
+    is_v5_2: bool = 'blocks.0.att.gate.weight' in state_dict
+
+    if is_v5_2:
+        print('Detected RWKV v5.2')
+    elif is_v5_1_or_2:
+        print('Detected RWKV v5.1')
+    else:
+        print('Detected RWKV v4')
+
     with open(dest_path, 'wb') as out_file:
         is_FP16: bool = data_type == 'FP16' or data_type == 'float16'
 
@@ -50,16 +60,27 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
         for k in state_dict.keys():
             tensor: torch.Tensor = state_dict[k].float()
 
-            # Same processing as in "RWKV_in_150_lines.py"
             if '.time_' in k:
-                # (1, 1, n_embed) -> (n_embed)
                 tensor = tensor.squeeze()
 
-            if '.time_decay' in k:
-                tensor = -torch.exp(tensor)
+            if is_v5_1_or_2:
+                if '.time_decay' in k:
+                    if is_v5_2:
+                        tensor = torch.exp(-torch.exp(tensor)).unsqueeze(-1)
+                    else:
+                        tensor = torch.exp(-torch.exp(tensor)).reshape(-1, 1, 1)
 
-            # Keep 1-dim vectors in FP32
-            if is_FP16 and len(tensor.shape) > 1:
+                if '.time_first' in k:
+                    tensor = torch.exp(tensor).reshape(-1, 1, 1)
+
+                if '.time_faaaa' in k:
+                    tensor = tensor.unsqueeze(-1)
+            else:
+                if '.time_decay' in k:
+                    tensor = -torch.exp(tensor)
+
+            # Keep 1-dim vectors and small matrices in FP32
+            if is_FP16 and len(tensor.shape) > 1 and '.time_' not in k:
                 tensor = tensor.half()
 
             shape = tensor.shape

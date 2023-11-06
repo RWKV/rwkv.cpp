@@ -1,11 +1,11 @@
-static size_t rwkv_tensor_nbytes(const enum ggml_type type, const int64_t width, const int64_t height) {
-    return (ggml_type_size(type) * width * height) / ggml_blck_size(type);
+static size_t rwkv_tensor_nbytes(const enum ggml_type type, const int64_t size0, const int64_t size1, const int64_t size2) {
+    return (ggml_type_size(type) * size0 * size1 * size2) / ggml_blck_size(type);
 }
 
 // For some reason, ggml_nbytes calculates the size in a way
 // incompatible with rwkv.cpp; we need our own function for that.
 static size_t rwkv_tensor_nbytes(const struct ggml_tensor * tensor) {
-    return rwkv_tensor_nbytes(tensor->type, tensor->ne[0], tensor->ne[1]);
+    return rwkv_tensor_nbytes(tensor->type, tensor->ne[0], tensor->ne[1], tensor->ne[2]);
 }
 
 // Minimum amount of memory required for a ggml context, not counting the tensor data.

@@ -110,3 +110,7 @@ struct ggml_tensor * rwkv_layer_norm(struct ggml_context * ctx, struct ggml_tens
     // Looks like ggml_norm does the first part, we only need to apply weight & bias.
     return ggml_add_inplace(ctx, ggml_mul_inplace(ctx, ggml_norm(ctx, x, 1e-5F), weight), bias);
 }
+
+static struct ggml_tensor * rwkv_transpose_then_cont(struct ggml_context * ctx, struct ggml_tensor * x) {
+    return ggml_cont(ctx, ggml_transpose(ctx, x));
+}
