@@ -29,6 +29,10 @@
 // Default file version is the latest version.
 #define RWKV_FILE_VERSION RWKV_FILE_VERSION_MAX
 
+#if defined(GGML_USE_METAL)
+#include "ggml/src/ggml-metal.h"
+#endif
+
 #if defined(__cplusplus)
 extern "C" {
 #endif

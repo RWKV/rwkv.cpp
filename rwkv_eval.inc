@@ -28,6 +28,10 @@ static void rwkv_eval_graph(struct rwkv_computation_graph & graph, const uint32_
         graph.cgraph->n_leafs = graph.post_logits_leafs;
     }
 
+#ifdef GGML_USE_METAL
+    ggml_metal_set_n_cb     (graph.ggml_metal_ctx, n_threads);
+    ggml_metal_graph_compute(graph.ggml_metal_ctx, graph.cgraph.get());
+#else
     struct ggml_cplan * plan = ggml_graph_plan(graph.cgraph.get(), n_threads);
 
     std::unique_ptr<uint8_t[]> work_data{ new(std::nothrow) uint8_t[plan->work_size] };
@@ -36,6 +40,7 @@ static void rwkv_eval_graph(struct rwkv_computation_graph & graph, const uint32_
     ggml_graph_compute(graph.cgraph.get(), plan);
 
     free(plan);
+#endif
 }
 
 // API function.
