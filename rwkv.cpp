@@ -91,6 +91,13 @@ struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32
 
     clone->n_threads = n_threads;
 
+#ifdef GGML_USE_METAL
+    clone->ggml_metal_ctx = ctx->ggml_metal_ctx;
+    
+    clone->serial_graph.ggml_metal_ctx = clone->ggml_metal_ctx;
+    clone->sequential_graph.ggml_metal_ctx = clone->ggml_metal_ctx;
+#endif
+
     RWKV_ENSURE_OR_NULL(rwkv_measure_and_build_serial_context(*clone->model, clone->serial_graph));
 
     clone->last_used_sequence_length = 0;
