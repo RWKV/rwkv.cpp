@@ -51,6 +51,10 @@ struct rwkv_context {
 
     enum rwkv_error_flags last_error;
     bool print_errors;
+
+#ifdef GGML_USE_METAL
+    struct ggml_metal_context * ggml_metal_ctx;
+#endif
 };
 
 static void rwkv_carry_x(
@@ -318,12 +322,6 @@ static bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, str
         graph.ggml_ctx = NULL;
     }
 
-#ifdef GGML_USE_METAL
-    if (graph.ggml_metal_ctx) {
-        ggml_metal_free(graph.ggml_metal_ctx);
-    }
-#endif
-
     // 1. Measure the space required for the ggml context.
     graph.ggml_ctx = rwkv_init_ggml_context(rwkv_ggml_overhead(), true);
 
@@ -347,14 +345,10 @@ static bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, str
     graph.ggml_ctx = rwkv_init_ggml_context(required_context_size, false);
 
 #ifdef GGML_USE_METAL
-    graph.ggml_metal_ctx = ggml_metal_init(1);
-
     void * data_ptr  = ggml_get_mem_buffer(graph.ggml_ctx);
     size_t data_size = ggml_get_mem_size(graph.ggml_ctx);
     
-    const size_t max_size = ggml_get_max_tensor_size(graph.ggml_ctx);
-
-    ggml_metal_add_buffer(graph.ggml_metal_ctx, "data",  data_ptr, data_size, max_size);
+    ggml_metal_add_buffer(graph.ggml_metal_ctx, "serial_buffer",  data_ptr, data_size, 0);
 #endif
 
     RWKV_ENSURE_OR_FALSE(rwkv_build_serial_graph(model, graph));
@@ -458,12 +452,6 @@ static bool rwkv_measure_and_build_sequential_context(struct rwkv_model & model,
         graph.ggml_ctx = NULL;
     }
 
-#ifdef GGML_USE_METAL
-    if (graph.ggml_metal_ctx) {
-        ggml_metal_free(graph.ggml_metal_ctx);
-    }
-#endif
-
     // 1. Measure the space required for the ggml context.
     graph.ggml_ctx = rwkv_init_ggml_context(rwkv_ggml_overhead(), true);
 
@@ -487,14 +475,10 @@ static bool rwkv_measure_and_build_sequential_context(struct rwkv_model & model,
     graph.ggml_ctx = rwkv_init_ggml_context(required_context_size, false);
 
 #ifdef GGML_USE_METAL
-    graph.ggml_metal_ctx = ggml_metal_init(1);
-
     void * data_ptr  = ggml_get_mem_buffer(graph.ggml_ctx);
     size_t data_size = ggml_get_mem_size(graph.ggml_ctx);
     
-    const size_t max_size = ggml_get_max_tensor_size(graph.ggml_ctx);
-
-    ggml_metal_add_buffer(graph.ggml_metal_ctx, "data",  data_ptr, data_size, max_size);
+    ggml_metal_add_buffer(graph.ggml_metal_ctx, "sequential_buffer",  data_ptr, data_size, 0);
 #endif
 
     RWKV_ENSURE_OR_FALSE(rwkv_build_sequential_graph(model, graph, sequence_length));
