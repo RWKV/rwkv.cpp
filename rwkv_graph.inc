@@ -348,7 +348,7 @@ static bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, str
     void * data_ptr  = ggml_get_mem_buffer(graph.ggml_ctx);
     size_t data_size = ggml_get_mem_size(graph.ggml_ctx);
     
-    ggml_metal_add_buffer(graph.ggml_metal_ctx, "serial_buffer",  data_ptr, data_size, 0);
+    ggml_metal_add_buffer(graph.ggml_metal_ctx, "serial_computer_buffer",  data_ptr, data_size, 0);
 #endif
 
     RWKV_ENSURE_OR_FALSE(rwkv_build_serial_graph(model, graph));
@@ -478,7 +478,7 @@ static bool rwkv_measure_and_build_sequential_context(struct rwkv_model & model,
     void * data_ptr  = ggml_get_mem_buffer(graph.ggml_ctx);
     size_t data_size = ggml_get_mem_size(graph.ggml_ctx);
     
-    ggml_metal_add_buffer(graph.ggml_metal_ctx, "sequential_buffer",  data_ptr, data_size, 0);
+    ggml_metal_add_buffer(graph.ggml_metal_ctx, "sequential_computer_buffer",  data_ptr, data_size, 0);
 #endif
 
     RWKV_ENSURE_OR_FALSE(rwkv_build_sequential_graph(model, graph, sequence_length));

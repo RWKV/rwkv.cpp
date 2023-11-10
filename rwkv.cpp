@@ -70,7 +70,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     
     const size_t max_size = ggml_get_max_tensor_size(ctx->model->ggml_ctx);
 
-    ggml_metal_add_buffer(ctx->ggml_metal_ctx, "data",  data_ptr, data_size, max_size);
+    ggml_metal_add_buffer(ctx->ggml_metal_ctx, "weight_data",  data_ptr, data_size, max_size);
 
     ctx->serial_graph.ggml_metal_ctx = ctx->ggml_metal_ctx;
     ctx->sequential_graph.ggml_metal_ctx = ctx->ggml_metal_ctx;
