@@ -575,19 +575,11 @@ static bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, str
 
     RWKV_ENSURE_OR_FALSE(rwkv_build_serial_graph(model, graph));
 
-    struct ggml_allocr * allocator = ggml_allocr_new_measure(tensor_alignment);
-
-    size_t required_context_size = ggml_allocr_alloc_graph(allocator, graph.cgraph.get()) +
+    size_t required_context_size = ggml_total_size_for_tensor_data(graph.ggml_ctx) +
             // With the node limit set 80K, this overhead would be 28 MB.
             + rwkv_ggml_overhead()
-            + tensor_alignment
-            // For some reason, `ggml_allocr_alloc_graph` underestimates required memory amount.
-            // Instead of diving deep into ggml internals to debug this issue, I will just add some padding.
-            // 40 MB seems to be enough for Raven 14B model when GGML_MAX_NODES is set to default value of 4096.
-            // TODO Check for v5
-            + size_t(40) * 1024 * 1024;
+            + tensor_alignment;
 
-    ggml_allocr_free(allocator);
     ggml_free(graph.ggml_ctx);
 
     // 2. Create the real ggml context.
@@ -724,19 +716,11 @@ static bool rwkv_measure_and_build_sequential_context(struct rwkv_model & model,
 
     RWKV_ENSURE_OR_FALSE(rwkv_build_sequential_graph(model, graph, sequence_length));
 
-    struct ggml_allocr * allocator = ggml_allocr_new_measure(tensor_alignment);
-
-    size_t required_context_size = ggml_allocr_alloc_graph(allocator, graph.cgraph.get()) +
+    size_t required_context_size = ggml_total_size_for_tensor_data(graph.ggml_ctx) +
             // With the node limit set 80K, this overhead would be 28 MB.
             + rwkv_ggml_overhead()
-            + tensor_alignment
-            // For some reason, `ggml_allocr_alloc_graph` underestimates required memory amount.
-            // Instead of diving deep into ggml internals to debug this issue, I will just add some padding.
-            // 40 MB per token seems to be enough for Raven 14B model. It works for sequence_length at least up to 71.
-            // TODO Check for v5 1.5B, 3B, 7B
-            + sequence_length * 64 * 1024 * 1024;
+            + tensor_alignment;
 
-    ggml_allocr_free(allocator);
     ggml_free(graph.ggml_ctx);
 
     // 2. Create the real ggml context.
