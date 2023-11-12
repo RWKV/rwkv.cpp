@@ -8,7 +8,6 @@ Skip this step if you already have Build Tools installed.
 
 To install Build Tools, go to [Visual Studio Older Downloads](https://visualstudio.microsoft.com/vs/), download `Visual Studio 2022 and other Products` and run the installer.
 
-
 ## CMake
 
 Skip this step if you already have CMake installed: running `cmake --version` should output `cmake version x.y.z`.
@@ -21,7 +20,7 @@ Skip this step if you already have Build Tools installed.
 
 The [validation tools](https://rocm.docs.amd.com/en/latest/reference/validation_tools.html) not support on Windows. So you should confirm the Version of `ROCM` by yourself. 
 
-Fortunately `AMD` provides complete help documentation, you can use the help documentation to install [ROCM](https://rocm.docs.amd.com/en/latest/deploy/windows/quick_start.html)
+Fortunately, `AMD` provides complete help documentation, you can use the help documentation to install [ROCM](https://rocm.docs.amd.com/en/latest/deploy/windows/quick_start.html)
 
 >**If you encounter an error, if it is [AMD ROCm Windows Installation Error 215](https://github.com/RadeonOpenCompute/ROCm/issues/2363), don't worry about this error. ROCM has been installed correctly, but the vs studio plugin installation failed, we can ignore it.**
 
@@ -39,8 +38,7 @@ set CXX=C:\Program Files\AMD\ROCm\5.5\bin\clang++.exe
 
 Skip this step if you already have Ninja installed: running `ninja --version` should output `1.11.1`.
 
-Download latest `ninja-win.zip` from [GitHub Releases Page](https://github.com/ninja-build/ninja/releases/tag/v1.11.1) and unzip.Then set as environment variables.
-I unzipped it in `C:\Program Files\ninja`, so I set it like this:
+Download latest `ninja-win.zip` from [GitHub Releases Page](https://github.com/ninja-build/ninja/releases/tag/v1.11.1) and unzip. Then set as environment variables. I unzipped it in `C:\Program Files\ninja`, so I set it like this:
 
 ```Commandline
 set ninja=C:\Program Files\ninja\ninja.exe
@@ -50,7 +48,7 @@ set ninja=C:\Program Files\ninja\ninja.exe
 The thing different from the regular CPU build is `-DRWKV_HIPBLAS=ON` ,
 `-G "Ninja"`, `-DCMAKE_C_COMPILER=clang`, `-DCMAKE_CXX_COMPILER=clang++`, `-DAMDGPU_TARGETS=gfx1100`
 
->**Notice** check the `clang` and `clang++` information:
+>**Notice**: check the `clang` and `clang++` information:
 ```Commandline
 clang --version
 clang++ --version

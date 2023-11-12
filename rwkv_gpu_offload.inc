@@ -40,6 +40,10 @@ bool rwkv_gpu_offload_layers(struct rwkv_context * ctx, const uint32_t n_layers)
         offload(layer.att_receptance);
         offload(layer.att_output);
 
+        if (layer.att_gate != NULL) {
+            offload(layer.att_gate);
+        }
+
         offload(layer.ffn_key);
         offload(layer.ffn_value);
         offload(layer.ffn_receptance);

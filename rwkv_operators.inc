@@ -96,8 +96,8 @@ struct ggml_tensor * rwkv_1_minus_x(struct ggml_context * ctx, struct ggml_tenso
 }
 
 // Element-wise sigmoid(x)
-struct ggml_tensor * rwkv_sigmoid(struct ggml_context * ctx, struct ggml_tensor * x) {
-    return ggml_map_custom1(ctx, x, rwkv_sigmoid_impl, 1, NULL);
+struct ggml_tensor * rwkv_sigmoid_inplace(struct ggml_context * ctx, struct ggml_tensor * x) {
+    return ggml_map_custom1_inplace(ctx, x, rwkv_sigmoid_impl, 1, NULL);
 }
 
 // Element-wise max(x, y)
@@ -109,4 +109,27 @@ struct ggml_tensor * rwkv_layer_norm(struct ggml_context * ctx, struct ggml_tens
     // LayerNorm in RWKV is `x = (x - mean(x)) / sqrt(variance(x) + 1e-5) * weight + bias`
     // Looks like ggml_norm does the first part, we only need to apply weight & bias.
     return ggml_add_inplace(ctx, ggml_mul_inplace(ctx, ggml_norm(ctx, x, 1e-5F), weight), bias);
+}
+
+static struct ggml_tensor * rwkv_transpose_then_cont(struct ggml_context * ctx, struct ggml_tensor * x) {
+    return ggml_cont(ctx, ggml_transpose(ctx, x));
+}
+
+static struct ggml_tensor * rwkv_get_from_dim_3(struct ggml_context * ctx, struct ggml_tensor * x, int64_t index) {
+    return ggml_view_4d(
+        ctx,
+        x,
+        x->ne[0],
+        x->ne[1],
+        x->ne[2],
+        1,
+        x->nb[1],
+        x->nb[2],
+        x->nb[3],
+        index * (x->ne[0] * x->ne[1] * x->ne[2]) * sizeof(float)
+    );
+}
+
+static struct ggml_tensor * rwkv_flatten(struct ggml_context * ctx, struct ggml_tensor * x) {
+    return ggml_view_1d(ctx, x, ggml_nelements(x), 0);
 }

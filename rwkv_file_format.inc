@@ -129,21 +129,31 @@ struct rwkv_tensor_header {
     uint32_t dim_count;
     uint32_t key_length;
     uint32_t data_type;
-    uint32_t width;
-    uint32_t height;
+    uint32_t size0;
+    uint32_t size1;
+    uint32_t size2;
 
     size_t size() const;
 };
 
 size_t rwkv_tensor_header::size() const {
-    return rwkv_tensor_nbytes(rwkv_type_to_ggml[this->data_type], this->width, this->height);
+    return rwkv_tensor_nbytes(rwkv_type_to_ggml[this->data_type], this->size0, this->size1, this->size2);
 }
 
 static bool rwkv_fread_tensor_header(FILE * file, struct rwkv_tensor_header & header) {
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, rwkv_fread_data(file, sizeof(struct rwkv_tensor_header) - sizeof(uint32_t), &header));
-    header.height = 1;
-    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_SHAPE, header.dim_count == 1 || header.dim_count == 2, "Tensor has an invalid shape (%" PRId32 " dimensions)", header.dim_count);
+    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, rwkv_fread_data(file, sizeof(struct rwkv_tensor_header) - sizeof(uint32_t) * 2, &header));
+    header.size1 = 1;
+    header.size2 = 1;
+
+    RWKV_ASSERT_FALSE_MSG(
+        RWKV_ERROR_SHAPE,
+        header.dim_count == 1 || header.dim_count == 2 || header.dim_count == 3,
+        "Tensor has an invalid shape (%" PRId32 " dimensions)",
+        header.dim_count
+    );
+
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_DATA_TYPE, header.data_type < TYPE_COUNT, "Tensor data type out of range (%" PRId32 " > %" PRId32 ")", header.data_type, TYPE_COUNT - 1);
+
     RWKV_ASSERT_FALSE_MSG(
         RWKV_ERROR_DATA_TYPE,
         rwkv_type_to_ggml[header.data_type] != GGML_TYPE_UNKNOWN,
@@ -151,15 +161,29 @@ static bool rwkv_fread_tensor_header(FILE * file, struct rwkv_tensor_header & he
         rwkv_type_to_string[header.data_type]
     );
 
-    if (header.dim_count == 2) {
-        RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, rwkv_fread_uint32(file, header.height));
+    if (header.dim_count >= 2) {
+        RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, rwkv_fread_uint32(file, header.size1));
+    }
+
+    if (header.dim_count >= 3) {
+        RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_READ, rwkv_fread_uint32(file, header.size2));
     }
 
     return true;
 }
 
 static bool rwkv_fwrite_tensor_header(FILE * file, const struct rwkv_tensor_header & header) {
-    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, rwkv_fwrite_data(file, &header, sizeof(struct rwkv_tensor_header) - (header.dim_count == 1 ? sizeof(uint32_t) : 0)));
+    size_t sub;
+
+    if (header.dim_count == 1) {
+        sub = sizeof(uint32_t) * 2;
+    } else if (header.dim_count == 2) {
+        sub = sizeof(uint32_t);
+    } else {
+        sub = 0;
+    }
+
+    RWKV_ASSERT_FALSE(RWKV_ERROR_FILE_WRITE, rwkv_fwrite_data(file, &header, sizeof(struct rwkv_tensor_header) - sub));
 
     return true;
 }
@@ -204,9 +228,13 @@ static bool rwkv_fread_ggml_tensor(FILE * file, struct ggml_context * ctx, std::
         name.c_str()
     );
 
-    tensor = header.dim_count == 1
-        ? ggml_new_tensor_1d(ctx, ggml_type, header.width)
-        : ggml_new_tensor_2d(ctx, ggml_type, header.width, header.height);
+    if (header.dim_count == 1) {
+        tensor = ggml_new_tensor_1d(ctx, ggml_type, header.size0);
+    } else if (header.dim_count == 2) {
+        tensor = ggml_new_tensor_2d(ctx, ggml_type, header.size0, header.size1);
+    } else {
+        tensor = ggml_new_tensor_3d(ctx, ggml_type, header.size0, header.size1, header.size2);
+    }
 
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, tensor != NULL, "Failed to allocate tensor");
 
