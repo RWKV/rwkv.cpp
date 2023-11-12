@@ -13,8 +13,9 @@ from typing import List, Dict, Tuple
 def parse_args():
     parser = argparse.ArgumentParser(description='Merge a PyTorch LoRA checkpoint (.pth) into an rwkv.cpp model file')
     parser.add_argument('src_path', help='Path to source rwkv.cpp model')
+    parser.add_argument('rwkv_arch_version', help='Version of RWKV architecture: v4, v5.1, v5.2', type=str, choices=['v4', 'v5.1', 'v5.2'])
     parser.add_argument('lora_path', help='Path to LoRA checkpoint in PyTorch format')
-    parser.add_argument('lora_alpha', type=int, help='Value of lora_alpha parameter used when training this LoRA checkpoint')
+    parser.add_argument('lora_alpha', help='Value of lora_alpha parameter used when training this LoRA checkpoint', type=int)
     parser.add_argument('dest_path', help='Path to destination rwkv.cpp model, will be overwitten with the merged model')
     return parser.parse_args()
 
@@ -43,6 +44,10 @@ def write_parameter(out_file, key: str, parameter: torch.Tensor) -> None:
 
 def main() -> None:
     args = parse_args()
+
+    arch_version: str = args.rwkv_arch_version
+
+    assert arch_version == 'v4' or arch_version == 'v5.1' or arch_version == 'v5.2', f'Invalid RWKV architecture version {arch_version}'
 
     print(f'Reading {args.lora_path}')
 
@@ -96,11 +101,23 @@ def main() -> None:
 
                 # Same processing as in convert_pytorch_to_ggml.py
                 if '.time_' in key:
-                    # (1, 1, n_embed) -> (n_embed)
                     replacement = replacement.squeeze()
 
-                if '.time_decay' in key:
-                    replacement = -torch.exp(replacement)
+                if arch_version == 'v5.1' or arch_version == 'v5.2':
+                    if '.time_decay' in key:
+                        if arch_version == 'v5.2':
+                            replacement = torch.exp(-torch.exp(replacement)).unsqueeze(-1)
+                        else:
+                            replacement = torch.exp(-torch.exp(replacement)).reshape(-1, 1, 1)
+
+                    if '.time_first' in key:
+                        replacement = torch.exp(replacement).reshape(-1, 1, 1)
+
+                    if '.time_faaaa' in key:
+                        replacement = replacement.unsqueeze(-1)
+                else:
+                    if '.time_decay' in key:
+                        replacement = -torch.exp(replacement)
 
                 if parameter.dtype == torch.float16:
                     replacement = replacement.half()

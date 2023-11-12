@@ -142,7 +142,11 @@ size_t rwkv_get_n_layer(const struct rwkv_context * ctx) {
 size_t rwkv_get_state_len(const struct rwkv_context * ctx) {
     const struct rwkv_file_header & header = ctx->model->header;
 
-    return (size_t) header.n_embed * 5 * (size_t) header.n_layer;
+    if (ctx->model->arch_version_major >= 5) {
+        return (size_t) header.n_embed * (2 + ctx->model->head_size) * (size_t) header.n_layer;
+    } else {
+        return (size_t) header.n_embed * 5 * (size_t) header.n_layer;
+    }
 }
 
 // API function.

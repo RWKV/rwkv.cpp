@@ -66,14 +66,14 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
                 max_out_size = in_size;
             }
 
-            size_t f32_size = rwkv_tensor_nbytes(GGML_TYPE_F32, header.width, header.height);
+            size_t f32_size = rwkv_tensor_nbytes(GGML_TYPE_F32, header.size0, header.size1, header.size2);
 
             if (f32_size > max_in_size) {
                 max_in_size = f32_size;
             }
         }
 
-        size_t out_size = rwkv_tensor_nbytes(out_type, header.width, header.height);
+        size_t out_size = rwkv_tensor_nbytes(out_type, header.size0, header.size1, header.size2);
 
         if (out_size > max_out_size) {
             max_out_size = out_size;
@@ -105,7 +105,15 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_string(in_file.file, header.key_length, name), "Failed to read tensor name");
 
         const char * name_str = name.c_str();
-        RWKV_MSG("%*s - [%5" PRId32 ", %5" PRId32 "], type = %6s ", (int) max_key_length, name_str, header.width, header.height, rwkv_type_to_string[header.data_type]);
+        RWKV_MSG(
+            "%*s - [%5" PRId32 ", %5" PRId32 ", %5" PRId32 "], type = %6s ",
+            (int) max_key_length,
+            name_str,
+            header.size0,
+            header.size1,
+            header.size2,
+            rwkv_type_to_string[header.data_type]
+        );
 
         data = header.data_type == TYPE_FP16 ? out_buf : in_buf;
         size_t orig_size = header.size(), new_size = orig_size;
@@ -114,6 +122,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         // Quantize only 2D tensors, except embedding and head matrices.
         // Embedding and head take not too much space, especially in bigger models;
         // but they significantly increase perplexity when quantized.
+        // In RWKV v5, time_decay and time_first/time_faaaa are 3D tensors, so they are not quantized.
         if ((header.data_type == TYPE_FP32 || header.data_type == TYPE_FP16) &&
             header.dim_count == 2 &&
             name != "emb.weight" &&
@@ -121,7 +130,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         ) {
             RWKV_MSG("quantizing... ");
 
-            size_t nelements = (size_t) header.width * (size_t) header.height;
+            size_t nelements = (size_t) header.size0 * (size_t) header.size1 * (size_t) header.size2;
 
             if (header.data_type == TYPE_FP16) {
                 ggml_fp16_to_fp32_row((const ggml_fp16_t *) out_buf, (float *) in_buf, nelements);

@@ -13,18 +13,23 @@
 // Also test multithreading.
 #define N_THREADS 2
 
-void load_expected_logits(float * expected_logits) {
-    FILE * file = fopen("expected_logits.bin", "rb");
-    ASSERT(file != NULL, "Failed to open expected_logits.bin");
+void load_expected_logits(float * expected_logits, const char * version) {
+    char file_name[128];
+    sprintf(file_name, "expected-logits-%s.bin", version);
+    FILE * file = fopen(file_name, "rb");
+    ASSERT(file != NULL, "Failed to open %s", file_name);
     size_t elements_read = fread(expected_logits, sizeof(float), N_VOCAB, file);
     ASSERT(elements_read == N_VOCAB, "Failed to read expected_logits.bin, read %zd elements", elements_read);
     fclose(file);
 }
 
-void test_model(const char * model_path, const float * expected_logits, const float max_diff) {
-    fprintf(stderr, "Testing %s\n", model_path);
+void test_model(const char * version, const char * format, const float * expected_logits, const float max_diff) {
+    char file_name[128];
+    sprintf(file_name, "tiny-rwkv-%s-%s.bin", version, format);
 
-    struct rwkv_context * model = rwkv_init_from_file(model_path, N_THREADS);
+    fprintf(stderr, "Testing %s\n", file_name);
+
+    struct rwkv_context * model = rwkv_init_from_file(file_name, N_THREADS);
     enum rwkv_error_flags error = rwkv_get_last_error(NULL);
     ASSERT(error == 0, "Unexpected error %d", error);
 
@@ -60,10 +65,9 @@ void test_model(const char * model_path, const float * expected_logits, const fl
         diff_sum += logits[i] - expected_logits[i];
     }
 
-    fprintf(stderr, "Serial difference sum: %f\n", diff_sum);
+    fprintf(stderr, "Serial difference sum: %f, expected %f\n", diff_sum, max_diff);
 
-    // When something breaks, difference would be way more than 10
-    ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big serial difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
+    ASSERT(fabsf(diff_sum) <= fabsf(max_diff) * 1.05F, "Too big serial difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
 
     // ---
 
@@ -76,10 +80,9 @@ void test_model(const char * model_path, const float * expected_logits, const fl
         diff_sum += logits[i] - expected_logits[i];
     }
 
-    fprintf(stderr, "Sequence difference sum: %f\n", diff_sum);
+    fprintf(stderr, "Sequence difference sum: %f, expected %f\n", diff_sum, max_diff);
 
-    // When something breaks, difference would be way more than 10
-    ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big sequence difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
+    ASSERT(fabsf(diff_sum) <= fabsf(max_diff) * 1.05F, "Too big sequence difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
 
     // ---
 

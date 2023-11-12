@@ -181,16 +181,18 @@ bool rwkv_eval_sequence_in_chunks(
 
 // API function.
 void rwkv_init_state(const struct rwkv_context * ctx, float * state) {
+    memset(state, 0, rwkv_get_state_len(ctx) * sizeof(float));
+
+    if (ctx->model->arch_version_major >= 5) {
+        return;
+    }
+
     const struct rwkv_file_header & header = ctx->model->header;
     const size_t layer_size = (size_t) header.n_embed * 5;
     const size_t layer_zero = (size_t) header.n_embed * 4;
     const size_t layers_size = (size_t) header.n_layer * layer_size;
 
     for (size_t start = 0; start < layers_size; start += layer_size) {
-        for (size_t i = 0; i < layer_zero; i++) {
-            state[start + i] = 0.0F;
-        }
-
         for (size_t i = layer_zero; i < layer_size; i++) {
             state[start + i] = -1e30F;
         }

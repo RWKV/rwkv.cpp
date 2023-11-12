@@ -6,12 +6,22 @@ struct rwkv_layer {
     struct ggml_tensor * att_time_mix_k;
     struct ggml_tensor * att_time_mix_v;
     struct ggml_tensor * att_time_mix_r;
+    // Removed in RWKV v5.2; set to NULL for this and newer models.
     struct ggml_tensor * att_time_first;
     struct ggml_tensor * att_time_decay;
     struct ggml_tensor * att_key;
     struct ggml_tensor * att_value;
     struct ggml_tensor * att_receptance;
     struct ggml_tensor * att_output;
+
+    // Added in RWKV v5.1; set to NULL for earlier models (v4).
+    struct ggml_tensor * att_ln_x_weight;
+    struct ggml_tensor * att_ln_x_bias;
+
+    // Added in RWKV v5.2; set to NULL for earlier models (v4, v5.1).
+    struct ggml_tensor * att_time_faaaa;
+    struct ggml_tensor * att_time_mix_g;
+    struct ggml_tensor * att_gate;
 
     struct ggml_tensor * ln2_weight;
     struct ggml_tensor * ln2_bias;
@@ -32,6 +42,11 @@ struct rwkv_model {
     struct ggml_context * ggml_ctx;
 
     struct rwkv_file_header header;
+    uint32_t arch_version_major;
+    uint32_t arch_version_minor;
+    // Added in RWKV v5.1; set to 0 for earlier models (v4).
+    int64_t head_count;
+    int64_t head_size;
 
     struct ggml_tensor * emb;
 
@@ -74,7 +89,7 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback) {
     RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.bias", model.ln0_bias));
 
     uint32_t n_layer = model.header.n_layer;
-    std::unique_ptr<struct rwkv_layer[]> layers(new(std::nothrow) struct rwkv_layer[n_layer]);
+    std::unique_ptr<struct rwkv_layer[]> layers(new(std::nothrow) struct rwkv_layer[n_layer]());
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, layers.get(), "Failed to allocate model layers");
     model.layers = std::move(layers);
 
@@ -89,12 +104,28 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback) {
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_k"), buffer), layer.att_time_mix_k));
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_v"), buffer), layer.att_time_mix_v));
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_r"), buffer), layer.att_time_mix_r));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_first"), buffer), layer.att_time_first));
+
+        if (model.arch_version_major >= 5 && model.arch_version_minor >= 2) {
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_faaaa"), buffer), layer.att_time_faaaa));
+        } else {
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_first"), buffer), layer.att_time_first));
+        }
+
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay"), buffer), layer.att_time_decay));
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.key.weight"), buffer), layer.att_key));
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.value.weight"), buffer), layer.att_value));
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.receptance.weight"), buffer), layer.att_receptance));
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.output.weight"), buffer), layer.att_output));
+
+        if (model.arch_version_major >= 5) {
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.weight"), buffer), layer.att_ln_x_weight));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.bias"), buffer), layer.att_ln_x_bias));
+
+            if (model.arch_version_minor >= 2) {
+                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_g"), buffer), layer.att_time_mix_g));
+                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.gate.weight"), buffer), layer.att_gate));
+            }
+        }
 
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.weight"), buffer), layer.ln2_weight));
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.bias"), buffer), layer.ln2_bias));
@@ -142,13 +173,34 @@ static bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model 
         parameters[std::move(name)] = tensor;
     }
 
+    model.arch_version_major = 4;
+    model.arch_version_minor = 0;
+
+    if (parameters.find("blocks.0.att.ln_x.weight") != parameters.end()) {
+        model.arch_version_major = 5;
+
+        if (parameters.find("blocks.0.att.gate.weight") != parameters.end()) {
+            model.arch_version_minor = 2;
+        } else {
+            model.arch_version_minor = 1;
+        }
+    }
+
     std::unordered_map<std::string, struct ggml_tensor *> & parameters_ref = parameters;
-    RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, rwkv_set_params(model, [&](const char * key, struct ggml_tensor *& dest) {
-        struct ggml_tensor * tensor = parameters_ref[key];
-        RWKV_ENSURE_OR_FALSE_MSG(tensor, "Model parameter %s not found", key);
-        dest = tensor;
-        return true;
-    }));
+    RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, rwkv_set_params(
+        model,
+        [&](const char * key, struct ggml_tensor *& dest) {
+            struct ggml_tensor * tensor = parameters_ref[key];
+            RWKV_ENSURE_OR_FALSE_MSG(tensor, "Model parameter %s not found", key);
+            dest = tensor;
+            return true;
+        }
+    ));
+
+    if (model.arch_version_major >= 5) {
+        model.head_count = model.layers[0].att_time_decay->ne[2];
+        model.head_size = model.layers[0].ln1_weight->ne[0] / model.head_count;
+    }
 
     // Verify order of dimensions.
     struct ggml_tensor * emb = model.emb;
