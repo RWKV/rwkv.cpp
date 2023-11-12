@@ -6,17 +6,19 @@ Besides the usual **FP32**, it supports **FP16**, **quantized INT4, INT5 and INT
 
 This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrapper](python%2Frwkv_cpp%2Frwkv_cpp_model.py) for it.
 
-[RWKV](https://arxiv.org/abs/2305.13048) is a novel large language model architecture, [with the largest model in the family having 14B parameters](https://huggingface.co/BlinkDL/rwkv-4-pile-14b). In contrast to Transformer with `O(n^2)` attention, RWKV requires only state from previous step to calculate logits. This makes RWKV very CPU-friendly on large context lenghts.
+[RWKV](https://arxiv.org/abs/2305.13048) is a large language model architecture, [with the largest model in the family having 14B parameters](https://huggingface.co/BlinkDL/rwkv-4-pile-14b). In contrast to Transformer with `O(n^2)` attention, RWKV requires only state from previous step to calculate logits. This makes RWKV very CPU-friendly on large context lenghts.
+
+[RWKV v5](https://huggingface.co/BlinkDL/rwkv-5-world) is a major upgrade to RWKV architecture, making it competitive with Transformers in quality. RWKV v5 models are supported.
 
 Loading LoRA checkpoints in [Blealtan's format](https://github.com/Blealtan/RWKV-LM-LoRA) is supported through [merge_lora_into_ggml.py script](rwkv%2Fmerge_lora_into_ggml.py).
-
-⚠️ **Python API was restructured on 2023-09-20**, you may need to change paths/package names in your code when updating `rwkv.cpp`.
 
 ## Quality and performance
 
 If you use `rwkv.cpp` for anything serious, please [test all available formats for perplexity and latency](rwkv%2Fmeasure_pexplexity.py) on a representative dataset, and decide which trade-off is best for you.
 
-Below table is for reference only. Measurements were made on 4C/8T x86 CPU with AVX2, 4 threads.
+In general, `RWKV v5` models are 2 times slower than `RWKV v4` models, and require from 1.5 times (sequence length = 1) to 6 times (sequence length = 64) more memory.
+
+Below table is for reference only. Measurements were made on 4C/8T x86 CPU with AVX2, 4 threads. The models are `RWKV v4 Pile 169M`, `RWKV v4 Pile 1.5B`.
 
 | Format    | Perplexity (169M) | Latency, ms (1.5B) | File size, GB (1.5B) |
 |-----------|-------------------|--------------------|----------------------|
@@ -30,32 +32,36 @@ Below table is for reference only. Measurements were made on 4C/8T x86 CPU with 
 
 ### With cuBLAS
 
-Measurements were made on Intel i7 13700K & NVIDIA 3060 Ti 8 GB. Latency per token in ms shown.
+Measurements were made on Intel i7 13700K & NVIDIA 3060 Ti 8 GB. The model is `RWKV-4-Pile-169M`, 12 layers were offloaded to GPU.
 
-| Model                 | Layers on GPU | Format | 1 thread | 2 threads | 4 threads | 8 threads | 24 threads |
-|-----------------------|---------------|--------|----------|-----------|-----------|-----------|------------|
-| `RWKV-4-Pile-169M`    | 12            | `Q4_0` | 7.9      | 6.2       | 6.9       | 8.6       | 20         |
-| `RWKV-4-Pile-169M`    | 12            | `Q4_1` | 7.8      | 6.7       | 6.9       | 8.6       | 21         |
-| `RWKV-4-Pile-169M`    | 12            | `Q5_1` | 8.1      | 6.7       | 6.9       | 9.0       | 22         |
+Latency per token in ms shown.
 
-| Model                 | Layers on GPU | Format | 1 thread | 2 threads | 4 threads | 8 threads | 24 threads |
-|-----------------------|---------------|--------|----------|-----------|-----------|-----------|------------|
-| `RWKV-4-Raven-7B-v11` | 32            | `Q4_0` | 59       | 51        | 50        | 54        | 94         |
-| `RWKV-4-Raven-7B-v11` | 32            | `Q4_1` | 59       | 51        | 49        | 54        | 94         |
-| `RWKV-4-Raven-7B-v11` | 32            | `Q5_1` | 77       | 69        | 67        | 72        | 101        |
+| Format | 1 thread | 2 threads | 4 threads | 8 threads | 24 threads |
+|--------|----------|-----------|-----------|-----------|------------|
+| `Q4_0` | 7.9      | 6.2       | 6.9       | 8.6       | 20         |
+| `Q4_1` | 7.8      | 6.7       | 6.9       | 8.6       | 21         |
+| `Q5_1` | 8.1      | 6.7       | 6.9       | 9.0       | 22         |
+
+| Format | 1 thread | 2 threads | 4 threads | 8 threads | 24 threads |
+|--------|----------|-----------|-----------|-----------|------------|
+| `Q4_0` | 59       | 51        | 50        | 54        | 94         |
+| `Q4_1` | 59       | 51        | 49        | 54        | 94         |
+| `Q5_1` | 77       | 69        | 67        | 72        | 101        |
 
 Note: since cuBLAS is supported only for `ggml_mul_mat()`, we still need to use few CPU resources to execute remaining operations.
 
 ### With hipBLAS
 
-Measurements were made on CPU AMD Ryzen 9 5900X & GPU AMD Radeon RX 7900 XTX. Latency per token in ms shown.
+Measurements were made on CPU AMD Ryzen 9 5900X & GPU AMD Radeon RX 7900 XTX. The model is `RWKV-novel-4-World-7B-20230810-ctx128k`, 32 layers were offloaded to GPU.
 
-| Model                                    | Layers on GPU | Format | 1 thread | 2 threads | 4 threads | 8 threads | 24 threads |
-|------------------------------------------|---------------|--------|----------|-----------|-----------|-----------|------------|
-| `RWKV-novel-4-World-7B-20230810-ctx128k` | 32            | `f16`  | 94       | 91        | 94        | 106       | 944        |
-| `RWKV-novel-4-World-7B-20230810-ctx128k` | 32            | `Q4_0` | 83       | 77        | 75        | 110       | 1692       |
-| `RWKV-novel-4-World-7B-20230810-ctx128k` | 32            | `Q4_1` | 85       | 80        | 85        | 93        | 1691       |
-| `RWKV-novel-4-World-7B-20230810-ctx128k` | 32            | `Q5_1` | 83       | 78        | 83        | 90        | 1115       |
+Latency per token in ms shown.
+
+| Format | 1 thread | 2 threads | 4 threads | 8 threads | 24 threads |
+|--------|----------|-----------|-----------|-----------|------------|
+| `f16`  | 94       | 91        | 94        | 106       | 944        |
+| `Q4_0` | 83       | 77        | 75        | 110       | 1692       |
+| `Q4_1` | 85       | 80        | 85        | 93        | 1691       |
+| `Q5_1` | 83       | 78        | 83        | 90        | 1115       |
 
 Note: same as cuBLAS, hipBLAS only supports `ggml_mul_mat()`, we still need to use few CPU resources to execute remaining operations.
 
