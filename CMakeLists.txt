@@ -120,7 +120,7 @@ if (RWKV_CUBLAS)
         # By default, GGML_CUDA_MMV_Y is set to 1. This value leads to CUDA error on my machine:
         # CUDA error 9 at ...\rwkv.cpp\ggml\src\ggml-cuda.cu:6107: invalid configuration argument
         # The error appears when the head matrix of v5 3B and v5 7B models is offloaded. I guess the matrix is so large that block_num_y becomes too big.
-        # Changing it to 2 makes it work. I did not see any performance impact. Hopefully, this will not break other use-cases.
+        # Changing it to 2 makes it work. I did not see any performance impact when measuring v5 3B & v5 7B. Hopefully, this will not break other use-cases.
         # TODO Re-check after updating ggml whether this is needed
         add_compile_definitions(GGML_CUDA_MMV_Y=2)
 
