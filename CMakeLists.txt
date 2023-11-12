@@ -117,6 +117,13 @@ if (RWKV_CUBLAS)
 
         add_compile_definitions(GGML_USE_CUBLAS)
 
+        # By default, GGML_CUDA_MMV_Y is set to 1. This value leads to CUDA error on my machine:
+        # CUDA error 9 at ...\rwkv.cpp\ggml\src\ggml-cuda.cu:6107: invalid configuration argument
+        # The error appears when the head matrix of v5 3B and v5 7B models is offloaded. I guess the matrix is so large that block_num_y becomes too big.
+        # Changing it to 2 makes it work. I did not see any performance impact. Hopefully, this will not break other use-cases.
+        # TODO Re-check after updating ggml whether this is needed
+        add_compile_definitions(GGML_CUDA_MMV_Y=2)
+
         if (RWKV_STATIC)
             set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} CUDA::cudart_static CUDA::cublas_static CUDA::cublasLt_static)
         else()
@@ -203,8 +210,8 @@ if (RWKV_HIPBLAS)
     if (${hipblas_FOUND} AND ${hip_FOUND})
         message(STATUS "HIP and hipBLAS found")
         add_compile_definitions(GGML_USE_HIPBLAS GGML_USE_CUBLAS)
-        add_library(ggml-rocm OBJECT 
-                    ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu 
+        add_library(ggml-rocm OBJECT
+                    ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu
                     ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.h)
 
         if (BUILD_SHARED_LIBS)
