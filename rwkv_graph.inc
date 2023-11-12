@@ -74,7 +74,7 @@ static void rwkv_carry_x(
         carry = x;
     } else {
         // self.layer_norm(x, self.w.blocks[i].ln2)
-        x = rwkv_layer_norm(ctx, x, ggml_repeat(ctx, weight, x), ggml_repeat(ctx, bias, x));
+        x = rwkv_layer_norm(ctx, x, weight, bias);
 
         // xx = torch.cat((state[5*i+0].to(dtype=self.FLOAT_MODE).unsqueeze(0), x[:-1,:]))
         x_prev = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, n_embed, sequence_len);
@@ -114,7 +114,7 @@ static void rwkv_att_rkv(
     );
 
     // r = torch.sigmoid(rw @ xr)
-    r = rwkv_sigmoid(ctx, ggml_mul_mat(ctx, layer.att_receptance, xr));
+    r = rwkv_sigmoid_inplace(ctx, ggml_mul_mat(ctx, layer.att_receptance, xr));
     // k = kw @ xk
     k = ggml_mul_mat(ctx, layer.att_key, xk);
     // v = vw @ xv
@@ -259,7 +259,7 @@ static struct ggml_tensor * rwkv_att_v5(
     struct ggml_tensor * g = NULL;
 
     if (arch_version_minor >= 2) {
-        g = ggml_silu(
+        g = ggml_silu_inplace(
             ctx,
             ggml_mul_mat(ctx, layer.att_gate, xg)
         );
@@ -324,7 +324,7 @@ static struct ggml_tensor * rwkv_att_v5(
             layer.att_time_faaaa :
             layer.att_time_first;
 
-        struct ggml_tensor * tf_a = ggml_mul(
+        struct ggml_tensor * tf_a = ggml_mul_inplace(
             ctx,
             ggml_repeat(ctx, tf, a),
             a
@@ -342,38 +342,34 @@ static struct ggml_tensor * rwkv_att_v5(
         );
 
         struct ggml_tensor * td = layer.att_time_decay;
-        struct ggml_tensor * td_s = ggml_mul(
+        struct ggml_tensor * td_s = ggml_mul_inplace(
             ctx,
             ggml_repeat(ctx, td, s),
             s
         );
-        s = ggml_add(ctx, a, td_s);
+        s = ggml_add_inplace(ctx, a, td_s);
 
-        att_heads_state = ggml_reshape_1d(ctx, s, s->ne[0] * s->ne[1] * s->ne[2]);
-
-        // Flatten.
-        x_new_vector = ggml_reshape_1d(ctx, x_new_vector, x_new_vector->ne[0] * x_new_vector->ne[1] * x_new_vector->ne[2]);
+        att_heads_state = s;
 
         x_new = ggml_set_1d_inplace(
             ctx,
             x_new,
-            x_new_vector,
+            ggml_view_1d(ctx, x_new_vector, ggml_nelements(x_new_vector), 0),
             t * x_new->ne[0] * sizeof(float)
         );
     }
 
-    x = x_new;
-
     state.att_heads = att_heads_state;
 
+    x = x_new;
     // ggml_group_norm considers groups in the third dimension.
     x = ggml_reshape_4d(ctx, x, 1, 1, n_embed, sequence_length);
-    x = ggml_group_norm(ctx, x, head_count);
+    x = ggml_group_norm_inplace(ctx, x, head_count);
     // Convert back to a regular vector.
     x = ggml_reshape_2d(ctx, x, n_embed, sequence_length);
-    x = ggml_add(
+    x = ggml_add_inplace(
         ctx,
-        ggml_mul(
+        ggml_mul_inplace(
             ctx,
             x,
             layer.att_ln_x_weight
@@ -382,7 +378,7 @@ static struct ggml_tensor * rwkv_att_v5(
     );
 
     if (arch_version_minor >= 2) {
-        x = ggml_mul(ctx, x, g);
+        x = ggml_mul_inplace(ctx, x, g);
     }
 
     return ggml_mul_mat(ctx, layer.att_output, x);
@@ -408,7 +404,7 @@ static struct ggml_tensor * rwkv_ffn(struct ggml_context * ctx, struct ggml_tens
     );
 
     // r = torch.sigmoid(rw @ xr)
-    struct ggml_tensor * r = rwkv_sigmoid(ctx, ggml_mul_mat(ctx, layer.ffn_receptance, xr));
+    struct ggml_tensor * r = rwkv_sigmoid_inplace(ctx, ggml_mul_mat(ctx, layer.ffn_receptance, xr));
 
     // k = torch.square(torch.relu(kw @ xk))
     struct ggml_tensor * k = ggml_sqr_inplace(ctx, ggml_relu_inplace(ctx, ggml_mul_mat(ctx, layer.ffn_key, xk)));

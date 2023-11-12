@@ -96,8 +96,8 @@ struct ggml_tensor * rwkv_1_minus_x(struct ggml_context * ctx, struct ggml_tenso
 }
 
 // Element-wise sigmoid(x)
-struct ggml_tensor * rwkv_sigmoid(struct ggml_context * ctx, struct ggml_tensor * x) {
-    return ggml_map_custom1(ctx, x, rwkv_sigmoid_impl, 1, NULL);
+struct ggml_tensor * rwkv_sigmoid_inplace(struct ggml_context * ctx, struct ggml_tensor * x) {
+    return ggml_map_custom1_inplace(ctx, x, rwkv_sigmoid_impl, 1, NULL);
 }
 
 // Element-wise max(x, y)
