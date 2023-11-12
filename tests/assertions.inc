@@ -3,12 +3,19 @@
 
 #include <math.h>
 
+bool late_abort = false;
+bool must_abort = false;
+
 #define ASSERT(x, ...) {\
         if (!(x)) {\
             fprintf(stderr, "*** Assertion failed ***\n");\
             fprintf(stderr, __VA_ARGS__);\
             fprintf(stderr, "\n%s:%d\n", __FILE__, __LINE__);\
-            abort();\
+            if (late_abort) {\
+                must_abort = true;\
+            } else {\
+                abort();\
+            }\
         }\
     }
 

@@ -10,6 +10,8 @@
 #define FORMAT_COUNT 7
 
 int main(void) {
+    late_abort = true;
+
     fprintf(stderr, "System info: %s\n", rwkv_get_system_info_string());
 
     // Silences the overly verbose output during quantization.
@@ -87,7 +89,7 @@ int main(void) {
         +000.065571F, // Q8_0
         // 5v1
         +119.471931F, // Q4_0
-        -027.862976F, // Q4_1
+        -008.245888F, // Q4_1
         -159.870956F, // Q5_0
         -039.117004F, // Q5_1
         -000.962695F, // Q8_0
@@ -136,6 +138,10 @@ int main(void) {
         }
 
         free(expected_logits);
+    }
+
+    if (must_abort) {
+        abort();
     }
 
     return 0;

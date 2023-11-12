@@ -67,7 +67,6 @@ void test_model(const char * version, const char * format, const float * expecte
 
     fprintf(stderr, "Serial difference sum: %f, expected %f\n", diff_sum, max_diff);
 
-    // When something breaks, difference would be way more than 10
     ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big serial difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
 
     // ---
@@ -83,7 +82,6 @@ void test_model(const char * version, const char * format, const float * expecte
 
     fprintf(stderr, "Sequence difference sum: %f, expected %f\n", diff_sum, max_diff);
 
-    // When something breaks, difference would be way more than 10
     ASSERT(fabsf(diff_sum) <= fabsf(max_diff) + 0.01F, "Too big sequence difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
 
     // ---
