@@ -114,3 +114,22 @@ struct ggml_tensor * rwkv_layer_norm(struct ggml_context * ctx, struct ggml_tens
 static struct ggml_tensor * rwkv_transpose_then_cont(struct ggml_context * ctx, struct ggml_tensor * x) {
     return ggml_cont(ctx, ggml_transpose(ctx, x));
 }
+
+static struct ggml_tensor * rwkv_get_from_dim_3(struct ggml_context * ctx, struct ggml_tensor * x, int64_t index) {
+    return ggml_view_4d(
+        ctx,
+        x,
+        x->ne[0],
+        x->ne[1],
+        x->ne[2],
+        1,
+        x->nb[1],
+        x->nb[2],
+        x->nb[3],
+        index * (x->ne[0] * x->ne[1] * x->ne[2]) * sizeof(float)
+    );
+}
+
+static struct ggml_tensor * rwkv_flatten(struct ggml_context * ctx, struct ggml_tensor * x) {
+    return ggml_view_1d(ctx, x, ggml_nelements(x), 0);
+}

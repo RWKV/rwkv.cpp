@@ -265,103 +265,66 @@ static struct ggml_tensor * rwkv_att_v5(
         );
     }
 
-    struct ggml_tensor * x_new = ggml_new_tensor_2d(ctx, x->type, n_embed, sequence_length);
+    struct ggml_tensor * tf = layer.att_time_faaaa != NULL ?
+        layer.att_time_faaaa :
+        layer.att_time_first;
 
-    struct ggml_tensor * att_heads_state = state.att_heads;
-
-    for (size_t t = 0; t < sequence_length; t++) {
-        struct ggml_tensor * s = ggml_reshape_3d(ctx, att_heads_state, head_size, head_size, head_count);
-
-        struct ggml_tensor * k_t = ggml_view_4d(
+    struct ggml_tensor * a = rwkv_transpose_then_cont(
+        ctx,
+        ggml_mul_mat(
             ctx,
             k,
-            1,          // ne0
-            head_size,  // ne1
-            head_count, // ne2
-            1,          // ne3
-            k->nb[1],   // nb1
-            k->nb[2],   // nb2
-            k->nb[3],   // nb3
-            t * (k->ne[0] * k->ne[1] * k->ne[2]) * sizeof(float) // offset
-        );
+            rwkv_transpose_then_cont(ctx, v)
+        )
+    );
 
-        struct ggml_tensor * v_t = ggml_view_4d(
+    struct ggml_tensor * tf_a = ggml_mul_inplace(
+        ctx,
+        ggml_repeat(ctx, tf, a),
+        a
+    );
+
+    struct ggml_tensor * x_new = ggml_new_tensor_2d(ctx, x->type, n_embed, sequence_length);
+
+    struct ggml_tensor * last_state = state.att_heads;
+
+    for (size_t t = 0; t < sequence_length; t++) {
+        struct ggml_tensor * s = ggml_reshape_3d(ctx, last_state, head_size, head_size, head_count);
+
+        struct ggml_tensor * tf_a_s = ggml_add_inplace(
             ctx,
-            v,
-            head_size,  // ne0
-            1,          // ne1
-            head_count, // ne2
-            1,          // ne3
-            v->nb[1],   // nb1
-            v->nb[2],   // nb2
-            v->nb[3],   // nb3
-            t * (v->ne[0] * v->ne[1] * v->ne[2]) * sizeof(float) // offset
-        );
-
-        struct ggml_tensor * a = rwkv_transpose_then_cont(
-            ctx,
-            ggml_mul_mat(
-                ctx,
-                k_t,
-                rwkv_transpose_then_cont(ctx, v_t)
-            )
-        );
-
-        struct ggml_tensor * r_t = ggml_view_4d(
-            ctx,
-            r,
-            head_size,  // ne0
-            1,          // ne1
-            head_count, // ne2
-            1,          // ne3
-            r->nb[1],   // nb1
-            r->nb[2],   // nb2
-            r->nb[3],   // nb3
-            t * (r->ne[0] * r->ne[1] * r->ne[2]) * sizeof(float) // offset
-        );
-
-        struct ggml_tensor * tf = layer.att_time_faaaa != NULL ?
-            layer.att_time_faaaa :
-            layer.att_time_first;
-
-        struct ggml_tensor * tf_a = ggml_mul_inplace(
-            ctx,
-            ggml_repeat(ctx, tf, a),
-            a
-        );
-
-        struct ggml_tensor * tf_a_s = ggml_add(ctx, tf_a, s);
-
-        struct ggml_tensor * x_new_vector = rwkv_transpose_then_cont(
-            ctx,
-            ggml_mul_mat(
-                ctx,
-                r_t,
-                rwkv_transpose_then_cont(ctx, tf_a_s)
-            )
-        );
-
-        struct ggml_tensor * td = layer.att_time_decay;
-        struct ggml_tensor * td_s = ggml_mul_inplace(
-            ctx,
-            ggml_repeat(ctx, td, s),
+            rwkv_get_from_dim_3(ctx, tf_a, t),
             s
         );
-        s = ggml_add_inplace(ctx, a, td_s);
 
-        att_heads_state = s;
+        struct ggml_tensor * x_new_vector = ggml_mul_mat(
+            ctx,
+            rwkv_get_from_dim_3(ctx, r, t),
+            rwkv_transpose_then_cont(ctx, tf_a_s)
+        );
+
+        struct ggml_tensor * td_s = ggml_mul_inplace(
+            ctx,
+            ggml_repeat(ctx, layer.att_time_decay, s),
+            s
+        );
+
+        s = ggml_add_inplace(ctx, td_s, rwkv_get_from_dim_3(ctx, a, t));
+
+        last_state = s;
 
         x_new = ggml_set_1d_inplace(
             ctx,
             x_new,
-            ggml_view_1d(ctx, x_new_vector, ggml_nelements(x_new_vector), 0),
-            t * x_new->ne[0] * sizeof(float)
+            rwkv_flatten(ctx, x_new_vector),
+            t * n_embed * sizeof(float)
         );
     }
 
-    state.att_heads = att_heads_state;
+    state.att_heads = last_state;
 
     x = x_new;
+
     // ggml_group_norm considers groups in the third dimension.
     x = ggml_reshape_4d(ctx, x, 1, 1, n_embed, sequence_length);
     x = ggml_group_norm_inplace(ctx, x, head_count);
