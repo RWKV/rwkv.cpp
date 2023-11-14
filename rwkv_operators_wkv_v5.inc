@@ -26,8 +26,8 @@
     #define MULTADD(x, y, z) vmlaq_f32(z, x, y)
 #else
     #define SIMD_WIDTH       1
-    #define LOAD(x)          x
-    #define STORE(x, y)      x = y
+    #define LOAD(x)          *x
+    #define STORE(x, y)      *x = y
     #define SET1(x)          x
     #define MULTIPLY(x, y)   x * y
     #define MULTADD(x, y, z) x * y + z
