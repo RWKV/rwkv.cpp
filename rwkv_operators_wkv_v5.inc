@@ -1,6 +1,7 @@
 // Ported from https://github.com/harrisonvanderbyl/RNN-Factory/blob/3b696b547cc9e25de04a077602c3fe1133d8984c/src/models/modules/cuda/cpuonly.cpp#L8
 // Original code by Harrison Vanderbyl.
-#ifdef __AVX512F__
+// TODO Fix 1. unaligned memory access on Linux with AVX2, 2. tiny-rwkv with AVX-512
+/*#ifdef __AVX512F__
     #include <immintrin.h>
     #define SIMD_WIDTH       16
     #define LOAD(x)          _mm512_load_ps(x)
@@ -24,14 +25,14 @@
     #define SET1(x)          vdupq_n_f32(x)
     #define MULTIPLY(x, y)   vmulq_f32(x, y)
     #define MULTADD(x, y, z) vmlaq_f32(z, x, y)
-#else
+#else*/
     #define SIMD_WIDTH       1
     #define LOAD(x)          *x
     #define STORE(x, y)      *x = y
     #define SET1(x)          x
     #define MULTIPLY(x, y)   x * y
     #define MULTADD(x, y, z) x * y + z
-#endif
+//#endif
 
 // Ported from https://github.com/harrisonvanderbyl/RNN-Factory/blob/3b696b547cc9e25de04a077602c3fe1133d8984c/src/models/modules/cuda/cpuonly.cpp#L57
 // Original code by Harrison Vanderbyl.
