@@ -16,7 +16,7 @@ Loading LoRA checkpoints in [Blealtan's format](https://github.com/Blealtan/RWKV
 
 If you use `rwkv.cpp` for anything serious, please [test all available formats for perplexity and latency](rwkv%2Fmeasure_pexplexity.py) on a representative dataset, and decide which trade-off is best for you.
 
-In general, `RWKV v5` models are 2 times slower than `RWKV v4` models, and require from 1.5 times (sequence length = 1) to 6 times (sequence length = 64) more memory.
+In general, **`RWKV v5` models are as fast as `RWKV v4` models**, with minor differencies in latency and memory consumption, and with having way higher quality than `v4`. Therefore, it is recommended to use `RWKV v5`.
 
 Below table is for reference only. Measurements were made on 4C/8T x86 CPU with AVX2, 4 threads. The models are `RWKV v4 Pile 169M`, `RWKV v4 Pile 1.5B`.
 
