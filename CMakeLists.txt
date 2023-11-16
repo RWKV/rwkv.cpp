@@ -214,7 +214,7 @@ if (RWKV_HIPBLAS)
                     ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu
                     ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.h)
 
-        if (BUILD_SHARED_LIBS)
+        if (RWKV_BUILD_SHARED_LIBRARY)
             set_target_properties(ggml-rocm PROPERTIES POSITION_INDEPENDENT_CODE ON)
         endif()
 
