@@ -265,65 +265,38 @@ static struct ggml_tensor * rwkv_att_v5(
         );
     }
 
-    struct ggml_tensor * tf = layer.att_time_faaaa != NULL ?
-        layer.att_time_faaaa :
-        layer.att_time_first;
+    // dup is not strictly required; doing it just in case.
+    struct ggml_tensor * state_out = ggml_dup(ctx, state.att_heads);
 
-    struct ggml_tensor * a = rwkv_transpose_then_cont(
-        ctx,
-        ggml_mul_mat(
-            ctx,
-            k,
-            rwkv_transpose_then_cont(ctx, v)
-        )
-    );
+    struct ggml_tensor * time_first;
+    struct ggml_tensor * time_decay;
 
-    struct ggml_tensor * tf_a = ggml_mul_inplace(
-        ctx,
-        ggml_repeat(ctx, tf, a),
-        a
-    );
+    if (arch_version_minor >= 2) {
+        time_first = layer.att_time_faaaa;
+        time_decay = layer.att_time_decay;
+    } else {
+        struct ggml_tensor * dummy = ggml_new_tensor_3d(ctx, GGML_TYPE_F32, 1, head_size, head_count);
 
-    struct ggml_tensor * x_new = ggml_new_tensor_2d(ctx, x->type, n_embed, sequence_length);
-
-    struct ggml_tensor * last_state = state.att_heads;
-
-    for (size_t t = 0; t < sequence_length; t++) {
-        struct ggml_tensor * s = ggml_reshape_3d(ctx, last_state, head_size, head_size, head_count);
-
-        struct ggml_tensor * tf_a_s = ggml_add_inplace(
-            ctx,
-            rwkv_get_from_dim_3(ctx, tf_a, t),
-            s
-        );
-
-        struct ggml_tensor * x_new_vector = ggml_mul_mat(
-            ctx,
-            rwkv_get_from_dim_3(ctx, r, t),
-            rwkv_transpose_then_cont(ctx, tf_a_s)
-        );
-
-        struct ggml_tensor * td_s = ggml_mul_inplace(
-            ctx,
-            ggml_repeat(ctx, layer.att_time_decay, s),
-            s
-        );
-
-        s = ggml_add_inplace(ctx, td_s, rwkv_get_from_dim_3(ctx, a, t));
-
-        last_state = s;
-
-        x_new = ggml_set_1d_inplace(
-            ctx,
-            x_new,
-            rwkv_flatten(ctx, x_new_vector),
-            t * n_embed * sizeof(float)
-        );
+        time_first = ggml_repeat(ctx, layer.att_time_first, dummy);
+        time_decay = ggml_repeat(ctx, layer.att_time_decay, dummy);
     }
 
-    state.att_heads = last_state;
+    x = rwkv_wkv_v5(
+        ctx,
+        sequence_length,
+        n_embed,
+        head_count,
+        head_size,
+        x,
+        k,
+        v,
+        r,
+        time_first,
+        time_decay,
+        state_out
+    );
 
-    x = x_new;
+    state.att_heads = state_out;
 
     // ggml_group_norm considers groups in the third dimension.
     x = ggml_reshape_4d(ctx, x, 1, 1, n_embed, sequence_length);
