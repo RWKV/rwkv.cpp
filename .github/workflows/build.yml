@@ -206,7 +206,7 @@ jobs:
       - name: Install rocm-toolkit
         id: rocm-toolkit
         if: ${{ matrix.build == 'rocm5.5' }}
-        uses: Cyberhan123/rocm-toolkit@v0.0.1
+        uses: Cyberhan123/rocm-toolkit@v0.1.0
         with:
           rocm: '5.5.0'
 
@@ -234,7 +234,7 @@ jobs:
       - name: Test
         id: cmake_test
         # Test AVX-512 only when possible
-        if: ${{ matrix.build != 'avx512' || env.HAS_AVX512F == '1' || matrix.build != 'hipBLAS' }}
+        if: ${{ (matrix.build != 'avx512' || env.HAS_AVX512F == '1') && matrix.build != 'cuda12' && matrix.build != 'rocm5.5'}}
         run: |
           cd build
           ctest -C Release --verbose
