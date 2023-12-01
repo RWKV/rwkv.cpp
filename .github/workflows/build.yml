@@ -203,20 +203,35 @@ jobs:
           cuda: '12.2.0'
           method: 'local'
 
-      - name: Setup Ninja
-        id: setup-ninja
+      - name: Install Ninja
+        id: install-ninja
         if: ${{ matrix.build == 'rocm5.5' }}
         uses: ashutoshvarma/setup-ninja@master
         with:
           version: '1.11.1'
+          dest: 'C:\Program Files\ninja'
 
       - name: Peek Ninja
         id: peek_ninja
-        run: ninja --version
+        if: ${{ matrix.build == 'rocm5.5' }}
+        run: |
+          $ninjaPath = "C:\Program Files\ninja"
+          if (Test-Path (Join-Path $env:PATH $ninjaPath)) {
+              try {
+                  echo "Ninja found in PATH."
+                  cmake -G "Ninja" --version
+                  echo "CMake can use Ninja."
+                  echo HAS_NINJA=1 >> $env:GITHUB_ENV
+              } catch {
+                  echo "CMake cannot use Ninja. Error: $_"
+              }
+          } else {
+              echo "Ninja not found in PATH. Please install Ninja or update your PATH environment variable."
+          }
 
       - name: Install rocm-toolkit
         id: rocm-toolkit
-        if: ${{ matrix.build == 'rocm5.5' }}
+        if: ${{ matrix.build == 'rocm5.5' && env.HAS_NINJA == 1 }}
         uses: Cyberhan123/rocm-toolkit@v0.1.0
         with:
           rocm: '5.5.0'
