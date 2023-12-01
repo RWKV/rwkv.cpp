@@ -203,19 +203,23 @@ jobs:
           cuda: '12.2.0'
           method: 'local'
 
+      - name: Setup Ninja
+        id: setup-ninja
+        if: ${{ matrix.build == 'rocm5.5' }}
+        uses: ashutoshvarma/setup-ninja@master
+        with:
+          version: '1.11.1'
+
+      - name: Peek Ninja
+        id: peek_ninja
+        run: ninja --version
+
       - name: Install rocm-toolkit
         id: rocm-toolkit
         if: ${{ matrix.build == 'rocm5.5' }}
         uses: Cyberhan123/rocm-toolkit@v0.1.0
         with:
           rocm: '5.5.0'
-
-      - name: Setup Ninja
-        id: setup-ninja
-        if: ${{ matrix.build == 'rocm5.5' }}
-        uses: ashutoshvarma/setup-ninja@master
-        with:
-          version: 1.11.1
 
       - name: Build
         id: cmake_build
