@@ -215,18 +215,13 @@ jobs:
         id: peek_ninja
         if: ${{ matrix.build == 'rocm5.5' }}
         run: |
-          $ninjaPath = "C:\Program Files\ninja"
-          if (Test-Path (Join-Path $env:PATH $ninjaPath)) {
-              try {
-                  echo "Ninja found in PATH."
-                  cmake -G "Ninja" --version
-                  echo "CMake can use Ninja."
-                  echo HAS_NINJA=1 >> $env:GITHUB_ENV
-              } catch {
-                  echo "CMake cannot use Ninja. Error: $_"
-              }
-          } else {
-              echo "Ninja not found in PATH. Please install Ninja or update your PATH environment variable."
+          try {
+              ninja --version
+              cmake -G "Ninja" --version
+              echo "CMake can use Ninja."
+              echo HAS_NINJA=1 >> $env:GITHUB_ENV
+          } catch {
+              echo "CMake cannot use Ninja. Error: $_"
           }
 
       - name: Install rocm-toolkit
