@@ -208,8 +208,7 @@ jobs:
         if: ${{ matrix.build == 'rocm5.5' }}
         uses: ashutoshvarma/setup-ninja@master
         with:
-          version: '1.11.1'
-          dest: 'C:\Program Files\ninja'
+          version: 1.10.0
 
       - name: Peek Ninja
         id: peek_ninja
@@ -217,7 +216,7 @@ jobs:
         run: |
           try {
               ninja --version
-              cmake -G "Ninja" --version
+              cmake -G "Ninja"
               echo "CMake can use Ninja."
               echo HAS_NINJA=1 >> $env:GITHUB_ENV
           } catch {
