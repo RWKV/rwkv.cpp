@@ -16,158 +16,158 @@ env:
  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
 jobs:
-#  ubuntu-latest-cmake-sanitizer:
-#    runs-on: ubuntu-latest
-#
-#    continue-on-error: true
-#
-#    strategy:
-#      matrix:
-#        sanitizer: [ADDRESS, THREAD, UNDEFINED]
-#        build_type: [Debug, Release]
-#
-#    steps:
-#      - name: Clone
-#        id: checkout
-#        uses: actions/checkout@v3
-#        with:
-#          submodules: 'recursive'
-#
-#      - name: Dependencies
-#        id: depends
-#        run: |
-#          sudo apt-get update
-#          sudo apt-get install build-essential
-#
-#      - name: Build
-#        id: cmake_build
-#        run: |
-#          mkdir build
-#          cd build
-#          cmake .. -DRWKV_SANITIZE_${{ matrix.sanitizer }}=ON -DGGML_SANITIZE_${{ matrix.sanitizer }}=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-#          cmake --build . --config ${{ matrix.build_type }}
-#
-#      - name: Test
-#        id: cmake_test
-#        run: |
-#          cd build
-#          ctest --verbose
-#
-#  ubuntu-latest-cmake:
-#    runs-on: ubuntu-latest
-#
-#    continue-on-error: true
-#
-#    steps:
-#      - name: Clone
-#        id: checkout
-#        uses: actions/checkout@v3
-#        with:
-#          submodules: 'recursive'
-#
-#      - name: Dependencies
-#        id: depends
-#        run: |
-#          sudo apt-get update
-#          sudo apt-get install build-essential zip
-#
-#      - name: Build
-#        id: cmake_build
-#        run: |
-#          mkdir build
-#          cd build
-#          cmake ..
-#          cmake --build . --config Release
-#
-#      - name: Test
-#        id: cmake_test
-#        run: |
-#          cd build
-#          ctest --verbose
-#
-#      - name: Get commit hash
-#        id: commit
-#        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
-#        uses: pr-mpt/actions-commit-hash@v2
-#
-#      - name: Fetch system info
-#        id: system-info
-#        run: |
-#          echo "CPU_ARCH=`uname -m`" >> "$GITHUB_OUTPUT"
-#          echo "OS_NAME=`lsb_release -s -i`" >> "$GITHUB_OUTPUT"
-#          echo "OS_VERSION=`lsb_release -s -r`" >> "$GITHUB_OUTPUT"
-#          echo "OS_TYPE=`uname -s`" >> "$GITHUB_OUTPUT"
-#
-#      - name: Pack artifacts
-#        id: pack_artifacts
-#        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
-#        run: |
-#          zip -j rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip ./build/librwkv.so
-#
-#      - name: Upload artifacts
-#        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
-#        uses: actions/upload-artifact@v3
-#        with:
-#          path: |
-#            rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip
-#
-#  macOS-latest-cmake:
-#    runs-on: macOS-latest
-#
-#    continue-on-error: true
-#
-#    steps:
-#      - name: Clone
-#        id: checkout
-#        uses: actions/checkout@v3
-#        with:
-#          submodules: 'recursive'
-#
-#      - name: Dependencies
-#        id: depends
-#        run: |
-#          brew install zip
-#
-#      - name: Build
-#        id: cmake_build
-#        # FMA disabled because it gives "Illegal instruction" in GitHub Actions runner
-#        run: |
-#          mkdir build
-#          cd build
-#          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF ..
-#          cmake --build . --config Release
-#
-#      - name: Test
-#        id: cmake_test
-#        run: |
-#          cd build
-#          ctest --verbose
-#
-#      - name: Get commit hash
-#        id: commit
-#        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
-#        uses: pr-mpt/actions-commit-hash@v2
-#
-#      - name: Fetch system info
-#        id: system-info
-#        run: |
-#          echo "CPU_ARCH=`uname -m`" >> "$GITHUB_OUTPUT"
-#          echo "OS_NAME=`sw_vers -productName`" >> "$GITHUB_OUTPUT"
-#          echo "OS_VERSION=`sw_vers -productVersion`" >> "$GITHUB_OUTPUT"
-#          echo "OS_TYPE=`uname -s`" >> "$GITHUB_OUTPUT"
-#
-#      - name: Pack artifacts
-#        id: pack_artifacts
-#        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
-#        run: |
-#          zip -j rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip ./build/librwkv.dylib
-#
-#      - name: Upload artifacts
-#        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
-#        uses: actions/upload-artifact@v3
-#        with:
-#          path: |
-#            rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip
+  ubuntu-latest-cmake-sanitizer:
+    runs-on: ubuntu-latest
+
+    continue-on-error: true
+
+    strategy:
+      matrix:
+        sanitizer: [ADDRESS, THREAD, UNDEFINED]
+        build_type: [Debug, Release]
+
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: Dependencies
+        id: depends
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential
+
+      - name: Build
+        id: cmake_build
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DRWKV_SANITIZE_${{ matrix.sanitizer }}=ON -DGGML_SANITIZE_${{ matrix.sanitizer }}=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          cmake --build . --config ${{ matrix.build_type }}
+
+      - name: Test
+        id: cmake_test
+        run: |
+          cd build
+          ctest --verbose
+
+  ubuntu-latest-cmake:
+    runs-on: ubuntu-latest
+
+    continue-on-error: true
+
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: Dependencies
+        id: depends
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential zip
+
+      - name: Build
+        id: cmake_build
+        run: |
+          mkdir build
+          cd build
+          cmake ..
+          cmake --build . --config Release
+
+      - name: Test
+        id: cmake_test
+        run: |
+          cd build
+          ctest --verbose
+
+      - name: Get commit hash
+        id: commit
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        uses: pr-mpt/actions-commit-hash@v2
+
+      - name: Fetch system info
+        id: system-info
+        run: |
+          echo "CPU_ARCH=`uname -m`" >> "$GITHUB_OUTPUT"
+          echo "OS_NAME=`lsb_release -s -i`" >> "$GITHUB_OUTPUT"
+          echo "OS_VERSION=`lsb_release -s -r`" >> "$GITHUB_OUTPUT"
+          echo "OS_TYPE=`uname -s`" >> "$GITHUB_OUTPUT"
+
+      - name: Pack artifacts
+        id: pack_artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        run: |
+          zip -j rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip ./build/librwkv.so
+
+      - name: Upload artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        uses: actions/upload-artifact@v3
+        with:
+          path: |
+            rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip
+
+  macOS-latest-cmake:
+    runs-on: macOS-latest
+
+    continue-on-error: true
+
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: Dependencies
+        id: depends
+        run: |
+          brew install zip
+
+      - name: Build
+        id: cmake_build
+        # FMA disabled because it gives "Illegal instruction" in GitHub Actions runner
+        run: |
+          mkdir build
+          cd build
+          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF ..
+          cmake --build . --config Release
+
+      - name: Test
+        id: cmake_test
+        run: |
+          cd build
+          ctest --verbose
+
+      - name: Get commit hash
+        id: commit
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        uses: pr-mpt/actions-commit-hash@v2
+
+      - name: Fetch system info
+        id: system-info
+        run: |
+          echo "CPU_ARCH=`uname -m`" >> "$GITHUB_OUTPUT"
+          echo "OS_NAME=`sw_vers -productName`" >> "$GITHUB_OUTPUT"
+          echo "OS_VERSION=`sw_vers -productVersion`" >> "$GITHUB_OUTPUT"
+          echo "OS_TYPE=`uname -s`" >> "$GITHUB_OUTPUT"
+
+      - name: Pack artifacts
+        id: pack_artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        run: |
+          zip -j rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip ./build/librwkv.dylib
+
+      - name: Upload artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        uses: actions/upload-artifact@v3
+        with:
+          path: |
+            rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip
 
   windows-latest-cmake:
     runs-on: windows-latest
@@ -177,16 +177,16 @@ jobs:
     strategy:
       matrix:
         include:
-#         - build: 'avx2'
-#           defines: ''
-#         - build: 'avx'
-#           defines: '-DRWKV_AVX2=OFF'
-#         - build: 'avx512'
-#           defines: '-DRWKV_AVX512=ON'
-#         - build: 'cuda12'
-#           defines: '-DRWKV_CUBLAS=ON'
+         - build: 'avx2'
+           defines: ''
+         - build: 'avx'
+           defines: '-DRWKV_AVX2=OFF'
+         - build: 'avx512'
+           defines: '-DRWKV_AVX512=ON'
+         - build: 'cuda12'
+           defines: '-DRWKV_CUBLAS=ON'
          - build: 'rocm5.5'
-           defines: '-G "Ninja" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DRWKV_HIPBLAS=ON -DCMAKE_BUILD_TYPE=Release -DAMDGPU_TARGETS="gfx1100;gfx1102;gfx1130;gfx1132"'
+           defines: -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DRWKV_HIPBLAS=ON -DCMAKE_BUILD_TYPE=Release -DAMDGPU_TARGETS="gfx1100;gfx1102;gfx1130"
 
     steps:
       - name: Clone
@@ -203,36 +203,19 @@ jobs:
           cuda: '12.2.0'
           method: 'local'
 
-      - name: Install Ninja
-        id: install-ninja
-        if: ${{ matrix.build == 'rocm5.5' }}
-        uses: ashutoshvarma/setup-ninja@master
-        with:
-          version: 1.10.0
-
-      - name: Peek Ninja
-        id: peek_ninja
-        if: ${{ matrix.build == 'rocm5.5' }}
-        run: |
-          try {
-              $env:Path
-              ninja --version
-              cmake --version
-              cmake -G "Ninja"
-              clang --version
-              clang++ --version
-              echo "CMake can use Ninja."
-              echo HAS_NINJA=1 >> $env:GITHUB_ENV
-          } catch {
-              echo "CMake cannot use Ninja. Error: $_"
-          }
-
       - name: Install rocm-toolkit
         id: rocm-toolkit
-        if: ${{ matrix.build == 'rocm5.5' && env.HAS_NINJA == 1 }}
+        if: ${{ matrix.build == 'rocm5.5' }}
         uses: Cyberhan123/rocm-toolkit@v0.1.0
         with:
           rocm: '5.5.0'
+
+      - name: Setup Ninja
+        id: setup-ninja
+        if: ${{ matrix.build == 'rocm5.5' }}
+        uses: ashutoshvarma/setup-ninja@master
+        with:
+          version: 1.11.1
 
       - name: Build
         id: cmake_build
@@ -287,8 +270,8 @@ jobs:
     runs-on: ubuntu-latest
 
     needs:
-      # - ubuntu-latest-cmake
-      # - macOS-latest-cmake
+      - ubuntu-latest-cmake
+      - macOS-latest-cmake
       - windows-latest-cmake
 
     steps:
