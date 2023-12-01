@@ -210,6 +210,13 @@ jobs:
         with:
           rocm: '5.5.0'
 
+      - name: Setup Ninja
+        id: setup-ninja
+        if: ${{ matrix.build == 'rocm5.5' }}
+        uses: ashutoshvarma/setup-ninja@1.1
+        with:
+          version: 1.11.1
+
       - name: Build
         id: cmake_build
         run: |
