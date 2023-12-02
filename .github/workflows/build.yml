@@ -186,7 +186,7 @@ jobs:
          - build: 'cuda12'
            defines: '-DRWKV_CUBLAS=ON'
          - build: 'rocm5.5'
-           defines: -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DRWKV_HIPBLAS=ON -DCMAKE_BUILD_TYPE=Release -DAMDGPU_TARGETS="gfx1100;gfx1102;gfx1130"
+           defines: '-G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DRWKV_HIPBLAS=ON -DCMAKE_BUILD_TYPE=Release -DAMDGPU_TARGETS="gfx1100;gfx1102;gfx1130"'
 
     steps:
       - name: Clone
@@ -213,7 +213,7 @@ jobs:
       - name: Setup Ninja
         id: setup-ninja
         if: ${{ matrix.build == 'rocm5.5' }}
-        uses: ashutoshvarma/setup-ninja@master
+        uses: urkle/action-get-ninja@v1
         with:
           version: 1.11.1
 
