@@ -255,7 +255,17 @@ jobs:
         id: pack_artifacts
         if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
         run: |
-          7z a rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-win-${{ matrix.build }}-x64.zip .\build\bin\Release\rwkv.dll
+          $filePath = ".\build\bin\Release\rwkv.dll"
+          if (Test-Path $filePath) {
+            echo "Exists at path $filePath"
+          } elseif (Test-Path ".\build\bin\rwkv.dll") {
+            $filePath = ".\build\bin\rwkv.dll"
+            echo "Exists at path $filePath"
+          } else {
+            ls .\build\bin
+            throw "Can't find rwkv.dll"
+          }
+          7z a rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-win-${{ matrix.build }}-x64.zip $filePath
 
       - name: Upload artifacts
         if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
