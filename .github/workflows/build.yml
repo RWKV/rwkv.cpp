@@ -257,13 +257,13 @@ jobs:
         run: |
           $filePath = ".\build\bin\Release\rwkv.dll"
           if (Test-Path $filePath) {
-            echo "exit at path: $filePath"
+            echo "Exists at path $filePath"
           } elseif (Test-Path ".\build\bin\rwkv.dll") {
             $filePath = ".\build\bin\rwkv.dll"
-            echo "exists at path: $filePath"
+            echo "Exists at path $filePath"
           } else {
             ls .\build\bin
-            throw "can't find rwkv.dll"
+            throw "Can't find rwkv.dll"
           }
           7z a rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-win-${{ matrix.build }}-x64.zip $filePath
 
