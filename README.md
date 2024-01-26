@@ -133,15 +133,7 @@ If everything went OK, `librwkv.so` (Linux) or `librwkv.dylib` (MacOS) file shou
 
 ### 3. Get an RWKV model
 
-#### Option 3.1. Download pre-quantized Raven model
-
-There are pre-quantized Raven models available on [Hugging Face](https://huggingface.co/BlinkDL/rwkv-4-raven/tree/main). Check that you are downloading `.bin` file, **not** `.pth`.
-
-#### Option 3.2. Convert and quantize PyTorch model
-
 **Requirements**: Python 3.x with [PyTorch](https://pytorch.org/get-started/locally/).
-
-This option would require a little more manual work, but you can use it with any RWKV model and any target format.
 
 **First**, download a model from [Hugging Face](https://huggingface.co/BlinkDL) like [this one](https://huggingface.co/BlinkDL/rwkv-4-pile-169m/blob/main/RWKV-4-Pile-169M-20220807-8023.pth).
 
