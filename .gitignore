@@ -22,6 +22,7 @@ models/*
 /result
 /perplexity
 /embedding
+/rwkv.pc
 
 arm_neon.h
 compile_commands.json
