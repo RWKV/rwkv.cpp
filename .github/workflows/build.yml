@@ -111,7 +111,9 @@ jobs:
           path: |
             rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip
 
-  macOS-latest-cmake:
+  macOS-x86_64-cmake:
+    # If macOS-latest gets auto updated to the M1 architecture
+    # consider switching to macos-12 or macos-13
     runs-on: macOS-latest
 
     continue-on-error: true
@@ -134,7 +136,67 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" ..
+          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF -DCMAKE_OSX_ARCHITECTURES="x86_64" ..
+          cmake --build . --config Release
+
+      - name: Test
+        id: cmake_test
+        run: |
+          cd build
+          ctest --verbose
+
+      - name: Get commit hash
+        id: commit
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        uses: pr-mpt/actions-commit-hash@v2
+
+      - name: Fetch system info
+        id: system-info
+        run: |
+          echo "CPU_ARCH=`uname -m`" >> "$GITHUB_OUTPUT"
+          echo "OS_NAME=`sw_vers -productName`" >> "$GITHUB_OUTPUT"
+          echo "OS_VERSION=`sw_vers -productVersion`" >> "$GITHUB_OUTPUT"
+          echo "OS_TYPE=`uname -s`" >> "$GITHUB_OUTPUT"
+
+      - name: Pack artifacts
+        id: pack_artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        run: |
+          zip -j rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip ./build/librwkv.dylib
+
+      - name: Upload artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        uses: actions/upload-artifact@v3
+        with:
+          path: |
+            rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip
+
+  macOS-arm64-cmake:
+    # Currently macos arm, is only on v14
+    # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners
+    runs-on: macos-14
+
+    continue-on-error: true
+
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: Dependencies
+        id: depends
+        run: |
+          brew install zip
+
+      - name: Build
+        id: cmake_build
+        # FMA disabled because it gives "Illegal instruction" in GitHub Actions runner
+        run: |
+          mkdir build
+          cd build
+          cmake -DRWKV_AVX2=OFF -DRWKV_FMA=OFF -DCMAKE_OSX_ARCHITECTURES="arm64" ..
           cmake --build . --config Release
 
       - name: Test
@@ -281,7 +343,8 @@ jobs:
 
     needs:
       - ubuntu-latest-cmake
-      - macOS-latest-cmake
+      - macOS-x86_64-cmake
+      - macOS-arm64-cmake
       - windows-latest-cmake
 
     steps:
