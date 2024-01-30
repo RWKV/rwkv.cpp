@@ -112,8 +112,7 @@ jobs:
             rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip
 
   macOS-x86_64-cmake:
-    # If macOS-latest gets auto updated to the M1 architecture
-    # consider switching to macos-12 or macos-13
+    # If macOS-latest gets auto updated to the M1 architecture, consider switching to macos-12 or macos-13.
     runs-on: macOS-latest
 
     continue-on-error: true
@@ -172,7 +171,7 @@ jobs:
             rwkv-${{ env.BRANCH_NAME }}-${{ steps.commit.outputs.short }}-bin-${{ steps.system-info.outputs.OS_TYPE }}-${{ steps.system-info.outputs.OS_NAME }}-${{ steps.system-info.outputs.OS_VERSION }}-${{ steps.system-info.outputs.CPU_ARCH }}.zip
 
   macOS-arm64-cmake:
-    # Currently macos arm, is only on v14
+    # Currently, MacOS ARM is only on v14.
     # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners
     runs-on: macos-14
 
