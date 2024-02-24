@@ -47,7 +47,8 @@ def main() -> None:
 
     arch_version: str = args.rwkv_arch_version
 
-    assert arch_version == 'v4' or arch_version == 'v5.1' or arch_version == 'v5.2', f'Invalid RWKV architecture version {arch_version}'
+    if not (arch_version == 'v4' or arch_version == 'v5.1' or arch_version == 'v5.2'):
+        raise ValueError(f'Invalid RWKV architecture version {arch_version}')
 
     print(f'Reading {args.lora_path}')
 
@@ -59,9 +60,12 @@ def main() -> None:
         # noinspection PyTypeChecker
         header: Tuple[int, int, int, int, int, int] = struct.unpack('=iiiiii', in_file.read(6 * 4))
 
-        assert header[0] == 0x67676d66, 'Invalid magic value'
-        assert 100 <= header[1] <= 101, 'Invalid version number'
-        assert header[5] == 0 or header[5] == 1, 'Only FP32 and FP16 models are supported'
+        if header[0] != 0x67676d66:
+            raise ValueError(f'Invalid magic value: {header[0]:x}')
+        if not 100 <= header[1] <= 101:
+            raise ValueError(f'Invalid version number: {header[1]}')
+        if not (header[5] == 0 or header[5] == 1):
+            raise ValueError('Only FP32 and FP16 models are supported')
 
         out_file.write(struct.pack('=iiiiii', *header))
 
