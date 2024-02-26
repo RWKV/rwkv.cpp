@@ -124,7 +124,8 @@ class RWKVSharedLibrary:
 
         ptr = self.library.rwkv_init_from_file(model_file_path.encode('utf-8'), ctypes.c_uint32(thread_count))
 
-        assert ptr is not None, 'rwkv_init_from_file failed, check stderr'
+        if ptr is None:
+            rasie ValueError('rwkv_init_from_file failed, check stderr')
 
         return RWKVContext(ptr)
 
@@ -145,7 +146,8 @@ class RWKVSharedLibrary:
             Count of layers to offload onto the GPU, must be >= 0.
         """
 
-        assert layer_count >= 0, 'Layer count must be >= 0'
+        if not (layer_count >= 0):
+            raise ValueError('Layer count must be >= 0')
 
         return self.library.rwkv_gpu_offload_layers(ctx.ptr, ctypes.c_uint32(layer_count))
 
@@ -176,13 +178,14 @@ class RWKVSharedLibrary:
             Address of the first element of a FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to.
         """
 
-        assert self.library.rwkv_eval(
+        if not self.library.rwkv_eval(
             ctx.ptr,
             ctypes.c_int32(token),
             ctypes.cast(0 if state_in_address is None else state_in_address, P_FLOAT),
             ctypes.cast(state_out_address, P_FLOAT),
             ctypes.cast(logits_out_address, P_FLOAT)
-        ), 'rwkv_eval failed, check stderr'
+        ):
+            raise ValueError('rwkv_eval failed, check stderr')
 
     def rwkv_eval_sequence(
             self,
@@ -223,14 +226,15 @@ class RWKVSharedLibrary:
             Address of the first element of a FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to.
         """
 
-        assert self.library.rwkv_eval_sequence(
+        if not self.library.rwkv_eval_sequence(
             ctx.ptr,
             ctypes.cast((ctypes.c_int32 * len(tokens))(*tokens), P_INT),
             ctypes.c_size_t(len(tokens)),
             ctypes.cast(0 if state_in_address is None else state_in_address, P_FLOAT),
             ctypes.cast(state_out_address, P_FLOAT),
             ctypes.cast(logits_out_address, P_FLOAT)
-        ), 'rwkv_eval_sequence failed, check stderr'
+        ):
+            raise ValueError('rwkv_eval_sequence failed, check stderr')
 
     def rwkv_eval_sequence_in_chunks(
             self,
@@ -269,7 +273,7 @@ class RWKVSharedLibrary:
             Address of the first element of a FP32 buffer of size rwkv_get_logits_buffer_element_count. This buffer will be written to.
         """
 
-        assert self.library.rwkv_eval_sequence_in_chunks(
+        if not self.library.rwkv_eval_sequence_in_chunks(
             ctx.ptr,
             ctypes.cast((ctypes.c_int32 * len(tokens))(*tokens), P_INT),
             ctypes.c_size_t(len(tokens)),
@@ -277,7 +281,8 @@ class RWKVSharedLibrary:
             ctypes.cast(0 if state_in_address is None else state_in_address, P_FLOAT),
             ctypes.cast(state_out_address, P_FLOAT),
             ctypes.cast(logits_out_address, P_FLOAT)
-        ), 'rwkv_eval_sequence_in_chunks failed, check stderr'
+        ):
+            raise ValueError('rwkv_eval_sequence_in_chunks failed, check stderr')
 
     def rwkv_get_n_vocab(self, ctx: RWKVContext) -> int:
         """
@@ -373,13 +378,15 @@ class RWKVSharedLibrary:
             One of QUANTIZED_FORMAT_NAMES.
         """
 
-        assert format_name in QUANTIZED_FORMAT_NAMES, f'Unknown format name {format_name}, use one of {QUANTIZED_FORMAT_NAMES}'
+        if format_name not in QUANTIZED_FORMAT_NAMES:
+            raise ValueError(f'Unknown format name {format_name}, use one of {QUANTIZED_FORMAT_NAMES}')
 
-        assert self.library.rwkv_quantize_model_file(
+        if not self.library.rwkv_quantize_model_file(
             model_file_path_in.encode('utf-8'),
             model_file_path_out.encode('utf-8'),
             format_name.encode('utf-8')
-        ), 'rwkv_quantize_model_file failed, check stderr'
+        ):
+            raise ValueError('rwkv_quantize_model_file failed, check stderr')
 
     def rwkv_get_system_info_string(self) -> str:
         """
@@ -439,5 +446,5 @@ def load_rwkv_shared_library() -> RWKVSharedLibrary:
             if os.path.isfile(full_path):
                 return RWKVSharedLibrary(str(full_path))
 
-    assert False, (f'Failed to find {file_name} automatically; '
-                   f'you need to find the library and create RWKVSharedLibrary specifying the path to it')
+    raise ValueError(f'Failed to find {file_name} automatically; '
+                     f'you need to find the library and create RWKVSharedLibrary specifying the path to it')

@@ -22,7 +22,7 @@ def get_tokenizer(tokenizer_name: str, n_vocab: int) -> Tuple[
         elif n_vocab == 65536:
             tokenizer_name = 'world'
         else:
-            assert False, f'Can not guess the tokenizer from n_vocab value of {n_vocab}'
+            raise ValueError(f'Can not guess the tokenizer from n_vocab value of {n_vocab}')
 
     parent: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent
 
@@ -35,4 +35,4 @@ def get_tokenizer(tokenizer_name: str, n_vocab: int) -> Tuple[
         tokenizer: tokenizers.Tokenizer = tokenizers.Tokenizer.from_file(str(parent / '20B_tokenizer.json'))
         return tokenizer.decode, lambda x: tokenizer.encode(x).ids
     else:
-        assert False, f'Unknown tokenizer {tokenizer_name}'
+        raise ValueError(f'Unknown tokenizer {tokenizer_name}')

@@ -32,7 +32,8 @@ parser.add_argument('model_path', help='Path to RWKV model in ggml format')
 add_tokenizer_argument(parser)
 args = parser.parse_args()
 
-assert prompt != '', 'Prompt must not be empty'
+if prompt == '':
+    raise ValueError('Prompt must not be empty')
 
 library = rwkv_cpp_shared_library.load_rwkv_shared_library()
 print(f'System info: {library.rwkv_get_system_info_string()}')

@@ -86,7 +86,8 @@ def main() -> None:
 
             print(f'* {key} {shape}')
 
-            assert data_type == 0 or data_type == 1, 'Only FP32 and FP16 models are supported'
+            if not (data_type == 0 or data_type == 1):
+                raise ValueError('Only FP32 and FP16 models are supported')
 
             element_count: int = 1
 
@@ -126,8 +127,9 @@ def main() -> None:
                 if parameter.dtype == torch.float16:
                     replacement = replacement.half()
 
-                assert replacement.shape == parameter.shape, f'Parameter {key} has shape {parameter.shape} in model file ' \
-                                                             f'and shape {replacement.shape} in LoRA file'
+                if replacement.shape != parameter.shape:
+                    raise ValueError(f'Parameter {key} has shape {parameter.shape} in model file ' \
+                                     f'and shape {replacement.shape} in LoRA file')
 
                 parameter = replacement
 
@@ -143,8 +145,9 @@ def main() -> None:
                     lora_A: torch.Tensor = lora_state_dict[lora_A_key]
                     lora_B: torch.Tensor = lora_state_dict[lora_B_key]
 
-                    assert lora_B.shape[1] == lora_A.shape[0], f'Invalid shape of LoRA matrices for {key}: ' \
-                                                               f'{lora_A.shape}, {lora_B.shape}'
+                    if lora_B.shape[1] != lora_A.shape[0]:
+                        raise ValueError(f'Invalid shape of LoRA matrices for {key}: ' \
+                                         f'{lora_A.shape}, {lora_B.shape}')
 
                     lora_R: int = lora_B.shape[1]
 

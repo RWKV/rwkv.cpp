@@ -50,7 +50,8 @@ with open(script_dir / 'prompt' / f'{LANGUAGE}-{PROMPT_TYPE}.json', 'r', encodin
 
     user, bot, separator, init_prompt = prompt_data['user'], prompt_data['bot'], prompt_data['separator'], prompt_data['prompt']
 
-assert init_prompt != '', 'Prompt must not be empty'
+if init_prompt == '':
+    raise ValueError('Prompt must not be empty')
 
 library = rwkv_cpp_shared_library.load_rwkv_shared_library()
 print(f'System info: {library.rwkv_get_system_info_string()}')
