@@ -125,7 +125,7 @@ class RWKVSharedLibrary:
         ptr = self.library.rwkv_init_from_file(model_file_path.encode('utf-8'), ctypes.c_uint32(thread_count))
 
         if ptr is None:
-            rasie ValueError('rwkv_init_from_file failed, check stderr')
+            raise ValueError('rwkv_init_from_file failed, check stderr')
 
         return RWKVContext(ptr)
 

@@ -360,7 +360,7 @@ class RWKVModel:
             if tensor.dtype != torch.float32:
                 raise ValueError(f'{name} is not of type float32')
             if tensor.shape != (size,):
-                rase ValueError(f'{name} has invalid shape {tensor.shape}, expected ({size})')
+                raise ValueError(f'{name} has invalid shape {tensor.shape}, expected ({size})')
             if not tensor.is_contiguous():
                 raise ValueError(f'{name} is not contiguous')
         else:
