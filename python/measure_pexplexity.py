@@ -40,14 +40,16 @@ print(f'{token_count} tokens in the text')
 
 token_limit: int = args.token_limit
 
-assert token_limit == -1 or token_limit > 0, 'Invalid token_limit'
+if not (token_limit == -1 or token_limit > 0):
+    raise ValueError('Invalid token_limit')
 
 if token_limit != -1 and token_count > token_limit:
     tokens = tokens[0:token_limit]
     token_count = token_limit
     print(f'Text was limited to {token_limit} tokens')
 
-assert token_count - args.ignore_first_n_tokens > 1, 'Need at least 2 tokens for evaluation'
+if not (token_count - args.ignore_first_n_tokens > 1):
+    raise ValueError('Need at least 2 tokens for evaluation')
 
 # ---
 

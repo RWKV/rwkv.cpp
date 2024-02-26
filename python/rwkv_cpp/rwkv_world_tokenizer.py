@@ -46,7 +46,8 @@ class Trie:
 
             ch = key[idx]
 
-        assert ret is not None, 'Entry not found'
+        if ret is None:
+            raise ValueError('Entry not found')
 
         return ret
 

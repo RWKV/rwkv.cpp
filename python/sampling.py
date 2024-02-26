@@ -16,8 +16,10 @@ def sample_logits(out, temperature: float = 1.0, top_p: float = 0.8, logit_bias:
     return sample_probs(probs, temperature, top_p, logit_bias)
 
 def sample_probs(probs: np.ndarray, temperature: float = 1.0, top_p: float = 0.8, logit_bias: Dict[int, float] = None) -> int:
-    assert 0.0 <= temperature, 'temperature'
-    assert 0.0 <= top_p <= 1.0, 'top_p'
+    if not (0.0 <= temperature):
+        raise ValueError('temperature')
+    if not (0.0 <= top_p <= 1.0):
+        raise ValueError('top_p')
 
     if top_p == 0.0:
         top_p = 1.0
