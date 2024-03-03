@@ -452,3 +452,17 @@ if (NOT RWKV_STANDALONE)
 elseif()
     set_property(TARGET ggml PROPERTY GGML_STANDALONE ON)
 endif()
+
+if (RWKV_BUILD_SHARED_LIBRARY)
+    install(TARGETS rwkv LIBRARY)
+endif()
+
+if (RWKV_STATIC)
+    install(TARGETS rwkv ARCHIVE)
+endif()
+
+if (RWKV_BUILD_SHARED_LIBRARY OR RWKV_STATIC)
+    configure_file(rwkv.pc.in rwkv.pc @ONLY)
+    install(FILES rwkv.pc DESTINATION lib/pkgconfig)
+    install(FILES ${CMAKE_SOURCE_DIR}/rwkv.h DESTINATION include)
+endif()
