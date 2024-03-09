@@ -64,6 +64,20 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 
     ctx->n_threads = n_threads;
 
+#ifdef GGML_USE_METAL
+    ctx->ggml_metal_ctx = ggml_metal_init(1);
+
+    void * data_ptr  = ggml_get_mem_buffer(ctx->model->ggml_ctx);
+    size_t data_size = ggml_get_mem_size(ctx->model->ggml_ctx);
+    
+    const size_t max_size = ggml_get_max_tensor_size(ctx->model->ggml_ctx);
+
+    ggml_metal_add_buffer(ctx->ggml_metal_ctx, "weight_data",  data_ptr, data_size, max_size);
+
+    ctx->serial_graph.ggml_metal_ctx = ctx->ggml_metal_ctx;
+    ctx->sequential_graph.ggml_metal_ctx = ctx->ggml_metal_ctx;
+#endif
+
     RWKV_ENSURE_OR_NULL(rwkv_measure_and_build_serial_context(*ctx->model, ctx->serial_graph));
 
     return ctx.release();
@@ -78,6 +92,13 @@ struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32
     clone->model->reference_count++;
 
     clone->n_threads = n_threads;
+
+#ifdef GGML_USE_METAL
+    clone->ggml_metal_ctx = ctx->ggml_metal_ctx;
+    
+    clone->serial_graph.ggml_metal_ctx = clone->ggml_metal_ctx;
+    clone->sequential_graph.ggml_metal_ctx = clone->ggml_metal_ctx;
+#endif
 
     RWKV_ENSURE_OR_NULL(rwkv_measure_and_build_serial_context(*clone->model, clone->serial_graph));
 
@@ -152,6 +173,12 @@ void rwkv_free(struct rwkv_context * ctx) {
     if (ctx->last_used_sequence_length > 0) {
         ggml_free(ctx->sequential_graph.ggml_ctx);
     }
+
+#ifdef GGML_USE_METAL
+    if (ctx->ggml_metal_ctx) {
+        ggml_metal_free(ctx->ggml_metal_ctx);
+    }
+#endif
 
     std::unique_ptr<struct rwkv_context> rwkv_ctx(ctx);
 }

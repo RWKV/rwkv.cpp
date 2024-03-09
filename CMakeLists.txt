@@ -42,6 +42,7 @@ option(RWKV_OPENBLAS               "rwkv: use OpenBLAS"                         
 option(RWKV_CUBLAS                 "rwkv: use cuBLAS"                                     OFF)
 option(RWKV_CLBLAST                "rwkv: use CLBlast"                                    OFF)
 option(RWKV_HIPBLAS                "rwkv: use hipBLAS"                                    OFF)
+option(RWKV_METAL                  "rwkv: use Metal"                                      ON)
 
 # Build only shared library without building tests and extras
 option(RWKV_STANDALONE             "rwkv: build only RWKV library"                        OFF)
@@ -80,9 +81,31 @@ if (APPLE AND RWKV_ACCELERATE)
         message(STATUS "Accelerate framework found")
 
         add_compile_definitions(GGML_USE_ACCELERATE)
+        add_compile_definitions(ACCELERATE_NEW_LAPACK)
+        add_compile_definitions(ACCELERATE_LAPACK_ILP64)
         set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} ${ACCELERATE_FRAMEWORK})
     else()
         message(WARNING "Accelerate framework not found")
+    endif()
+endif()
+
+if (APPLE AND RWKV_METAL)
+    find_library(FOUNDATION_LIBRARY Foundation)
+    find_library(METAL_FRAMEWORK Metal)
+    find_library(METALKIT_FRAMEWORK MetalKit)
+
+    if (METAL_FRAMEWORK AND METALKIT_FRAMEWORK)
+        message(STATUS "Metal framework found")
+
+        set(GGML_METAL_SOURCES ${CMAKE_SOURCE_DIR}/ggml/src/ggml-metal.h ${CMAKE_SOURCE_DIR}/ggml/src/ggml-metal.m)
+
+        add_compile_definitions(GGML_USE_METAL)
+        
+        configure_file(${CMAKE_SOURCE_DIR}/ggml/src/ggml-metal.metal bin/ggml-metal.metal COPYONLY)
+
+        set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} ${FOUNDATION_LIBRARY} ${METAL_FRAMEWORK} ${METALKIT_FRAMEWORK})
+    else()
+        message(WARNING "Metal not found")
     endif()
 endif()
 
@@ -409,6 +432,7 @@ add_library(ggml OBJECT
             ${CMAKE_SOURCE_DIR}/ggml/src/ggml-alloc.c
             ${CMAKE_SOURCE_DIR}/ggml/include/ggml/ggml.h
             ${CMAKE_SOURCE_DIR}/ggml/include/ggml/ggml-alloc.h
+            ${GGML_METAL_SOURCES}
             ${GGML_CUDA_SOURCES}
             ${GGML_OPENCL_SOURCES})
 

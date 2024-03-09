@@ -33,6 +33,10 @@ struct rwkv_computation_graph {
     // ggml graph counters after the graph was extended with logits tensor.
     int post_logits_nodes;
     int post_logits_leafs;
+
+#ifdef GGML_USE_METAL
+    struct ggml_metal_context * ggml_metal_ctx;
+#endif
 };
 
 // The context holds the model and both serial and sequential computation graphs.
@@ -50,6 +54,10 @@ struct rwkv_context {
 
     enum rwkv_error_flags last_error;
     bool print_errors;
+
+#ifdef GGML_USE_METAL
+    struct ggml_metal_context * ggml_metal_ctx;
+#endif
 };
 
 static void rwkv_carry_x(
@@ -517,6 +525,13 @@ static bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, str
     // 2. Create the real ggml context.
     graph.ggml_ctx = rwkv_init_ggml_context(required_context_size, false);
 
+#ifdef GGML_USE_METAL
+    void * data_ptr  = ggml_get_mem_buffer(graph.ggml_ctx);
+    size_t data_size = ggml_get_mem_size(graph.ggml_ctx);
+    
+    ggml_metal_add_buffer(graph.ggml_metal_ctx, "serial_computer_buffer",  data_ptr, data_size, 0);
+#endif
+
     RWKV_ENSURE_OR_FALSE(rwkv_build_serial_graph(model, graph));
 
     return true;
@@ -657,6 +672,13 @@ static bool rwkv_measure_and_build_sequential_context(struct rwkv_model & model,
 
     // 2. Create the real ggml context.
     graph.ggml_ctx = rwkv_init_ggml_context(required_context_size, false);
+
+#ifdef GGML_USE_METAL
+    void * data_ptr  = ggml_get_mem_buffer(graph.ggml_ctx);
+    size_t data_size = ggml_get_mem_size(graph.ggml_ctx);
+    
+    ggml_metal_add_buffer(graph.ggml_metal_ctx, "sequential_computer_buffer",  data_ptr, data_size, 0);
+#endif
 
     RWKV_ENSURE_OR_FALSE(rwkv_build_sequential_graph(model, graph, sequence_length));
 
