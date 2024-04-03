@@ -1,5 +1,4 @@
 #include "ggml.h"
-
 // View tensors of a state of a single layer.
 struct rwkv_layer_state {
     struct ggml_tensor * ffn_xx;
@@ -194,7 +193,21 @@ static struct ggml_tensor * rwkv_att_v5(
 
     struct ggml_tensor * x_prev;
 
-    rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x, x_prev, state.att_xx);
+    //rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x, x_prev, state.att_xx);
+
+    x = rwkv_layer_norm(ctx, x, layer.ln1_weight, layer.ln1_bias);
+
+    if (sequence_length > 1) {
+        x_prev = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, n_embed, sequence_length);
+        x_prev = ggml_set_1d_inplace(ctx, x_prev, state.att_xx, 0);
+        x_prev = ggml_set_1d_inplace(
+            ctx,
+            x_prev,
+            ggml_view_1d(ctx, x, n_embed * (sequence_length - 1), 0), n_embed * sizeof(float)
+        );
+    } else {
+        x_prev = state.att_xx;
+    }
 
     struct ggml_tensor * xk = ggml_add_inplace(
         ctx,
@@ -310,6 +323,13 @@ static struct ggml_tensor * rwkv_att_v5(
     return ggml_mul_mat(ctx, layer.att_output, x);
 }
 
+static inline bool ggml_can_mul_mat(const struct ggml_tensor * t0, const struct ggml_tensor * t1) {
+    static_assert(GGML_MAX_DIMS == 4, "GGML_MAX_DIMS is not 4 - update this function");
+
+    return (t0->ne[0]           == t1->ne[0])  &&
+           (t1->ne[2]%t0->ne[2] == 0)          && // verify t0 is broadcastable
+           (t1->ne[3]%t0->ne[3] == 0);
+}
 static struct ggml_tensor * rwkv_att_v6(
     struct ggml_context * ctx,
     struct ggml_tensor * x,
@@ -327,33 +347,40 @@ static struct ggml_tensor * rwkv_att_v6(
     rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x, x_prev, state.att_xx);
 
     x_prev = ggml_sub_inplace(ctx, x_prev, x);
-    
+
+    // xxx = x + sx * x_maa
     struct ggml_tensor * xxx = ggml_add_inplace(
-        ctx, 
-        ggml_mul(ctx, x_prev, layer.time_maa_x),
-        x
+            ctx, 
+            ggml_mul(ctx, x_prev, layer.att_time_maa_x),
+            x
     );
 
-    xxx = ggml_reshape_4d(
+    // xxx = torch.tanh(xxx @ tm_w1).view(T, 5, 1, -1).permute(1,0,2,3)
+    xxx = ggml_permute(
         ctx,
-        ggml_tanh(
+        ggml_reshape_4d(
             ctx,
-            ggml_mul_mat(ctx,xxx,layer.time_maa_w1)
+            ggml_tanh(
+                ctx,
+                ggml_mul_mat(ctx, xxx, layer.att_time_maa_w1)
+            ),
+            sequence_length, 5, 1, layer.att_time_maa_w2->ne[1]
         ),
-        5, -1, 1, sequence_length
+        1, 0, 2, 3
     );
 
+    // xxx = torch.bmm(xxx, tm_w2).view(5, T, -1)
     xxx = ggml_reshape_3d(
         ctx,
-        ggml_mul_inplace(ctx, xxx, layer.time_maa_w2),
-        5, -1, sequence_length
+        ggml_mul_mat(ctx, xxx, layer.att_time_maa_w2),
+        sequence_length, 5, n_embed
     );
 
     struct ggml_tensor * xw = ggml_add_inplace(
         ctx,
         ggml_mul_inplace(
             ctx,
-            ggml_add_inplace(ctx, xxx->src[0], layer.time_maa_w),
+            ggml_add_inplace(ctx, xxx->src[0], layer.att_time_maa_w),
             x_prev
         ),
         x
@@ -363,7 +390,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ctx,
         ggml_mul_inplace(
             ctx,
-            ggml_add_inplace(ctx, xxx->src[1], layer.time_maa_k),
+            ggml_add_inplace(ctx, xxx->src[1], layer.att_time_maa_k),
             x_prev
         ),
         x
@@ -373,7 +400,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ctx,
         ggml_mul_inplace(
             ctx,
-            ggml_add_inplace(ctx, xxx->src[2], layer.time_maa_v),
+            ggml_add_inplace(ctx, xxx->src[2], layer.att_time_maa_v),
             x_prev
         ),
         x
@@ -383,7 +410,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ctx,
         ggml_mul_inplace(
             ctx,
-            ggml_add_inplace(ctx, xxx->src[3], layer.time_maa_r),
+            ggml_add_inplace(ctx, xxx->src[3], layer.att_time_maa_r),
             x_prev
         ),
         x
@@ -393,7 +420,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ctx,
         ggml_mul_inplace(
             ctx,
-            ggml_add_inplace(ctx, xxx->src[4], layer.time_maa_g),
+            ggml_add_inplace(ctx, xxx->src[4], layer.att_time_maa_g),
             x_prev
         ),
         x
@@ -407,9 +434,9 @@ static struct ggml_tensor * rwkv_att_v6(
                 ctx,
                 ggml_tanh_inplace(
                     ctx,
-                    ggml_mul_mat(ctx, xw, layer.time_decay_w1)
+                    ggml_mul_mat(ctx, xw, layer.att_time_decay_w1)
                 ),
-                layer.time_decay_w2
+                layer.att_time_decay_w2
             ),
             layer.att_time_decay
         ),
@@ -427,7 +454,6 @@ static struct ggml_tensor * rwkv_att_v6(
     struct ggml_tensor * r = ggml_reshape_4d(ctx, ggml_mul_mat(ctx, layer.att_receptance, xr), head_size, 1,         head_count, sequence_length);
     struct ggml_tensor * k = ggml_reshape_4d(ctx, ggml_mul_mat(ctx, layer.att_key,        xk), 1,         head_size, head_count, sequence_length);
     struct ggml_tensor * v = ggml_reshape_4d(ctx, ggml_mul_mat(ctx, layer.att_value,      xv), head_size, 1,         head_count, sequence_length);
-
     struct ggml_tensor * g = ggml_silu_inplace(
         ctx,
         ggml_mul_mat(ctx, layer.att_gate, xg)
@@ -543,7 +569,6 @@ static void rwkv_create_input_and_output_views(
     const int64_t head_size
 ) {
     size_t sz_float = sizeof(float);
-
     for (size_t i = 0; i < n_layer; i++) {
         struct rwkv_layer_state & input_state = inputs[i];
         struct rwkv_layer_state & output_state = outputs[i];
@@ -582,7 +607,6 @@ static void rwkv_create_input_and_output_views(
 // Creates and sets the input and output ggml tensors, builds the computation graph.
 static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_computation_graph & graph) {
     graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
-
     struct rwkv_file_header & header = model.header;
     const size_t n_vocab = header.n_vocab;
     const size_t n_embed = header.n_embed;
