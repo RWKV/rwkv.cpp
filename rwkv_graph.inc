@@ -334,8 +334,6 @@ static struct ggml_tensor * rwkv_att_v6(
         x
     );
 
-    // WKVRG!!!
-
     xxx = ggml_reshape_4d(
         ctx,
         ggml_tanh(
@@ -344,6 +342,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ),
         5, -1, 1, sequence_length
     );
+
     xxx = ggml_reshape_3d(
         ctx,
         ggml_mul_inplace(ctx, xxx, layer.att_tm_w2),
@@ -353,9 +352,9 @@ static struct ggml_tensor * rwkv_att_v6(
     struct ggml_tensor * xw = ggml_add_inplace(
         ctx,
         ggml_mul_inplace(
-            ctx
-            ggml_add_inplace(ctx, mw, layer.att_w_maa),
-            x_prev,
+            ctx,
+            ggml_add_inplace(ctx, xxx->src[0], layer.att_w_maa),
+            x_prev
         ),
         x
     );
@@ -363,9 +362,9 @@ static struct ggml_tensor * rwkv_att_v6(
     struct ggml_tensor * xk = ggml_add_inplace(
         ctx,
         ggml_mul_inplace(
-            ctx
-            ggml_add_inplace(ctx, mk, layer.att_k_maa),
-            x_prev,
+            ctx,
+            ggml_add_inplace(ctx, xxx->src[1], layer.att_k_maa),
+            x_prev
         ),
         x
     );
@@ -373,9 +372,9 @@ static struct ggml_tensor * rwkv_att_v6(
     struct ggml_tensor * xv = ggml_add_inplace(
         ctx,
         ggml_mul_inplace(
-            ctx
-            ggml_add_inplace(ctx, mv, layer.att_v_maa),
-            x_prev,
+            ctx,
+            ggml_add_inplace(ctx, xxx->src[2], layer.att_v_maa),
+            x_prev
         ),
         x
     );
@@ -383,9 +382,9 @@ static struct ggml_tensor * rwkv_att_v6(
     struct ggml_tensor * xr = ggml_add_inplace(
         ctx,
         ggml_mul_inplace(
-            ctx
-            ggml_add_inplace(ctx, mr, layer.att_r_maa),
-            x_prev,
+            ctx,
+            ggml_add_inplace(ctx, xxx->src[3], layer.att_r_maa),
+            x_prev
         ),
         x
     );
@@ -393,9 +392,9 @@ static struct ggml_tensor * rwkv_att_v6(
     struct ggml_tensor * xg = ggml_add_inplace(
         ctx,
         ggml_mul_inplace(
-            ctx
-            ggml_add_inplace(ctx, mg, layer.att_g_maa),
-            x_prev,
+            ctx,
+            ggml_add_inplace(ctx, xxx->src[4], layer.att_g_maa),
+            x_prev
         ),
         x
     );
@@ -624,8 +623,8 @@ static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_compu
 
         struct rwkv_layer_state state = inputs[i];
 
-        x = model.arch_version_major >= 5 ?
-            ggml_add_inplace(ctx, x, rwkv_att_v5(
+        if (model.arch_version_major == 6) {
+            x = ggml_add_inplace(ctx, x, rwkv_att_v6(
                 ctx,
                 x,
                 layer,
@@ -633,10 +632,29 @@ static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_compu
                 model.head_count,
                 model.head_size,
                 model.arch_version_minor
-            )) :
-            ggml_add_inplace(ctx, x, rwkv_att(ctx, x, layer, state));
+            ));
 
-        x = ggml_add_inplace(ctx, x, rwkv_ffn(ctx, x, layer, state));
+            x = ggml_add_inplace(ctx, x, rwkv_ffn_v6(ctx, x, layer, state));
+
+        } else if (model.arch_version_major == 5) {
+            x = ggml_add_inplace(ctx, x, rwkv_att_v5(
+                ctx,
+                x,
+                layer,
+                state,
+                model.head_count,
+                model.head_size,
+                model.arch_version_minor
+            ));
+
+            x = ggml_add_inplace(ctx, x, rwkv_ffn(ctx, x, layer, state));
+
+        } else {
+            x = ggml_add_inplace(ctx, x, rwkv_att(ctx, x, layer, state));
+
+            x = ggml_add_inplace(ctx, x, rwkv_ffn(ctx, x, layer, state));
+            
+        }
 
         struct rwkv_layer_state & output_state = outputs[i];
 

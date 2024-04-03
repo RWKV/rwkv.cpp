@@ -6,6 +6,7 @@ struct rwkv_layer {
     struct ggml_tensor * att_time_mix_k;
     struct ggml_tensor * att_time_mix_v;
     struct ggml_tensor * att_time_mix_r;
+
     // Removed in RWKV v5.2; set to NULL for this and newer models.
     struct ggml_tensor * att_time_first;
     struct ggml_tensor * att_time_decay;
@@ -22,16 +23,34 @@ struct rwkv_layer {
     struct ggml_tensor * att_time_faaaa;
     struct ggml_tensor * att_time_mix_g;
     struct ggml_tensor * att_gate;
+    
+    // Added in RWKV v6;
+    struct ggml_tensor * att_x_maa;
+    struct ggml_tensor * att_w_maa;
+    struct ggml_tensor * att_k_maa;
+    struct ggml_tensor * att_v_maa;
+    struct ggml_tensor * att_r_maa;
+    struct ggml_tensor * att_g_maa;
+    struct ggml_tensor * att_tm_w1;
+    struct ggml_tensor * att_tm_w2;
+    struct ggml_tensor * att_td_w1;
+    struct ggml_tensor * att_td_w2;
 
     struct ggml_tensor * ln2_weight;
     struct ggml_tensor * ln2_bias;
 
     // FFN.
+    // v4 v5.x
     struct ggml_tensor * ffn_time_mix_k;
     struct ggml_tensor * ffn_time_mix_r;
+    // v6
+    struct ggml_tensor * ffn_time_maa_k;
+    struct ggml_tensor * ffn_time_maa_r;
+
     struct ggml_tensor * ffn_key;
     struct ggml_tensor * ffn_value;
     struct ggml_tensor * ffn_receptance;
+
 };
 
 // The model holds all parameter tensors and the ggml context containing them.
