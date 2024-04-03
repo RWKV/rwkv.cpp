@@ -330,7 +330,7 @@ static struct ggml_tensor * rwkv_att_v6(
     
     struct ggml_tensor * xxx = ggml_add_inplace(
         ctx, 
-        ggml_mul(ctx, x_prev, layer.att_x_maa),
+        ggml_mul(ctx, x_prev, layer.time_maa_x),
         x
     );
 
@@ -338,14 +338,14 @@ static struct ggml_tensor * rwkv_att_v6(
         ctx,
         ggml_tanh(
             ctx,
-            ggml_mul_mat(ctx,xxx,layer.att_tm_w1)
+            ggml_mul_mat(ctx,xxx,layer.time_maa_w1)
         ),
         5, -1, 1, sequence_length
     );
 
     xxx = ggml_reshape_3d(
         ctx,
-        ggml_mul_inplace(ctx, xxx, layer.att_tm_w2),
+        ggml_mul_inplace(ctx, xxx, layer.time_maa_w2),
         5, -1, sequence_length
     );
 
@@ -353,7 +353,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ctx,
         ggml_mul_inplace(
             ctx,
-            ggml_add_inplace(ctx, xxx->src[0], layer.att_w_maa),
+            ggml_add_inplace(ctx, xxx->src[0], layer.time_maa_w),
             x_prev
         ),
         x
@@ -363,7 +363,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ctx,
         ggml_mul_inplace(
             ctx,
-            ggml_add_inplace(ctx, xxx->src[1], layer.att_k_maa),
+            ggml_add_inplace(ctx, xxx->src[1], layer.time_maa_k),
             x_prev
         ),
         x
@@ -373,7 +373,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ctx,
         ggml_mul_inplace(
             ctx,
-            ggml_add_inplace(ctx, xxx->src[2], layer.att_v_maa),
+            ggml_add_inplace(ctx, xxx->src[2], layer.time_maa_v),
             x_prev
         ),
         x
@@ -383,7 +383,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ctx,
         ggml_mul_inplace(
             ctx,
-            ggml_add_inplace(ctx, xxx->src[3], layer.att_r_maa),
+            ggml_add_inplace(ctx, xxx->src[3], layer.time_maa_r),
             x_prev
         ),
         x
@@ -393,7 +393,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ctx,
         ggml_mul_inplace(
             ctx,
-            ggml_add_inplace(ctx, xxx->src[4], layer.att_g_maa),
+            ggml_add_inplace(ctx, xxx->src[4], layer.time_maa_g),
             x_prev
         ),
         x
@@ -407,9 +407,9 @@ static struct ggml_tensor * rwkv_att_v6(
                 ctx,
                 ggml_tanh_inplace(
                     ctx,
-                    ggml_mul_mat(ctx, xw, layer.att_td_w1)
+                    ggml_mul_mat(ctx, xw, layer.time_decay_w1)
                 ),
-                layer.att_td_w2
+                layer.time_decay_w2
             ),
             layer.att_time_decay
         ),

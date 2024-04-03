@@ -25,16 +25,16 @@ struct rwkv_layer {
     struct ggml_tensor * att_gate;
     
     // Added in RWKV v6;
-    struct ggml_tensor * att_x_maa;
-    struct ggml_tensor * att_w_maa;
-    struct ggml_tensor * att_k_maa;
-    struct ggml_tensor * att_v_maa;
-    struct ggml_tensor * att_r_maa;
-    struct ggml_tensor * att_g_maa;
-    struct ggml_tensor * att_tm_w1;
-    struct ggml_tensor * att_tm_w2;
-    struct ggml_tensor * att_td_w1;
-    struct ggml_tensor * att_td_w2;
+    struct ggml_tensor * time_maa_x;
+    struct ggml_tensor * time_maa_w;
+    struct ggml_tensor * time_maa_k;
+    struct ggml_tensor * time_maa_v;
+    struct ggml_tensor * time_maa_r;
+    struct ggml_tensor * time_maa_g;
+    struct ggml_tensor * time_maa_w1;
+    struct ggml_tensor * time_maa_w2;
+    struct ggml_tensor * time_decay_w1;
+    struct ggml_tensor * time_decay_w2;
 
     struct ggml_tensor * ln2_weight;
     struct ggml_tensor * ln2_bias;
@@ -120,9 +120,22 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback) {
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln1.weight"), buffer), layer.ln1_weight));
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln1.bias"), buffer), layer.ln1_bias));
 
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_k"), buffer), layer.att_time_mix_k));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_v"), buffer), layer.att_time_mix_v));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_r"), buffer), layer.att_time_mix_r));
+        if (model.arch_version_major == 6){
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_x"), buffer), layer.att_x_maa));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_w"), buffer), layer.att_w_maa));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_k"), buffer), layer.att_k_maa));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_v"), buffer), layer.att_v_maa));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_r"), buffer), layer.att_r_maa));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_g"), buffer), layer.att_g_maa));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_w1"), buffer), layer.time_maa_w1));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_w2"), buffer), layer.time_maa_w2));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay_w1"), buffer), layer.time_decay_w1));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay_w2"), buffer), layer.time_decay_w2));
+        } else {
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_k"), buffer), layer.att_time_mix_k));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_v"), buffer), layer.att_time_mix_v));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_r"), buffer), layer.att_time_mix_r));
+        }
 
         if (model.arch_version_major >= 5 && model.arch_version_minor >= 2) {
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_faaaa"), buffer), layer.att_time_faaaa));
@@ -140,7 +153,7 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback) {
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.weight"), buffer), layer.att_ln_x_weight));
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.bias"), buffer), layer.att_ln_x_bias));
 
-            if (model.arch_version_minor >= 2) {
+            if (model.arch_version_minor >= 2 || model.arch_version_major == 6) {
                 RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_g"), buffer), layer.att_time_mix_g));
                 RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.gate.weight"), buffer), layer.att_gate));
             }
@@ -149,11 +162,14 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback) {
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.weight"), buffer), layer.ln2_weight));
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.bias"), buffer), layer.ln2_bias));
 
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_mix_k"), buffer), layer.ffn_time_mix_k));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_mix_r"), buffer), layer.ffn_time_mix_r));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.key.weight"), buffer), layer.ffn_key));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.value.weight"), buffer), layer.ffn_value));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.receptance.weight"), buffer), layer.ffn_receptance));
+        if (model.arch_version_major == 6) {
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_maa_k"), buffer), layer.ffn_time_maa_k));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_maa_r"), buffer), layer.ffn_time_maa_r));
+        } else {
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.key.weight"), buffer), layer.ffn_key));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.value.weight"), buffer), layer.ffn_value));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.receptance.weight"), buffer), layer.ffn_receptance));
+        }
     }
 
     RWKV_ENSURE_OR_FALSE(callback("ln_out.weight", model.ln_out_weight));
