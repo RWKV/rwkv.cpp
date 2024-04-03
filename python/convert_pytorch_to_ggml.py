@@ -34,7 +34,7 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
 
     is_v5_1_or_2: bool = 'blocks.0.att.ln_x.weight' in state_dict
     is_v5_2: bool = 'blocks.0.att.gate.weight' in state_dict
-    is_v6_0: bool = 'blocks.0.att.time_maa' in state_dict
+    is_v6_0: bool = 'blocks.0.att.time_maa_x' in state_dict
 
     if is_v6_0:
         print('Detected RWKV v6.0')
@@ -67,9 +67,6 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
                 tensor = tensor.squeeze()
 
             if is_v6_0:
-                if '.time_first' in k:
-                    tensor = torch.exp(tensor).reshape(-1, 1, 1)
-
                 if '.time_faaaa' in k:
                     tensor = tensor.unsqueeze(-1)
                     

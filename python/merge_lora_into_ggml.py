@@ -109,9 +109,6 @@ def main() -> None:
                     replacement = replacement.squeeze()
 
                 if arch_version == 'v6.0':
-                    if '.time_first' in key:
-                        replacement = torch.exp(replacement).reshape(-1, 1, 1)
-
                     if '.time_faaaa' in key:
                         replacement = replacement.unsqueeze(-1)
                 if arch_version == 'v5.1' or arch_version == 'v5.2':

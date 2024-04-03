@@ -653,7 +653,7 @@ static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_compu
             x = ggml_add_inplace(ctx, x, rwkv_att(ctx, x, layer, state));
 
             x = ggml_add_inplace(ctx, x, rwkv_ffn(ctx, x, layer, state));
-            
+
         }
 
         struct rwkv_layer_state & output_state = outputs[i];
@@ -767,7 +767,17 @@ static bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_c
 
         struct rwkv_layer_state state = inputs[i];
 
-        if (model.arch_version_major >= 5) {
+        if (model.arch_version_major == 6) {
+            x = ggml_add_inplace(ctx, x, rwkv_att_v6(
+                ctx,
+                x,
+                layer,
+                state,
+                model.head_count,
+                model.head_size,
+                model.arch_version_minor
+            ));
+        } else if (model.arch_version_major == 5) {
             x = ggml_add_inplace(ctx, x, rwkv_att_v5(
                 ctx,
                 x,
