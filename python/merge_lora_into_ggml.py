@@ -13,7 +13,7 @@ from typing import List, Dict, Tuple
 def parse_args():
     parser = argparse.ArgumentParser(description='Merge a PyTorch LoRA checkpoint (.pth) into an rwkv.cpp model file')
     parser.add_argument('src_path', help='Path to source rwkv.cpp model')
-    parser.add_argument('rwkv_arch_version', help='Version of RWKV architecture: v4, v5.1, v5.2', type=str, choices=['v4', 'v5.1', 'v5.2'])
+    parser.add_argument('rwkv_arch_version', help='Version of RWKV architecture: v4, v5.1, v5.2, v6.0', type=str, choices=['v4', 'v5.1', 'v5.2', 'v6.0'])
     parser.add_argument('lora_path', help='Path to LoRA checkpoint in PyTorch format')
     parser.add_argument('lora_alpha', help='Value of lora_alpha parameter used when training this LoRA checkpoint', type=int)
     parser.add_argument('dest_path', help='Path to destination rwkv.cpp model, will be overwitten with the merged model')
@@ -47,7 +47,7 @@ def main() -> None:
 
     arch_version: str = args.rwkv_arch_version
 
-    if not (arch_version == 'v4' or arch_version == 'v5.1' or arch_version == 'v5.2'):
+    if not (arch_version == 'v4' or arch_version == 'v5.1' or arch_version == 'v5.2' or arch_version == 'v6.0'):
         raise ValueError(f'Invalid RWKV architecture version {arch_version}')
 
     print(f'Reading {args.lora_path}')
@@ -108,6 +108,12 @@ def main() -> None:
                 if '.time_' in key:
                     replacement = replacement.squeeze()
 
+                if arch_version == 'v6.0':
+                    if '.time_first' in key:
+                        replacement = torch.exp(replacement).reshape(-1, 1, 1)
+
+                    if '.time_faaaa' in key:
+                        replacement = replacement.unsqueeze(-1)
                 if arch_version == 'v5.1' or arch_version == 'v5.2':
                     if '.time_decay' in key:
                         if arch_version == 'v5.2':
