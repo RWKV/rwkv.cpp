@@ -64,18 +64,15 @@ static void rwkv_carry_x(
     const size_t n_embed = x->ne[0];
     const size_t sequence_len = x->ne[1];
 
+    // self.layer_norm(x, self.w.blocks[i].ln2)
+    x = rwkv_layer_norm(ctx, x, weight, bias);
     if (sequence_len == 1) {
-        // self.layer_norm(x, self.w.blocks[i].ln2)
-        x = rwkv_layer_norm(ctx, x, weight, bias);
-
         // xx = state[5*i+0]
         x_prev = carry;
 
         // state[5*i+0] = x
         carry = x;
     } else {
-        // self.layer_norm(x, self.w.blocks[i].ln2)
-        x = rwkv_layer_norm(ctx, x, weight, bias);
 
         // xx = torch.cat((state[5*i+0].to(dtype=self.FLOAT_MODE).unsqueeze(0), x[:-1,:]))
         x_prev = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, n_embed, sequence_len);
@@ -192,8 +189,6 @@ static struct ggml_tensor * rwkv_att_v5(
     size_t sequence_length = x->ne[1];
 
     struct ggml_tensor * x_prev;
-
-    //rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x, x_prev, state.att_xx);
 
     x = rwkv_layer_norm(ctx, x, layer.ln1_weight, layer.ln1_bias);
 
