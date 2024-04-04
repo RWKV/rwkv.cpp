@@ -361,20 +361,15 @@ static struct ggml_tensor * rwkv_att_v6(
         sequence_length, 5, layer.att_time_maa_w2->ne[0], 1
     );
 
-    xxx = ggml_permute(
-        ctx,
-        xxx,
-        3, 2, 0, 1
-    );
+    xxx = ggml_cont_inplace(ctx, ggml_permute(ctx, xxx, 3, 2, 0, 1)); // !!!!!
 
     // xxx = torch.bmm(xxx, tm_w2).view(5, T, -1)
     // xxx (32, 1, 5, T) @ att_time_maa_w2 (32, 2048, 5) -> (1, 2048, 5, T) -> (5, 2048, T, 1) -> xxx (5, 2048, T)
+    xxx = ggml_permute(ctx, ggml_mul_mat(ctx, xxx, layer.att_time_maa_w2), 3, 1, 0, 2); // !!!!!
+    xxx = ggml_cont_inplace(ctx, xxx); // !!!!!!
     xxx = ggml_reshape_3d(
         ctx,
-        ggml_cont(
-            ctx,
-            ggml_permute(ctx,ggml_mul_mat(ctx, xxx, layer.att_time_maa_w2), 3, 1, 0, 2)
-        ),
+        xxx,
         5, layer.att_time_maa_w2->ne[1], sequence_length
     );
 
