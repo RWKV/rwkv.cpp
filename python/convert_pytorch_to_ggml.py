@@ -69,6 +69,14 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
             if is_v6_0:
                 if '.time_faaaa' in k:
                     tensor = tensor.unsqueeze(-1)
+                if '.time_maa_w1' in k or '.time_decay_w' in k:
+                    tensor = tensor.transpose(0,1)
+                    tensor.contiguous()
+
+                if '.time_maa_w2' in k:
+                    # (5, 32, 2048) -> (32, 2048, 5)
+                    tensor = tensor.permute(0,2,1)
+                    tensor.contiguous()
                     
             elif is_v5_1_or_2:
                 if '.time_decay' in k:
