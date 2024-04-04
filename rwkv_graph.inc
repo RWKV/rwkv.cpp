@@ -1,5 +1,3 @@
-#include "ggml.h"
-#include <stdio.h>
 // View tensors of a state of a single layer.
 struct rwkv_layer_state {
     struct ggml_tensor * ffn_xx;
@@ -304,26 +302,6 @@ static struct ggml_tensor * rwkv_att_v5(
 
     return ggml_mul_mat(ctx, layer.att_output, x);
 }
-
-static inline bool ggml_can_mul_mat(const struct ggml_tensor * t0, const struct ggml_tensor * t1) {
-    static_assert(GGML_MAX_DIMS == 4, "GGML_MAX_DIMS is not 4 - update this function");
-
-    return (t0->ne[0]           == t1->ne[0])  &&
-           (t1->ne[2]%t0->ne[2] == 0)          && // verify t0 is broadcastable
-           (t1->ne[3]%t0->ne[3] == 0);
-}
-
-
-static inline void print_shape(const char * echo,const struct ggml_tensor * t){
-    printf(echo);
-    printf(" (%ld, %ld, %ld, %ld)\n", t->ne[0], t->ne[1], t->ne[2], t->ne[3]);
-}
-
-static inline void pppp(const char * echo){
-    printf(echo);
-    printf("\n");
-}
-
 
 static struct ggml_tensor * rwkv_att_v6(
     struct ggml_context * ctx,
