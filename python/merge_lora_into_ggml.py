@@ -110,7 +110,16 @@ def main() -> None:
 
                 if arch_version == 'v6.0':
                     if '.time_faaaa' in key:
-                        replacement = replacement.unsqueeze(-1)
+                        tensor = tensor.unsqueeze(-1)
+                    if '.time_maa_w1' in key or '.time_decay_w' in key:
+                        tensor = tensor.transpose(0,1)
+                        tensor.contiguous()
+
+                    if '.time_maa_w2' in key:
+                        # (5, 32, 2048) -> (32, 2048, 5)
+                        tensor = tensor.permute(0,2,1)
+                        tensor.contiguous()
+
                 if arch_version == 'v5.1' or arch_version == 'v5.2':
                     if '.time_decay' in key:
                         if arch_version == 'v5.2':
