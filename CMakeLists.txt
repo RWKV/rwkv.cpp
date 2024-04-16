@@ -42,6 +42,7 @@ option(RWKV_OPENBLAS               "rwkv: use OpenBLAS"                         
 option(RWKV_CUBLAS                 "rwkv: use cuBLAS"                                     OFF)
 option(RWKV_CLBLAST                "rwkv: use CLBlast"                                    OFF)
 option(RWKV_HIPBLAS                "rwkv: use hipBLAS"                                    OFF)
+option(RWKV_MUSA                   "rwkv: use MUSA"                                       OFF)
 
 # Build only shared library without building tests and extras
 option(RWKV_STANDALONE             "rwkv: build only RWKV library"                        OFF)
@@ -230,6 +231,30 @@ if (RWKV_HIPBLAS)
     else()
         message(WARNING "hipBLAS or HIP not found. Try setting CMAKE_PREFIX_PATH=/opt/rocm")
     endif()
+endif()
+
+if (RWKV_MUSA)
+    option(MUSA_ARCH "MUSA architecture" "21")
+
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/ggml/cmake")
+
+    find_package(MUSA     REQUIRED)
+
+    message(STATUS "MUSA found")
+
+    enable_language(MUSA)
+
+    add_compile_definitions(GGML_USE_MUSA GGML_USE_CUDA GGML_USE_CUBLAS)
+
+    add_library(ggml-musa OBJECT
+                ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu
+                ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.h)
+
+    target_include_directories(ggml-musa PUBLIC ${CMAKE_SOURCE_DIR}/ggml/include/ggml)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu PROPERTIES LANGUAGE MUSA)
+    target_link_libraries(ggml-musa PRIVATE MUSA::musa MUSA::mublas MUSA::musart)
+
+    set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} ggml-musa)
 endif()
 
 if (RWKV_ALL_WARNINGS)
