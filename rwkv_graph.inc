@@ -1,3 +1,7 @@
+
+#include "ggml.h"
+#include <stdio.h>
+#include <time.h>
 // View tensors of a state of a single layer.
 struct rwkv_layer_state {
     struct ggml_tensor * ffn_xx;
@@ -328,36 +332,39 @@ static struct ggml_tensor * rwkv_att_v6(
             ggml_mul(ctx, x_prev, layer.att_time_maa_x),
             x
     );
+
+    // w1 (2048, M), w2 (N, 5, 2048)
+    // xxx (2048, T)     (M, T)          (M//5 N, 1, 5, T)
     // xxx = torch.tanh(xxx @ tm_w1).view(T, 5, 1, -1).permute(1,0,2,3)
     // xxx (2048, T) @ att_time_maa_w1 (2048, 160) -> (T, 160) -> (T, 5, 32, 1) -> xxx (32, 1, 5, T)
     xxx = ggml_reshape_4d(
         ctx,
-        ggml_tanh(
+        ggml_tanh_inplace(
             ctx,
-            ggml_mul_mat(ctx, xxx, layer.att_time_maa_w1)
+            ggml_mul_mat(ctx, layer.att_time_maa_w1, xxx)
         ),
-        sequence_length, 5, layer.att_time_maa_w2->ne[0], 1
-    );
+        layer.att_time_maa_w2->ne[0], 1, 5, sequence_length
+    ); // (N, 1, 5, T)
 
-    xxx = ggml_cont_inplace(ctx, ggml_permute(ctx, xxx, 3, 2, 0, 1)); // !!!!!
+    // xxx = ggml_cont_inplace(ctx, ggml_permute(ctx, xxx, 3, 2, 0, 1)); // !!!!!
 
     // xxx = torch.bmm(xxx, tm_w2).view(5, T, -1)
-    // xxx (32, 1, 5, T) @ att_time_maa_w2 (32, 2048, 5) -> (1, 2048, 5, T) -> (5, 2048, T, 1) -> xxx (5, 2048, T)
-    xxx = ggml_permute(ctx, ggml_mul_mat(ctx, xxx, layer.att_time_maa_w2), 3, 1, 0, 2); // !!!!!
-    xxx = ggml_cont_inplace(ctx, xxx); // !!!!!!
+    // xxx (32, 1, 5, T) @ att_time_maa_w2 (32, 2048, 5) -> (1, 2048, 5, T) -> xxx (2048, 5, T)
+    xxx = ggml_mul_mat(ctx, xxx, layer.att_time_maa_w2);
     xxx = ggml_reshape_3d(
         ctx,
         xxx,
-        5, layer.att_time_maa_w2->ne[1], sequence_length
+        layer.att_time_maa_w2->ne[1], 5, sequence_length
     );
+    xxx = ggml_permute(ctx, xxx, 0, 1, 3, 2);
 
     // mw (2048, T) * att_time_maa_w (2048) + sx (2048, T) -> xw (2048, T)
     // !!!! 检查是否正确，因为转置
-    struct ggml_tensor * mw = ggml_view_1d(ctx, xxx, n_embed, n_embed * 0 * sizeof(float));
-    struct ggml_tensor * mk = ggml_view_1d(ctx, xxx, n_embed, n_embed * 1 * sizeof(float));
-    struct ggml_tensor * mv = ggml_view_1d(ctx, xxx, n_embed, n_embed * 2 * sizeof(float));
-    struct ggml_tensor * mr = ggml_view_1d(ctx, xxx, n_embed, n_embed * 3 * sizeof(float));
-    struct ggml_tensor * mg = ggml_view_1d(ctx, xxx, n_embed, n_embed * 4 * sizeof(float));
+    struct ggml_tensor * mw = ggml_get_rows(ctx, xxx, ggml_new_i32(ctx, 0));
+    struct ggml_tensor * mk = ggml_get_rows(ctx, xxx, ggml_new_i32(ctx, 1));
+    struct ggml_tensor * mv = ggml_get_rows(ctx, xxx, ggml_new_i32(ctx, 2));
+    struct ggml_tensor * mr = ggml_get_rows(ctx, xxx, ggml_new_i32(ctx, 3));
+    struct ggml_tensor * mg = ggml_get_rows(ctx, xxx, ggml_new_i32(ctx, 4));
 
     struct ggml_tensor * xw = ggml_add_inplace(
         ctx,
@@ -409,7 +416,6 @@ static struct ggml_tensor * rwkv_att_v6(
         x
     );
 
-
     // w = (time_decay + (torch.tanh(xw @ td_w1) @ td_w2)).view(H, S, 1)
     // att_time_decay_w1 (2048, 64) @ xw (2048, T) -> (64, T)
     // att_time_decay_w2 (64, 2048) @ (64, T) -> (2048, T) -> w (1, S, H, T) <=> (1, S, H, T) att_heads
@@ -428,7 +434,7 @@ static struct ggml_tensor * rwkv_att_v6(
     w = ggml_reshape_4d(ctx, w, 1, head_size, head_count, sequence_length);
 
     // w = torch.exp(-torch.exp(w))
-    w = rwkv_exp(ctx,rwkv_1_minus_x(ctx,rwkv_exp(ctx, w)));
+    w = rwkv_exp(ctx,ggml_neg_inplace(ctx,rwkv_exp(ctx, w)));
 
     // r = (rw @ xr).view(H, 1, S)
     // k = (kw @ xk).view(H, S, 1)
