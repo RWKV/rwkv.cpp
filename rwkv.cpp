@@ -49,6 +49,8 @@ static_assert(sizeof(decltype(ftell(NULL))) >= 8, "File offsets should be 64-bit
 
 #include "rwkv_operators_wkv_v5.inc"
 
+#include "rwkv_operators_wkv_v6.inc"
+
 #include "rwkv_graph.inc"
 
 // API function.

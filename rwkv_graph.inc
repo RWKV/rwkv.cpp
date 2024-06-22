@@ -362,21 +362,25 @@ static struct ggml_tensor * rwkv_att_v6(
         ctx,
         ggml_tanh_inplace(
             ctx,
-            ggml_mul_mat(ctx, xxx, layer.att_time_maa_w1)
+            ggml_mul_mat(ctx, layer.att_time_maa_w1, xxx)
         ),
         head_count, 1, 5, sequence_length
-    );
-
-    // xxx = torch.bmm(xxx, tm_w2)
-    xxx = ggml_mul_mat(
-        ctx,
-        layer.att_time_maa_w2,
-        xxx
     );
 
     xxx = ggml_cont(
         ctx,
         ggml_permute(ctx, xxx, 0, 1, 3, 2)
+    );
+
+    // xxx = torch.bmm(xxx, tm_w2)
+    xxx = ggml_mul_mat(
+        ctx,
+        ggml_reshape_4d(
+            ctx,
+            layer.att_time_maa_w2,
+            head_count, n_embed, 1, 5
+        ),
+        xxx
     );
 
     xxx = ggml_reshape_2d(ctx, xxx, n_embed * sequence_length, 5);
@@ -486,7 +490,7 @@ static struct ggml_tensor * rwkv_att_v6(
     // dup is not strictly required; doing it just in case.
     struct ggml_tensor * state_out = ggml_dup(ctx, state.att_heads);
 
-    x = rwkv_wkv_v5(
+    x = rwkv_wkv_v6(
         ctx,
         sequence_length,
         n_embed,
