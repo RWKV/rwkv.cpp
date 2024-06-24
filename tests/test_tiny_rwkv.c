@@ -46,7 +46,7 @@ int main(void) {
         +0.206919F, // FP16
         // 6v0
         +0.001000F, // FP32
-        +0.206919F  // FP16
+        -0.184410F  // FP16
     };
 
     // *** Why the hell the expected logit difference sum for v4 models is < 1, and for v5 models it can be as high as 160? ***
@@ -83,11 +83,11 @@ int main(void) {
         +048.068733F, // Q5_1
         -009.441034F, // Q8_0
         // 6v0
-        +035.271305F, // Q4_0
-        +061.719509F, // Q4_1
-        +025.273308F, // Q5_0
-        +048.068733F, // Q5_1
-        -009.441034F  // Q8_0
+        +039.715752F, // Q4_0
+        +049.779972F, // Q4_1
+        -005.838017F, // Q5_0
+        -017.046452F, // Q5_1
+        -000.220227F  // Q8_0
     };
 
     const float expected_difference_sum_quantized_FP16[VERSION_COUNT * (FORMAT_COUNT - 2)] = {
@@ -110,11 +110,11 @@ int main(void) {
         +029.726818F, // Q5_1
         -007.242277F, // Q8_0
         // 6v0
-        +034.135971F, // Q4_0
-        +059.066830F, // Q4_1
-        +021.588751F, // Q5_0
-        +029.726818F, // Q5_1
-        -007.242277F  // Q8_0
+        +039.676075F, // Q4_0
+        +049.956646F, // Q4_1
+        -006.077929F, // Q5_0
+        -016.773785F, // Q5_1
+        -000.038582F  // Q8_0
     };
 
     for (int i_version = 0; i_version < VERSION_COUNT; i_version++) {

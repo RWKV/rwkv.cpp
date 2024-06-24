@@ -60,6 +60,8 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
             1 if is_FP16 else 0
         ))
 
+        if is_v6_0:
+            n_head: int = state_dict['blocks.0.att.time_faaaa'].shape[0]
         for k in state_dict.keys():
             tensor: torch.Tensor = state_dict[k].float()
 
@@ -72,7 +74,6 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
                 if '.time_maa_w1' in k or '.time_decay_w' in k:
                     tensor = tensor.transpose(0, 1)
                 if '.time_maa_w2' in k:
-                    n_head: int = tensor.shape[1]
                     tensor = tensor.transpose(1, 2)
                 if '.time_decay' in k and '_w' not in k:
                     tensor = tensor.reshape(n_head, -1, 1)

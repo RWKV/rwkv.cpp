@@ -364,7 +364,7 @@ static struct ggml_tensor * rwkv_att_v6(
             ctx,
             ggml_mul_mat(ctx, layer.att_time_maa_w1, xxx)
         ),
-        head_count, 1, 5, sequence_length
+        layer.att_time_maa_w1->ne[1] / 5, 1, 5, sequence_length
     );
 
     xxx = ggml_cont(
@@ -378,7 +378,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ggml_reshape_4d(
             ctx,
             layer.att_time_maa_w2,
-            head_count, n_embed, 1, 5
+            layer.att_time_maa_w2->ne[0], layer.att_time_maa_w2->ne[1], 1, 5
         ),
         xxx
     );
