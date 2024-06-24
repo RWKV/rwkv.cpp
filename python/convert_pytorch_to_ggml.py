@@ -77,7 +77,7 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
                     tensor = tensor.transpose(1, 2)
                 if '.time_decay' in k and '_w' not in k:
                     tensor = tensor.reshape(n_head, -1, 1)
-                
+
             elif is_v5_1_or_2:
                 if '.time_decay' in k:
                     if is_v5_2:

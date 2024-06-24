@@ -39,7 +39,7 @@ static void rwkv_wkv_v6_impl(struct ggml_tensor * result, const struct ggml_tens
                 auto k_val = SET1(k[t_h_i_offset]);
                 auto r_val = SET1(r[t_h_i_offset]);
                 auto time_faaaa_val = SET1(time_faaaa[h_i_offset]);
-                // RWKV v6: different time_decay for each token
+                // RWKV v6: different time_decay for each token.
                 auto time_decay_val = SET1(time_decay[t_h_i_offset]);
 
                 for (size_t j = 0; j < C / H; j += SIMD_WIDTH) {
@@ -81,8 +81,8 @@ static void rwkv_wkv_v6_impl(struct ggml_tensor * result, const struct ggml_tens
 // - k:          [1, S, H, T]
 // - v:          [S, 1, H, T]
 // - r:          [S, 1, H, T]
-// - time_faaaa:     [1, S, H, 1]
-// - w: [1, S, H, T]
+// - time_faaaa: [1, S, H, 1]
+// - w:          [1, S, H, T]
 // - state:      [S * S * H, 1, 1, 1]
 // - result:     same as x
 // state will be written to.

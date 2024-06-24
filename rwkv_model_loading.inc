@@ -23,7 +23,7 @@ struct rwkv_layer {
     struct ggml_tensor * att_time_mix_g;
     struct ggml_tensor * att_gate;
 
-    // Added in RWKV v6;
+    // Added in RWKV v6.
     struct ggml_tensor * att_time_maa_x;
     struct ggml_tensor * att_time_maa_w;
     struct ggml_tensor * att_time_maa_k;
