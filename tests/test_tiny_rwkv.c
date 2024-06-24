@@ -6,7 +6,7 @@
 
 #include "logit_difference_validator.inc"
 
-#define VERSION_COUNT 3
+#define VERSION_COUNT 4
 #define FORMAT_COUNT 7
 
 int main(void) {
@@ -20,7 +20,8 @@ int main(void) {
     const char * versions[VERSION_COUNT] = {
         "4v0-660K",
         "5v1-730K",
-        "5v2-730K"
+        "5v2-730K",
+        "6v0-1m"
     };
 
     const char * formats[FORMAT_COUNT] = {
@@ -41,6 +42,9 @@ int main(void) {
         +0.001000F, // FP32
         -0.289921F, // FP16
         // 5v2
+        +0.001000F, // FP32
+        +0.206919F, // FP16
+        // 6v0
         +0.001000F, // FP32
         +0.206919F  // FP16
     };
@@ -77,6 +81,12 @@ int main(void) {
         +061.719509F, // Q4_1
         +025.273308F, // Q5_0
         +048.068733F, // Q5_1
+        -009.441034F, // Q8_0
+        // 6v0
+        +035.271305F, // Q4_0
+        +061.719509F, // Q4_1
+        +025.273308F, // Q5_0
+        +048.068733F, // Q5_1
         -009.441034F  // Q8_0
     };
 
@@ -94,6 +104,12 @@ int main(void) {
         -039.708530F, // Q5_1
         -000.962695F, // Q8_0
         // 5v2
+        +034.135971F, // Q4_0
+        +059.066830F, // Q4_1
+        +021.588751F, // Q5_0
+        +029.726818F, // Q5_1
+        -007.242277F, // Q8_0
+        // 6v0
         +034.135971F, // Q4_0
         +059.066830F, // Q4_1
         +021.588751F, // Q5_0

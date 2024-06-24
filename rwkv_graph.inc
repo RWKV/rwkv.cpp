@@ -507,6 +507,9 @@ static struct ggml_tensor * rwkv_att_v6(
 
     state.att_heads = state_out;
 
+    // rwkv/ggml ggml_group_norm uses eps=1e-5, while rwkv v6 uses eps=64e-5
+    // do 1/8 scale to x before group_norm for now
+    x = ggml_scale_inplace(ctx, x, ggml_new_f32(ctx, 0.125));
     // ggml_group_norm considers groups in the third dimension.
     x = ggml_reshape_4d(ctx, x, 1, 1, n_embed, sequence_length);
     x = ggml_group_norm_inplace(ctx, x, head_count);
