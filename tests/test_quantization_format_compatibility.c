@@ -15,7 +15,7 @@ int main(void) {
         "4v0-660K",
         "5v1-730K",
         "5v2-730K",
-        "6v0-1m"
+        "6v0-3m"
     };
 
     // See the explanation of huge expected differences for v5 models in test_tiny_rwkv.c
@@ -30,8 +30,8 @@ int main(void) {
         +025.273308F,
         +048.068733F,
         // 6v0
-        -005.441267F,
-        -017.046452F
+        -019.400530F,
+        +003.576909F
     };
 
     for (int i = 0; i < VERSION_COUNT; i++) {
