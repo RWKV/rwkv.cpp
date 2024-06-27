@@ -120,7 +120,7 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
 
             out_file.write(k_encoded)
 
-            tensor.numpy().tofile(out_file)
+            tensor.detach().numpy().tofile(out_file)
 
 def main() -> None:
     args = parse_args()
