@@ -6,7 +6,7 @@
 
 #include "logit_difference_validator.inc"
 
-#define VERSION_COUNT 3
+#define VERSION_COUNT 4
 #define FORMAT_COUNT 7
 
 int main(void) {
@@ -20,7 +20,8 @@ int main(void) {
     const char * versions[VERSION_COUNT] = {
         "4v0-660K",
         "5v1-730K",
-        "5v2-730K"
+        "5v2-730K",
+        "6v0-3m"
     };
 
     const char * formats[FORMAT_COUNT] = {
@@ -36,13 +37,16 @@ int main(void) {
     const float expected_difference_sum_full[VERSION_COUNT * 2] = {
         // 4v0
         +0.001000F, // FP32
-        -0.005320F, // FP16
+        -0.013652F, // FP16
         // 5v1
         +0.001000F, // FP32
         -0.289921F, // FP16
         // 5v2
         +0.001000F, // FP32
-        +0.206919F  // FP16
+        +0.455912F, // FP16
+        // 6v0
+        +0.001566F, // FP32
+        -0.416620F  // FP16
     };
 
     // *** Why the hell the expected logit difference sum for v4 models is < 1, and for v5 models it can be as high as 160? ***
@@ -77,16 +81,22 @@ int main(void) {
         +061.719509F, // Q4_1
         +025.273308F, // Q5_0
         +048.068733F, // Q5_1
-        -009.441034F  // Q8_0
+        -009.441034F, // Q8_0
+        // 6v0
+        -003.824263F, // Q4_0
+        +021.939022F, // Q4_1
+        -021.191444F, // Q5_0
+        +003.576909F, // Q5_1
+        -009.539596F  // Q8_0
     };
 
     const float expected_difference_sum_quantized_FP16[VERSION_COUNT * (FORMAT_COUNT - 2)] = {
          // 4v0
         +000.154614F, // Q4_0
         -000.539827F, // Q4_1
-        -000.170043F, // Q5_0
+        -000.180142F, // Q5_0
         +000.294953F, // Q5_1
-        +000.070944F, // Q8_0
+        +000.077226F, // Q8_0
         // 5v1
         +119.471931F, // Q4_0
         -028.245888F, // Q4_1
@@ -98,7 +108,13 @@ int main(void) {
         +059.066830F, // Q4_1
         +021.588751F, // Q5_0
         +029.726818F, // Q5_1
-        -007.242277F  // Q8_0
+        -007.242277F, // Q8_0
+        // 6v0
+        -003.487368F, // Q4_0
+        +021.797060F, // Q4_1
+        -021.271053F, // Q5_0
+        +003.405264F, // Q5_1
+        -009.734720F  // Q8_0
     };
 
     for (int i_version = 0; i_version < VERSION_COUNT; i_version++) {
