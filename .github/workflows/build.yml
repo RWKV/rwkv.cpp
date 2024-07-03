@@ -284,6 +284,9 @@ jobs:
       - macOS-latest-cmake
       - windows-latest-cmake
 
+    permissions:
+      contents: write
+
     steps:
       - name: Download artifacts
         id: download-artifact
