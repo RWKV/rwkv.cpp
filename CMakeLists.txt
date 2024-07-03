@@ -105,6 +105,7 @@ endif()
 
 if (RWKV_CUBLAS)
     cmake_minimum_required(VERSION 3.17)
+    set(CMAKE_CUDA_COMPILER_FORCED TRUE)
 
     find_package(CUDAToolkit)
 
@@ -417,6 +418,11 @@ target_compile_features(ggml PUBLIC c_std_11) # Don't bump
 
 if (MSVC)
     target_link_libraries(ggml PUBLIC ${RWKV_EXTRA_LIBS} Threads::Threads)
+    if (RWKV_CUBLAS)
+        target_compile_options(ggml PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+            -allow-unsupported-compiler
+        >)
+    endif()
 else()
     if (WIN32 AND RWKV_HIPBLAS)
         target_link_libraries(ggml PUBLIC ${RWKV_EXTRA_LIBS} Threads::Threads)
