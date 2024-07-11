@@ -219,7 +219,7 @@ if (RWKV_HIPBLAS)
             set_target_properties(ggml-rocm PROPERTIES POSITION_INDEPENDENT_CODE ON)
         endif()
 
-        target_include_directories(ggml-rocm PUBLIC ${CMAKE_SOURCE_DIR}/ggml/include/ggml)
+        target_include_directories(ggml-rocm PUBLIC ${CMAKE_SOURCE_DIR}/ggml/include)
         set_source_files_properties(${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu PROPERTIES LANGUAGE CXX)
         target_link_libraries(ggml-rocm PRIVATE hip::device PUBLIC hip::host roc::rocblas roc::hipblas)
 
@@ -408,12 +408,12 @@ endif()
 add_library(ggml OBJECT
             ${CMAKE_SOURCE_DIR}/ggml/src/ggml.c
             ${CMAKE_SOURCE_DIR}/ggml/src/ggml-alloc.c
-            ${CMAKE_SOURCE_DIR}/ggml/include/ggml/ggml.h
-            ${CMAKE_SOURCE_DIR}/ggml/include/ggml/ggml-alloc.h
+            ${CMAKE_SOURCE_DIR}/ggml/include/ggml.h
+            ${CMAKE_SOURCE_DIR}/ggml/include/ggml-alloc.h
             ${GGML_CUDA_SOURCES}
             ${GGML_OPENCL_SOURCES})
 
-target_include_directories(ggml PUBLIC ${CMAKE_SOURCE_DIR}/ggml/include/ggml ${GGML_OPENCL_DIRS})
+target_include_directories(ggml PUBLIC ${CMAKE_SOURCE_DIR}/ggml/include ${GGML_OPENCL_DIRS})
 target_compile_features(ggml PUBLIC c_std_11) # Don't bump
 
 if (MSVC)
