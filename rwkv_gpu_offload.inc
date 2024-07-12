@@ -1,7 +1,7 @@
 #if defined(GGML_USE_CUBLAS) || defined(GGML_USE_CLBLAST)
 
 #if defined(GGML_USE_CUBLAS)
-#    include "ggml/src/ggml-cuda.h"
+#    include "ggml/include/ggml-cuda.h"
 #elif defined(GGML_USE_CLBLAST)
 #    include "ggml/src/ggml-opencl.h"
 #endif

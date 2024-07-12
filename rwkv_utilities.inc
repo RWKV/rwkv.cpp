@@ -10,7 +10,8 @@ static size_t rwkv_tensor_nbytes(const struct ggml_tensor * tensor) {
 
 // Minimum amount of memory required for a ggml context, not counting the tensor data.
 static size_t rwkv_ggml_overhead() {
-    return ggml_tensor_overhead() * GGML_MAX_NODES + ggml_graph_overhead();
+    // GGML_MAX_NODES = 80000
+    return ggml_tensor_overhead() * 80000 + ggml_graph_overhead();
 }
 
 static struct ggml_context * rwkv_init_ggml_context(const size_t memory_size, const bool no_alloc) {

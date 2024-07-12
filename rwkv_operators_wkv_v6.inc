@@ -7,6 +7,10 @@ static void rwkv_wkv_v6_impl(struct ggml_tensor * result, const struct ggml_tens
     const size_t C = result->ne[0];
     const size_t H = result->src[1]->ne[2];
 
+    // TODO: Multi-threading.
+    if (ith != 0)
+        return;
+
     float * result_data = (float *) result->data;
 
     memset(result_data, 0, T * C * sizeof(float));
@@ -123,9 +127,12 @@ static struct ggml_tensor * rwkv_wkv_v6(
     GGML_ASSERT(w->ne[0] == 1 && w->ne[1] == S && w->ne[2] == H && w->ne[3] == T);
     GGML_ASSERT(ggml_nelements(state) == S * S * H);
 
-    k = ggml_cont_inplace(ctx, ggml_transpose(ctx, k));
-    v = ggml_cont_inplace(ctx, ggml_transpose(ctx, v));
-    r = ggml_cont_inplace(ctx, ggml_transpose(ctx, r));
+    // k = ggml_cont_4d(ctx, ggml_transpose(ctx, k), S, 1, H, T);
+    // v = ggml_cont_4d(ctx, ggml_transpose(ctx, v), 1, S, H, T);
+    // r = ggml_cont_4d(ctx, ggml_transpose(ctx, r), 1, S, H, T);
+    k = ggml_transpose(ctx, k);
+    v = ggml_transpose(ctx, v);
+    r = ggml_transpose(ctx, r);
 
     struct ggml_tensor * result = ggml_map_custom1(
         ctx,
@@ -139,7 +146,6 @@ static struct ggml_tensor * rwkv_wkv_v6(
     result->src[3] = r;
     result->src[4] = time_faaaa;
     result->src[5] = w;
-    // GGML_MAX_SRC must be increased from 6 to 8 for this.
     result->src[6] = state;
 
     return result;

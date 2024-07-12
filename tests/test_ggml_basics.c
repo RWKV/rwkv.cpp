@@ -34,10 +34,19 @@ void test_simple_computation(void) {
 
     // Allocation on heap instead of stack avoids SegFault when GGML_MAX_NODES is set to a large value.
     struct ggml_cgraph * graph = (struct ggml_cgraph *) calloc(1, sizeof(struct ggml_cgraph));
+    graph->size = GGML_DEFAULT_GRAPH_SIZE;
+    graph->n_nodes = 0;
+    graph->n_leafs = 0;
+    graph->nodes = (struct ggml_tensor **) calloc(1, GGML_DEFAULT_GRAPH_SIZE * sizeof(struct ggml_tensor *));
+    graph->leafs = (struct ggml_tensor **) calloc(1, GGML_DEFAULT_GRAPH_SIZE * sizeof(struct ggml_tensor *));
+    size_t hash_size = GGML_DEFAULT_GRAPH_SIZE * 2 + 1;
+    graph->visited_hash_table.size = hash_size;
+    graph->visited_hash_table.keys = (struct ggml_tensor **) calloc(1, hash_size * sizeof(struct ggml_tensor *));
+    graph->order = GGML_CGRAPH_EVAL_ORDER_LEFT_TO_RIGHT;
+
     ggml_build_forward_expand(graph, sum);
-    struct ggml_cplan * plan = ggml_graph_plan(graph, 2);
-    ggml_graph_compute(graph, plan);
-    free(plan);
+    struct ggml_cplan plan = ggml_graph_plan(graph, 2);
+    ggml_graph_compute(graph, &plan);
     free(graph);
 
     ASSERT_ELEMENT_F32(sum, 0, -9.0F);
@@ -74,10 +83,18 @@ void test_computation_on_tensors_from_different_contexts(void) {
 
     // Allocation on heap instead of stack avoids SegFault when GGML_MAX_NODES is set to a large value.
     struct ggml_cgraph * graph = (struct ggml_cgraph *) calloc(1, sizeof(struct ggml_cgraph));
+    graph->size = GGML_DEFAULT_GRAPH_SIZE;
+    graph->n_nodes = 0;
+    graph->n_leafs = 0;
+    graph->nodes = (struct ggml_tensor **) calloc(1, GGML_DEFAULT_GRAPH_SIZE * sizeof(struct ggml_tensor *));
+    graph->leafs = (struct ggml_tensor **) calloc(1, GGML_DEFAULT_GRAPH_SIZE * sizeof(struct ggml_tensor *));
+    size_t hash_size = GGML_DEFAULT_GRAPH_SIZE * 2 + 1;
+    graph->visited_hash_table.size = hash_size;
+    graph->visited_hash_table.keys = (struct ggml_tensor **) calloc(1, hash_size * sizeof(struct ggml_tensor *));
+    graph->order = GGML_CGRAPH_EVAL_ORDER_LEFT_TO_RIGHT;
     ggml_build_forward_expand(graph, sum);
-    struct ggml_cplan * plan = ggml_graph_plan(graph, 2);
-    ggml_graph_compute(graph, plan);
-    free(plan);
+    struct ggml_cplan plan = ggml_graph_plan(graph, 2);
+    ggml_graph_compute(graph, &plan);
     free(graph);
 
     ASSERT_ELEMENT_F32(sum, 0, -9.0F);

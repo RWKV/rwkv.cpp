@@ -114,7 +114,7 @@ if (RWKV_CUBLAS)
 
         enable_language(CUDA)
 
-        set(GGML_CUDA_SOURCES ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.h)
+        set(GGML_CUDA_SOURCES ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu ${CMAKE_SOURCE_DIR}/ggml/include/ggml-cuda.h)
 
         add_compile_definitions(GGML_USE_CUBLAS)
 
@@ -213,7 +213,7 @@ if (RWKV_HIPBLAS)
         add_compile_definitions(GGML_USE_HIPBLAS GGML_USE_CUBLAS)
         add_library(ggml-rocm OBJECT
                     ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu
-                    ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.h)
+                    ${CMAKE_SOURCE_DIR}/ggml/include/ggml-cuda.h)
 
         if (RWKV_BUILD_SHARED_LIBRARY)
             set_target_properties(ggml-rocm PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -408,8 +408,11 @@ endif()
 add_library(ggml OBJECT
             ${CMAKE_SOURCE_DIR}/ggml/src/ggml.c
             ${CMAKE_SOURCE_DIR}/ggml/src/ggml-alloc.c
+            ${CMAKE_SOURCE_DIR}/ggml/src/ggml-quants.c
+            ${CMAKE_SOURCE_DIR}/ggml/src/ggml-backend.c
             ${CMAKE_SOURCE_DIR}/ggml/include/ggml.h
             ${CMAKE_SOURCE_DIR}/ggml/include/ggml-alloc.h
+            ${CMAKE_SOURCE_DIR}/ggml/include/ggml-backend.h
             ${GGML_CUDA_SOURCES}
             ${GGML_OPENCL_SOURCES})
 

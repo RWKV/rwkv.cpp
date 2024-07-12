@@ -15,10 +15,12 @@ static void rwkv_exp_impl(struct ggml_tensor * dest, const struct ggml_tensor * 
     rwkv_validate_tensors_for_custom_unary_op(dest, src);
 
     int64_t element_count = src->ne[0] * src->ne[1];
+    int64_t start = ith * element_count / nth;
+    int64_t end = (ith + 1) * element_count / nth;
     float * src_data = (float *) src->data;
     float * dest_data = (float *) dest->data;
 
-    for (int64_t i = 0; i < element_count; i++) {
+    for (int64_t i = start; i < end; i++) {
         dest_data[i] = expf(src_data[i]);
     }
 
@@ -29,10 +31,12 @@ static void rwkv_1_minus_x_impl(struct ggml_tensor * dest, const struct ggml_ten
     rwkv_validate_tensors_for_custom_unary_op(dest, src);
 
     int64_t element_count = src->ne[0] * src->ne[1];
+    int64_t start = ith * element_count / nth;
+    int64_t end = (ith + 1) * element_count / nth;
     float * src_data = (float *) src->data;
     float * dest_data = (float *) dest->data;
 
-    for (int64_t i = 0; i < element_count; i++) {
+    for (int64_t i = start; i < end; i++) {
         dest_data[i] = 1.0F - src_data[i];
     }
 
@@ -43,10 +47,12 @@ static void rwkv_sigmoid_impl(struct ggml_tensor * dest, const struct ggml_tenso
     rwkv_validate_tensors_for_custom_unary_op(dest, src);
 
     int64_t element_count = src->ne[0] * src->ne[1];
+    int64_t start = ith * element_count / nth;
+    int64_t end = (ith + 1) * element_count / nth;
     float * src_data = (float *) src->data;
     float * dest_data = (float *) dest->data;
 
-    for (int64_t i = 0; i < element_count; i++) {
+    for (int64_t i = start; i < end; i++) {
         dest_data[i] = 1.0F / (1.0F + expf(-src_data[i]));
     }
 
@@ -74,11 +80,13 @@ static void rwkv_max_impl(
     GGML_ASSERT(dest->ne[3] == 1);
 
     int64_t element_count = src0->ne[0] * src0->ne[1];
+    int64_t start = ith * element_count / nth;
+    int64_t end = (ith + 1) * element_count / nth;
     float * src0_data = (float *) src0->data;
     float * src1_data = (float *) src1->data;
     float * dest_data = (float *) dest->data;
 
-    for (int64_t i = 0; i < element_count; i++) {
+    for (int64_t i = start; i < end; i++) {
         dest_data[i] = fmaxf(src0_data[i], src1_data[i]);
     }
 

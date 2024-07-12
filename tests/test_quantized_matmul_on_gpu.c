@@ -7,7 +7,7 @@
 #include <math.h>
 
 #include <ggml.h>
-#include "ggml/src/ggml-cuda.h"
+#include "ggml/include/ggml-cuda.h"
 
 #include "assertions.inc"
 
@@ -36,8 +36,7 @@ int main(void) {
 
     struct ggml_tensor * x_quantized = ggml_new_tensor_2d(ctx, GGML_TYPE_Q4_0, ELEMENT_COUNT, 1);
 
-    int64_t hist[16];
-    ggml_quantize_chunk(x_quantized->type, (const float *) x->data, x_quantized->data, 0, ELEMENT_COUNT, hist);
+    ggml_quantize_chunk(x_quantized->type, (const float *) x->data, x_quantized->data, 0, 1, ELEMENT_COUNT, NULL);
 
     x_quantized->backend = GGML_BACKEND_GPU;
     ggml_cuda_transform_tensor(x_quantized->data, x_quantized);

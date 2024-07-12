@@ -6,6 +6,10 @@ static void rwkv_wkv_v5_impl(struct ggml_tensor * result, const struct ggml_tens
     const size_t T = result->ne[1];
     const size_t C = result->ne[0];
     const size_t H = result->src[1]->ne[2];
+    
+    // TODO: Multi-threading.
+    if (ith != 0)
+        return;
 
     float * result_data = (float *) result->data;
 
@@ -65,8 +69,6 @@ static void rwkv_wkv_v5_impl(struct ggml_tensor * result, const struct ggml_tens
 
     // Suppress "unused parameter" warnings.
     (void) src;
-    (void) ith;
-    (void) nth;
     (void) userdata;
 }
 
@@ -123,9 +125,9 @@ static struct ggml_tensor * rwkv_wkv_v5(
     GGML_ASSERT(r->ne[0] == S && r->ne[1] == 1 && r->ne[2] == H && r->ne[3] == T);
     GGML_ASSERT(ggml_nelements(state) == S * S * H);
 
-    k = ggml_cont_inplace(ctx, ggml_transpose(ctx, k));
-    v = ggml_cont_inplace(ctx, ggml_transpose(ctx, v));
-    r = ggml_cont_inplace(ctx, ggml_transpose(ctx, r));
+    k = ggml_transpose(ctx, k);
+    v = ggml_transpose(ctx, v);
+    r = ggml_transpose(ctx, r);
 
     struct ggml_tensor * result = ggml_map_custom1(
         ctx,
@@ -139,7 +141,6 @@ static struct ggml_tensor * rwkv_wkv_v5(
     result->src[3] = r;
     result->src[4] = time_f;
     result->src[5] = time_decay;
-    // GGML_MAX_SRC must be increased from 6 to 8 for this.
     result->src[6] = state;
 
     return result;

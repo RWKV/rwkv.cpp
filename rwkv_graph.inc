@@ -10,12 +10,67 @@ struct rwkv_layer_state {
     struct ggml_tensor * att_heads;
 };
 
+struct rwkv_ggml_cgraph_deleter {
+    void operator()(struct ggml_cgraph * cgraph) {
+        if (cgraph->nodes)
+            free(cgraph->nodes);
+        if (cgraph->leafs)
+            free(cgraph->leafs);
+        if (cgraph->visited_hash_table.keys)
+            free(cgraph->visited_hash_table.keys);
+        if (cgraph->grads)
+            free(cgraph->grads);
+        free(cgraph);
+    }
+};
+
+static struct ggml_cgraph * rwkv_ggml_cgraph_create(size_t size, bool grads) {
+    struct ggml_cgraph * cgraph = (struct ggml_cgraph *)calloc(1, sizeof(struct ggml_cgraph));
+    cgraph->size = size;
+    cgraph->n_nodes = 0;
+    cgraph->n_leafs = 0;
+    cgraph->nodes = (struct ggml_tensor **)calloc(1, size * sizeof(struct ggml_tensor *));
+    cgraph->leafs = (struct ggml_tensor **)calloc(1, size * sizeof(struct ggml_tensor *));
+
+    // next primes after powers of two
+    static const size_t primes[] = {
+        2, 3, 5, 11, 17, 37, 67, 131, 257, 521, 1031,
+        2053, 4099, 8209, 16411, 32771, 65537, 131101,
+        262147, 524309, 1048583, 2097169, 4194319, 8388617,
+        16777259, 33554467, 67108879, 134217757, 268435459,
+        536870923, 1073741827, 2147483659
+    };
+    static const size_t n_primes = sizeof(primes)/sizeof(primes[0]);
+
+    // find the smallest prime that is larger or equal to size
+    size_t l = 0;
+    size_t r = n_primes;
+    while (l < r) {
+        size_t m = (l + r)/2;
+        if (primes[m] < size * 2) {
+            l = m + 1;
+        } else {
+            r = m;
+        }
+    }
+    size_t hash_size = l < n_primes ? primes[l] : (size * 2 + 1);
+
+    cgraph->visited_hash_table.size = hash_size;
+    cgraph->visited_hash_table.keys = (struct ggml_tensor **)calloc(1, hash_size * sizeof(struct ggml_tensor *));
+    cgraph->order = GGML_CGRAPH_EVAL_ORDER_LEFT_TO_RIGHT;
+    if (grads) {
+        cgraph->grads = (struct ggml_tensor **)calloc(1, size * sizeof(struct ggml_tensor *));
+    }
+    return cgraph;
+}
+
+
 // The computation graph holds ggml context and the ggml cgraph.
 // It can be either a serial or a sequential graph.
 struct rwkv_computation_graph {
     struct ggml_context * ggml_ctx;
     // ggml_cgraph is so large that it can cause stack overflows if not stored on the heap.
-    std::unique_ptr<struct ggml_cgraph> cgraph;
+    std::unique_ptr<struct ggml_cgraph, rwkv_ggml_cgraph_deleter> cgraph;
 
     // Input tensors.
     struct ggml_tensor * tokens;
@@ -509,7 +564,7 @@ static struct ggml_tensor * rwkv_att_v6(
 
     // rwkv/ggml ggml_group_norm uses eps=1e-5, while rwkv v6 uses eps=64e-5
     // Do 1/8 scale to x before group_norm for now.
-    x = ggml_scale_inplace(ctx, x, ggml_new_f32(ctx, 0.125));
+    x = ggml_scale_inplace(ctx, x, 0.125);
     // ggml_group_norm considers groups in the third dimension.
     x = ggml_reshape_4d(ctx, x, 1, 1, n_embed, sequence_length);
     x = ggml_group_norm_inplace(ctx, x, head_count);
@@ -639,7 +694,8 @@ static void rwkv_create_input_and_output_views(
 
 // Creates and sets the input and output ggml tensors, builds the computation graph.
 static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_computation_graph & graph) {
-    graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
+    // GGML_MAX_NODES = 80000
+    graph.cgraph.reset(rwkv_ggml_cgraph_create(80000, false));
 
     struct rwkv_file_header & header = model.header;
     const size_t n_vocab = header.n_vocab;
@@ -779,7 +835,8 @@ static bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, str
 
 // Creates and sets the input and output ggml tensors, builds the computation graph.
 static bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_computation_graph & graph, const size_t sequence_length) {
-    graph.cgraph.reset(new(std::nothrow) struct ggml_cgraph());
+    // GGML_MAX_NODES = 80000
+    graph.cgraph.reset(rwkv_ggml_cgraph_create(80000, false));
 
     struct rwkv_file_header & header = model.header;
     const size_t n_vocab = header.n_vocab;
