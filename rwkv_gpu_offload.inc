@@ -1,6 +1,6 @@
-#if defined(GGML_USE_CUBLAS) || defined(GGML_USE_CLBLAST)
+#if defined(GGML_USE_CUDA) || defined(GGML_USE_CLBLAST)
 
-#if defined(GGML_USE_CUBLAS)
+#if defined(GGML_USE_CUDA)
 #    include "ggml/include/ggml-cuda.h"
 #elif defined(GGML_USE_CLBLAST)
 #    include "ggml/src/ggml-opencl.h"
@@ -10,8 +10,8 @@
 bool rwkv_gpu_offload_layers(struct rwkv_context * ctx, const uint32_t n_layers) {
     const auto offload = [&](struct ggml_tensor * tensor) {
         // TODO Support multi-GPU
-        tensor->backend = GGML_BACKEND_GPU;
-#if defined(GGML_USE_CUBLAS)
+        tensor->backend = GGML_BACKEND_TYPE_GPU;
+#if defined(GGML_USE_CUDA)
         ggml_cuda_transform_tensor(tensor->data, tensor);
 #elif defined(GGML_USE_CLBLAST)
         ggml_cl_transform_tensor(tensor->data, tensor);

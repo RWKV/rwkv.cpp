@@ -116,7 +116,7 @@ if (RWKV_CUBLAS)
 
         set(GGML_CUDA_SOURCES ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu ${CMAKE_SOURCE_DIR}/ggml/include/ggml-cuda.h)
 
-        add_compile_definitions(GGML_USE_CUBLAS)
+        add_compile_definitions(GGML_USE_CUDA)
 
         # By default, GGML_CUDA_MMV_Y is set to 1. This value leads to CUDA error on my machine:
         # CUDA error 9 at ...\rwkv.cpp\ggml\src\ggml-cuda.cu:6107: invalid configuration argument
@@ -210,7 +210,7 @@ if (RWKV_HIPBLAS)
 
     if (${hipblas_FOUND} AND ${hip_FOUND})
         message(STATUS "HIP and hipBLAS found")
-        add_compile_definitions(GGML_USE_HIPBLAS GGML_USE_CUBLAS)
+        add_compile_definitions(GGML_USE_HIPBLAS GGML_USE_CUDA)
         add_library(ggml-rocm OBJECT
                     ${CMAKE_SOURCE_DIR}/ggml/src/ggml-cuda.cu
                     ${CMAKE_SOURCE_DIR}/ggml/include/ggml-cuda.h)

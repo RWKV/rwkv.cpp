@@ -33,7 +33,7 @@ void test_model(const char * version, const char * format, const float * expecte
     enum rwkv_error_flags error = rwkv_get_last_error(NULL);
     ASSERT(error == 0, "Unexpected error %d", error);
 
-#if defined(GGML_USE_CUBLAS)
+#if defined(GGML_USE_CUDA)
     ASSERT(rwkv_gpu_offload_layers(model, rwkv_get_n_layer(model) + 1), "Failed to offload layers to GPU");
 #endif
 
