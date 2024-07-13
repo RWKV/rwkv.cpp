@@ -11,11 +11,11 @@ bool rwkv_gpu_offload_layers(struct rwkv_context * ctx, const uint32_t n_layers)
     const auto offload = [&](struct ggml_tensor * tensor) {
         // TODO Support multi-GPU
         tensor->backend = GGML_BACKEND_TYPE_GPU;
-#if defined(GGML_USE_CUDA)
-        ggml_cuda_transform_tensor(tensor->data, tensor);
-#elif defined(GGML_USE_CLBLAST)
-        ggml_cl_transform_tensor(tensor->data, tensor);
-#endif
+// #if defined(GGML_USE_CUDA)
+//         ggml_cuda_transform_tensor(tensor->data, tensor);
+// #elif defined(GGML_USE_CLBLAST)
+//         ggml_cl_transform_tensor(tensor->data, tensor);
+// #endif
     };
 
     const size_t n_gpu = std::min(n_layers, ctx->model->header.n_layer + 1);

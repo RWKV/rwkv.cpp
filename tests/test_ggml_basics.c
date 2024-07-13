@@ -47,6 +47,10 @@ void test_simple_computation(void) {
     ggml_build_forward_expand(graph, sum);
     struct ggml_cplan plan = ggml_graph_plan(graph, 2);
     ggml_graph_compute(graph, &plan);
+
+    free(graph->nodes);
+    free(graph->leafs);
+    free(graph->visited_hash_table.keys);
     free(graph);
 
     ASSERT_ELEMENT_F32(sum, 0, -9.0F);
@@ -95,6 +99,10 @@ void test_computation_on_tensors_from_different_contexts(void) {
     ggml_build_forward_expand(graph, sum);
     struct ggml_cplan plan = ggml_graph_plan(graph, 2);
     ggml_graph_compute(graph, &plan);
+
+    free(graph->nodes);
+    free(graph->leafs);
+    free(graph->visited_hash_table.keys);
     free(graph);
 
     ASSERT_ELEMENT_F32(sum, 0, -9.0F);
