@@ -23,7 +23,8 @@ jobs:
 
     strategy:
       matrix:
-        sanitizer: [ADDRESS, THREAD, UNDEFINED]
+        # THREAD sanitizer is broken here and in llama.cpp
+        sanitizer: [ADDRESS, UNDEFINED]
         build_type: [Debug, Release]
 
     steps:
