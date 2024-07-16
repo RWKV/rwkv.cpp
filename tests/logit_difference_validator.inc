@@ -13,7 +13,11 @@
 // Also test multithreading.
 #define N_THREADS 2
 
+#ifdef GGML_USE_METAL
+#define N_GPU_LAYERS 2
+#else
 #define N_GPU_LAYERS 0
+#endif
 
 void load_expected_logits(float * expected_logits, const char * version) {
     char file_name[128];
