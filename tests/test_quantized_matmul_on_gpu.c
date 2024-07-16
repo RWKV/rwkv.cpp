@@ -78,6 +78,8 @@ int main(void) {
     for (int i = 0; i < ELEMENT_COUNT; i++) {
         if (i % 2 == 0)
             data[i] = 1.0F * i / 2;
+        else
+            data[i] = 0;
     }
     uint8_t * data_quantized = (uint8_t *) malloc(ELEMENT_COUNT * ggml_type_size(GGML_TYPE_Q5_0));
     ggml_quantize_chunk(x_quantized->type, (const float *) data, data_quantized, 0, 1, ELEMENT_COUNT, NULL);
