@@ -58,6 +58,11 @@ struct rwkv_model {
     // It must not be used for computations.
     struct ggml_context * ggml_ctx;
 
+    std::vector<ggml_backend_t> backends;
+    std::vector<ggml_backend_buffer_t> buffers_w;
+    std::vector<ggml_tallocr> tallocrs;
+    struct ggml_backend_sched * sched;
+
     struct rwkv_file_header header;
     uint32_t arch_version_major;
     uint32_t arch_version_minor;
@@ -100,10 +105,14 @@ struct rwkv_file {
 
 // https://stackoverflow.com/a/6458689
 template<typename F>
-static bool rwkv_set_params(struct rwkv_model & model, F callback) {
-    RWKV_ENSURE_OR_FALSE(callback("emb.weight", model.emb));
-    RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.weight", model.ln0_weight));
-    RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.bias", model.ln0_bias));
+static bool rwkv_set_params(struct rwkv_model & model, F callback, const uint32_t n_gpu_layers) {
+    const size_t n_gpu = std::min(n_gpu_layers, model.header.n_layer + 1);
+    bool offload_head = n_gpu == (model.header.n_layer + 1);
+    bool offload_default = false;
+
+    RWKV_ENSURE_OR_FALSE(callback("emb.weight", model.emb, offload_default));
+    RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.weight", model.ln0_weight, offload_default));
+    RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.bias", model.ln0_bias, offload_default));
 
     uint32_t n_layer = model.header.n_layer;
     std::unique_ptr<struct rwkv_layer[]> layers(new(std::nothrow) struct rwkv_layer[n_layer]());
@@ -111,87 +120,88 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback) {
     model.layers = std::move(layers);
 
     for (uint32_t i = 0; i < n_layer; i++) {
+        bool offload_layer = (i < n_gpu);
         char buffer[128];
         size_t offset = sprintf(buffer, "blocks.%" PRId32 ".", i);
 
         rwkv_layer & layer = model.layers[i];
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln1.weight"), buffer), layer.ln1_weight));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln1.bias"), buffer), layer.ln1_bias));
+        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln1.weight"), buffer), layer.ln1_weight, offload_layer));
+        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln1.bias"), buffer), layer.ln1_bias, offload_layer));
 
         if (model.arch_version_major == 6) {
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_x"), buffer), layer.att_time_maa_x));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_w"), buffer), layer.att_time_maa_w));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_k"), buffer), layer.att_time_maa_k));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_v"), buffer), layer.att_time_maa_v));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_r"), buffer), layer.att_time_maa_r));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_g"), buffer), layer.att_time_maa_g));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_w1"), buffer), layer.att_time_maa_w1));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_w2"), buffer), layer.att_time_maa_w2));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_x"), buffer), layer.att_time_maa_x, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_w"), buffer), layer.att_time_maa_w, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_k"), buffer), layer.att_time_maa_k, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_v"), buffer), layer.att_time_maa_v, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_r"), buffer), layer.att_time_maa_r, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_g"), buffer), layer.att_time_maa_g, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_w1"), buffer), layer.att_time_maa_w1, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_w2"), buffer), layer.att_time_maa_w2, offload_layer));
 
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_faaaa"), buffer), layer.att_time_faaaa));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay"), buffer), layer.att_time_decay));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay_w1"), buffer), layer.att_time_decay_w1));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay_w2"), buffer), layer.att_time_decay_w2));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.key.weight"), buffer), layer.att_key));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.value.weight"), buffer), layer.att_value));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.receptance.weight"), buffer), layer.att_receptance));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.gate.weight"), buffer), layer.att_gate));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.output.weight"), buffer), layer.att_output));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.weight"), buffer), layer.att_ln_x_weight));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.bias"), buffer), layer.att_ln_x_bias));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_faaaa"), buffer), layer.att_time_faaaa, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay"), buffer), layer.att_time_decay, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay_w1"), buffer), layer.att_time_decay_w1, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay_w2"), buffer), layer.att_time_decay_w2, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.key.weight"), buffer), layer.att_key, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.value.weight"), buffer), layer.att_value, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.receptance.weight"), buffer), layer.att_receptance, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.gate.weight"), buffer), layer.att_gate, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.output.weight"), buffer), layer.att_output, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.weight"), buffer), layer.att_ln_x_weight, offload_default));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.bias"), buffer), layer.att_ln_x_bias, offload_default));
         } else {
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_k"), buffer), layer.att_time_mix_k));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_v"), buffer), layer.att_time_mix_v));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_r"), buffer), layer.att_time_mix_r));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_k"), buffer), layer.att_time_mix_k, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_v"), buffer), layer.att_time_mix_v, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_r"), buffer), layer.att_time_mix_r, offload_layer));
 
             if (model.arch_version_major >= 5 && model.arch_version_minor >= 2) {
-                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_faaaa"), buffer), layer.att_time_faaaa));
+                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_faaaa"), buffer), layer.att_time_faaaa, offload_layer));
             } else {
-                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_first"), buffer), layer.att_time_first));
+                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_first"), buffer), layer.att_time_first, offload_layer));
             }
 
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay"), buffer), layer.att_time_decay));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.key.weight"), buffer), layer.att_key));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.value.weight"), buffer), layer.att_value));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.receptance.weight"), buffer), layer.att_receptance));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.output.weight"), buffer), layer.att_output));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay"), buffer), layer.att_time_decay, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.key.weight"), buffer), layer.att_key, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.value.weight"), buffer), layer.att_value, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.receptance.weight"), buffer), layer.att_receptance, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.output.weight"), buffer), layer.att_output, offload_layer));
 
             if (model.arch_version_major >= 5) {
-                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.weight"), buffer), layer.att_ln_x_weight));
-                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.bias"), buffer), layer.att_ln_x_bias));
+                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.weight"), buffer), layer.att_ln_x_weight, offload_layer));
+                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.bias"), buffer), layer.att_ln_x_bias, offload_layer));
 
                 if (model.arch_version_minor >= 2) {
-                    RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_g"), buffer), layer.att_time_mix_g));
-                    RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.gate.weight"), buffer), layer.att_gate));
+                    RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_g"), buffer), layer.att_time_mix_g, offload_layer));
+                    RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.gate.weight"), buffer), layer.att_gate, offload_layer));
                 }
             }
         }
 
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.weight"), buffer), layer.ln2_weight));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.bias"), buffer), layer.ln2_bias));
+        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.weight"), buffer), layer.ln2_weight, offload_layer));
+        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.bias"), buffer), layer.ln2_bias, offload_layer));
 
         if (model.arch_version_major == 6) {
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_maa_k"), buffer), layer.ffn_time_maa_k));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_maa_r"), buffer), layer.ffn_time_maa_r));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_maa_k"), buffer), layer.ffn_time_maa_k, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_maa_r"), buffer), layer.ffn_time_maa_r, offload_layer));
         } else {
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_mix_k"), buffer), layer.ffn_time_mix_k));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_mix_r"), buffer), layer.ffn_time_mix_r));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_mix_k"), buffer), layer.ffn_time_mix_k, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_mix_r"), buffer), layer.ffn_time_mix_r, offload_layer));
         }
 
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.key.weight"), buffer), layer.ffn_key));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.value.weight"), buffer), layer.ffn_value));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.receptance.weight"), buffer), layer.ffn_receptance));
+        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.key.weight"), buffer), layer.ffn_key, offload_layer));
+        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.value.weight"), buffer), layer.ffn_value, offload_layer));
+        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.receptance.weight"), buffer), layer.ffn_receptance, offload_layer));
     }
 
-    RWKV_ENSURE_OR_FALSE(callback("ln_out.weight", model.ln_out_weight));
-    RWKV_ENSURE_OR_FALSE(callback("ln_out.bias", model.ln_out_bias));
-    RWKV_ENSURE_OR_FALSE(callback("head.weight", model.head));
+    RWKV_ENSURE_OR_FALSE(callback("ln_out.weight", model.ln_out_weight, offload_default));
+    RWKV_ENSURE_OR_FALSE(callback("ln_out.bias", model.ln_out_bias, offload_default));
+    RWKV_ENSURE_OR_FALSE(callback("head.weight", model.head, offload_head));
 
     return true;
 }
 
 // Creates a ggml context and loads all parameter tensors from a model file.
-static bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model & model) {
+static bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model & model, const uint32_t n_gpu_layers) {
     struct stat file_stat;
 
     std::unordered_map<std::string, struct ggml_tensor *> parameters;
@@ -204,17 +214,20 @@ static bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model 
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE, rwkv_fread_file_header(file.file, model.header), "Invalid file header");
 
     model.ggml_ctx = rwkv_init_ggml_context(
-        // ggml tensors must be aligned; assuming here that overhead of parameter headers, included in the file size, will account for that.
-        file_stat.st_size + rwkv_ggml_overhead(),
-        false
+        rwkv_ggml_overhead(),
+        true // no-alloc; allocate tensors in different backend buffers later
     );
 
     std::string name;
 
     struct ggml_tensor * tensor;
 
+    // Read all tensor information from the file first.
+    auto tensors_file_start = ftell(file.file);
     while ((size_t) ftell(file.file) < (size_t) file_stat.st_size) {
-        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, rwkv_fread_ggml_tensor(file.file, model.ggml_ctx, name, tensor), "Failed to read a model parameter");
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, 
+            rwkv_fread_ggml_tensor_info(file.file, model.ggml_ctx, name, tensor), // dry_run = true
+            "Failed to read a model parameter");
 
         parameters[std::move(name)] = tensor;
     }
@@ -237,16 +250,66 @@ static bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model 
         model.arch_version_minor = 0;
     }
 
+    size_t cpu_buffer_size = 0;
+    size_t gpu_buffer_size = 0;
     std::unordered_map<std::string, struct ggml_tensor *> & parameters_ref = parameters;
+    // Calculate buffer sizes for each backend.
     RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, rwkv_set_params(
         model,
-        [&](const char * key, struct ggml_tensor *& dest) {
+        [&](const char * key, struct ggml_tensor *& dest, bool offload_gpu) {
             struct ggml_tensor * tensor = parameters_ref[key];
             RWKV_ENSURE_OR_FALSE_MSG(tensor, "Model parameter %s not found", key);
+            if (offload_gpu && n_gpu_layers)
+                gpu_buffer_size += ggml_nbytes(tensor);
+            else
+                cpu_buffer_size += ggml_nbytes(tensor);
             dest = tensor;
             return true;
-        }
+        },
+        n_gpu_layers
     ));
+
+    cpu_buffer_size += 1024;
+    if (n_gpu_layers) {
+        gpu_buffer_size += 1024;
+    }
+
+    // Allocate buffers for each backend.
+    if (n_gpu_layers) {
+        ggml_backend_t backend_gpu = model.backends.front();
+        ggml_backend_buffer_t gpu_buffer = ggml_backend_alloc_buffer(backend_gpu, gpu_buffer_size);
+        ggml_backend_buffer_set_usage(gpu_buffer, GGML_BACKEND_BUFFER_USAGE_WEIGHTS);
+        model.buffers_w.push_back(gpu_buffer);
+        model.tallocrs.push_back(ggml_tallocr_new(gpu_buffer));
+    }
+
+    ggml_backend_t backend_cpu = model.backends.back();
+    ggml_backend_buffer_t cpu_buffer = ggml_backend_alloc_buffer(backend_cpu, cpu_buffer_size);
+    ggml_backend_buffer_set_usage(cpu_buffer, GGML_BACKEND_BUFFER_USAGE_WEIGHTS);
+    model.buffers_w.push_back(cpu_buffer);
+    model.tallocrs.push_back(ggml_tallocr_new(cpu_buffer));
+
+    // Allocate tensors in backend buffers.
+    RWKV_ASSERT_NULL(RWKV_ERROR_MODEL_PARAMS | RWKV_ERROR_PARAM_MISSING, rwkv_set_params(
+        model,
+        [&](const char * key, struct ggml_tensor *& dest, bool offload_gpu) {
+            struct ggml_tensor * tensor = parameters_ref[key];
+            RWKV_ENSURE_OR_FALSE_MSG(tensor, "Model parameter %s not found", key);
+            ggml_tallocr * alloc = offload_gpu ? &model.tallocrs.front() : &model.tallocrs.back();
+            ggml_tallocr_alloc(alloc, tensor);
+            dest = tensor;
+            return true;
+        },
+        n_gpu_layers
+    ));
+
+    // Read tensor data.
+    fseek(file.file, tensors_file_start, SEEK_SET);
+    while ((size_t) ftell(file.file) < (size_t) file_stat.st_size) {
+        RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, 
+            rwkv_fread_ggml_tensor_data(file.file, model.ggml_ctx, parameters_ref),
+            "Failed to read a model parameter");
+    }
 
     if (model.arch_version_major >= 5) {
         model.head_count = model.layers[0].att_time_decay->ne[2];

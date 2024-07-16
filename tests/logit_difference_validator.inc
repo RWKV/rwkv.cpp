@@ -13,6 +13,8 @@
 // Also test multithreading.
 #define N_THREADS 2
 
+#define N_GPU_LAYERS 0
+
 void load_expected_logits(float * expected_logits, const char * version) {
     char file_name[128];
     sprintf(file_name, "expected-logits-%s.bin", version);
@@ -29,13 +31,9 @@ void test_model(const char * version, const char * format, const float * expecte
 
     fprintf(stderr, "Testing %s\n", file_name);
 
-    struct rwkv_context * model = rwkv_init_from_file(file_name, N_THREADS);
+    struct rwkv_context * model = rwkv_init_from_file(file_name, N_THREADS, N_GPU_LAYERS);
     enum rwkv_error_flags error = rwkv_get_last_error(NULL);
     ASSERT(error == 0, "Unexpected error %d", error);
-
-#if defined(GGML_USE_CUDA)
-    ASSERT(rwkv_gpu_offload_layers(model, rwkv_get_n_layer(model) + 1), "Failed to offload layers to GPU");
-#endif
 
     const size_t n_vocab = rwkv_get_logits_len(model);
 

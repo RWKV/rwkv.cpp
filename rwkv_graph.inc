@@ -71,6 +71,7 @@ struct rwkv_computation_graph {
     struct ggml_context * ggml_ctx;
     // ggml_cgraph is so large that it can cause stack overflows if not stored on the heap.
     std::unique_ptr<struct ggml_cgraph, rwkv_ggml_cgraph_deleter> cgraph;
+    ggml_backend_buffer_t buffer_inputs;
 
     // Input tensors.
     struct ggml_tensor * tokens;
@@ -694,8 +695,7 @@ static void rwkv_create_input_and_output_views(
 
 // Creates and sets the input and output ggml tensors, builds the computation graph.
 static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_computation_graph & graph) {
-    // GGML_MAX_NODES = 80000
-    graph.cgraph.reset(rwkv_ggml_cgraph_create(80000, false));
+    graph.cgraph.reset(rwkv_ggml_cgraph_create(RWKV_MAX_NODES, false));
 
     struct rwkv_file_header & header = model.header;
     const size_t n_vocab = header.n_vocab;
@@ -705,7 +705,7 @@ static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_compu
     struct ggml_context * ctx = graph.ggml_ctx;
 
     // Creates a 1-element tensor.
-    graph.tokens = ggml_new_i32(ctx, 0);
+    graph.tokens = ggml_new_tensor_1d(ctx, GGML_TYPE_I32, 1);
 
     size_t vectors_per_layer = model.arch_version_major >= 5 ?
         2 + model.head_size :
@@ -725,6 +725,20 @@ static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_compu
     rwkv_create_input_and_output_views(ctx, inputs.get(), outputs.get(), input, output, n_layer, n_embed, model.arch_version_major, model.head_count, model.head_size);
 
     graph.logits = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n_vocab);
+
+    if (!graph.buffer_inputs) {
+        size_t buffer_size = 1024; // overhead
+        buffer_size += rwkv_tensor_nbytes(input);
+        buffer_size += rwkv_tensor_nbytes(output);
+        buffer_size += rwkv_tensor_nbytes(graph.logits);
+        buffer_size += rwkv_tensor_nbytes(graph.tokens);
+        graph.buffer_inputs = ggml_backend_alloc_buffer(model.backends.back(), buffer_size);
+    }
+    struct ggml_tallocr talloc = ggml_tallocr_new(graph.buffer_inputs);
+    ggml_tallocr_alloc(&talloc, input);
+    ggml_tallocr_alloc(&talloc, output);
+    ggml_tallocr_alloc(&talloc, graph.logits);
+    ggml_tallocr_alloc(&talloc, graph.tokens);
 
     // x = self.w.emb.weight[token]
     struct ggml_tensor * x = ggml_get_rows(ctx, model.emb, graph.tokens);
@@ -811,20 +825,7 @@ static bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, str
         graph.ggml_ctx = NULL;
     }
 
-    // 1. Measure the space required for the ggml context.
     graph.ggml_ctx = rwkv_init_ggml_context(rwkv_ggml_overhead(), true);
-
-    RWKV_ENSURE_OR_FALSE(rwkv_build_serial_graph(model, graph));
-
-    size_t required_context_size = ggml_total_size_for_tensor_data(graph.ggml_ctx) +
-            // With the node limit set 80K, this overhead would be 28 MB.
-            + rwkv_ggml_overhead()
-            + tensor_alignment;
-
-    ggml_free(graph.ggml_ctx);
-
-    // 2. Create the real ggml context.
-    graph.ggml_ctx = rwkv_init_ggml_context(required_context_size, false);
 
     RWKV_ENSURE_OR_FALSE(rwkv_build_serial_graph(model, graph));
 
@@ -835,8 +836,7 @@ static bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, str
 
 // Creates and sets the input and output ggml tensors, builds the computation graph.
 static bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_computation_graph & graph, const size_t sequence_length) {
-    // GGML_MAX_NODES = 80000
-    graph.cgraph.reset(rwkv_ggml_cgraph_create(80000, false));
+    graph.cgraph.reset(rwkv_ggml_cgraph_create(RWKV_MAX_NODES, false));
 
     struct rwkv_file_header & header = model.header;
     const size_t n_vocab = header.n_vocab;
@@ -865,6 +865,20 @@ static bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_c
     rwkv_create_input_and_output_views(ctx, inputs.get(), outputs.get(), input, output, n_layer, n_embed, model.arch_version_major, model.head_count, model.head_size);
 
     graph.logits = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n_vocab);
+
+    if (!graph.buffer_inputs) {
+        size_t buffer_size = 1024; // overhead
+        buffer_size += rwkv_tensor_nbytes(input);
+        buffer_size += rwkv_tensor_nbytes(output);
+        buffer_size += rwkv_tensor_nbytes(graph.logits);
+        buffer_size += ggml_type_size(GGML_TYPE_I32) * 1024;
+        graph.buffer_inputs = ggml_backend_alloc_buffer(model.backends.back(), buffer_size);
+    }
+    struct ggml_tallocr talloc = ggml_tallocr_new(graph.buffer_inputs);
+    ggml_tallocr_alloc(&talloc, input);
+    ggml_tallocr_alloc(&talloc, output);
+    ggml_tallocr_alloc(&talloc, graph.logits);
+    ggml_tallocr_alloc(&talloc, graph.tokens);
 
     // x = self.w.emb.weight[token]
     struct ggml_tensor * x = ggml_get_rows(ctx, model.emb, graph.tokens);
@@ -967,20 +981,7 @@ static bool rwkv_measure_and_build_sequential_context(struct rwkv_model & model,
         graph.ggml_ctx = NULL;
     }
 
-    // 1. Measure the space required for the ggml context.
     graph.ggml_ctx = rwkv_init_ggml_context(rwkv_ggml_overhead(), true);
-
-    RWKV_ENSURE_OR_FALSE(rwkv_build_sequential_graph(model, graph, sequence_length));
-
-    size_t required_context_size = ggml_total_size_for_tensor_data(graph.ggml_ctx) +
-            // With the node limit set 80K, this overhead would be 28 MB.
-            + rwkv_ggml_overhead()
-            + tensor_alignment;
-
-    ggml_free(graph.ggml_ctx);
-
-    // 2. Create the real ggml context.
-    graph.ggml_ctx = rwkv_init_ggml_context(required_context_size, false);
 
     RWKV_ENSURE_OR_FALSE(rwkv_build_sequential_graph(model, graph, sequence_length));
 

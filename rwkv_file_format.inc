@@ -213,7 +213,7 @@ static bool rwkv_fwrite_tensor(FILE * file, const struct rwkv_tensor & tensor) {
 
 // Reading ggml tensors
 
-static bool rwkv_fread_ggml_tensor(FILE * file, struct ggml_context * ctx, std::string & name, struct ggml_tensor *& tensor) {
+static bool rwkv_fread_ggml_tensor_info(FILE * file, struct ggml_context * ctx, std::string & name, struct ggml_tensor *& tensor) {
     struct rwkv_tensor_header header;
     RWKV_ENSURE_OR_FALSE_MSG(rwkv_fread_tensor_header(file, header), "Invalid tensor header");
 
@@ -242,10 +242,51 @@ static bool rwkv_fread_ggml_tensor(FILE * file, struct ggml_context * ctx, std::
 
     RWKV_ASSERT_FALSE_MSG(
         RWKV_ERROR_FILE_READ,
-        rwkv_fread_data(file, rwkv_tensor_nbytes(tensor), tensor->data),
+        !fseek(file, rwkv_tensor_nbytes(tensor), SEEK_CUR),
+        "Failed to seek to next tensor after parameter %s",
+        name.c_str()
+    );
+
+    return true;
+}
+
+static bool rwkv_fread_ggml_tensor_data(FILE * file, struct ggml_context * ctx, std::unordered_map<std::string, struct ggml_tensor *> & parameters) {
+    struct rwkv_tensor_header header;
+    std::string name;
+    RWKV_ENSURE_OR_FALSE_MSG(rwkv_fread_tensor_header(file, header), "Invalid tensor header");
+
+    RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE_READ, rwkv_fread_string(file, header.key_length, name), "Failed to read tensor name");
+
+    enum ggml_type ggml_type = rwkv_type_to_ggml[header.data_type];
+    RWKV_ASSERT_FALSE_MSG(
+        RWKV_ERROR_UNSUPPORTED,
+        ggml_type != GGML_TYPE_UNKNOWN,
+        "Unsupported data type %s in parameter %s",
+        rwkv_type_to_string[header.data_type],
+        name.c_str()
+    );
+
+    struct ggml_tensor * tensor;
+    tensor = parameters[name];
+    RWKV_ASSERT_FALSE_MSG(
+        RWKV_ERROR_ALLOC,
+        tensor != NULL,
+        "Parameter %s not found in the model",
+        name.c_str()
+    );
+
+    char * data = (char *) malloc(rwkv_tensor_nbytes(tensor));
+
+    RWKV_ASSERT_FALSE_MSG(
+        RWKV_ERROR_FILE_READ,
+        rwkv_fread_data(file, rwkv_tensor_nbytes(tensor), data),
         "Failed to read data of parameter %s",
         name.c_str()
     );
+
+    ggml_backend_tensor_set(tensor, data, 0, rwkv_tensor_nbytes(tensor));
+
+    free(data);
 
     return true;
 }

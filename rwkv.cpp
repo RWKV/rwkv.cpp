@@ -1,6 +1,19 @@
 #include "rwkv.h"
 #include "ggml.h"
 #include "ggml-alloc.h"
+#include "ggml-backend.h"
+
+#ifdef GGML_USE_CUDA
+#include "ggml-cuda.h"
+#endif
+
+#ifdef GGML_USE_METAL
+#include "ggml-metal.h"
+#endif
+
+#ifdef GGML_USE_BLAS
+#include "ggml-blas.h"
+#endif
 
 #include <string>
 #include <vector>
@@ -37,6 +50,8 @@
 static_assert(sizeof(stat::st_size) >= 8, "File offsets should be 64-bit or else rwkv.cpp will not be able to load model files over 2 GB");
 static_assert(sizeof(decltype(ftell(NULL))) >= 8, "File offsets should be 64-bit or else rwkv.cpp will not be able to load model files over 2 GB");
 
+#define RWKV_MAX_NODES 80000
+
 #include "rwkv_error_handling.inc"
 
 #include "rwkv_utilities.inc"
@@ -54,7 +69,7 @@ static_assert(sizeof(decltype(ftell(NULL))) >= 8, "File offsets should be 64-bit
 #include "rwkv_graph.inc"
 
 // API function.
-struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads) {
+struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t n_threads, const uint32_t n_gpu_layers) {
     global_last_error = RWKV_ERROR_NONE;
 
     std::unique_ptr<struct rwkv_context> ctx(new(std::nothrow) struct rwkv_context());
@@ -62,9 +77,39 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 
     ctx->model = new(std::nothrow) struct rwkv_model();
     ctx->model->reference_count++;
-    RWKV_ENSURE_OR_NULL(rwkv_load_model_from_file(file_path, *ctx->model));
 
     ctx->n_threads = n_threads;
+
+    if (n_gpu_layers) {
+        ggml_backend_t backend;
+
+#ifdef GGML_USE_CUDA
+        backend = ggml_backend_cuda_init(0);
+        RWKV_ENSURE_OR_NULL(backend);
+#endif
+
+#ifdef GGML_USE_METAL
+        backend = ggml_backend_metal_init();
+        RWKV_ENSURE_OR_NULL(backend);
+        ggml_backend_metal_set_n_cb(backend, ctx->n_threads);
+#endif
+
+#ifdef GGML_USE_BLAS
+        backend = ggml_backend_blas_init();
+        RWKV_ENSURE_OR_NULL(backend);
+        ggml_backend_blas_set_n_threads(backend, ctx->n_threads);
+#endif
+        RWKV_ENSURE_OR_NULL(backend);
+
+        ctx->model->backends.push_back(backend);
+    }
+
+    ggml_backend_t cpu_backend = ggml_backend_cpu_init();
+    RWKV_ENSURE_OR_NULL(cpu_backend);
+    ggml_backend_cpu_set_n_threads(cpu_backend, n_threads);
+    ctx->model->backends.push_back(cpu_backend);
+
+    RWKV_ENSURE_OR_NULL(rwkv_load_model_from_file(file_path, *ctx->model, n_gpu_layers));
 
     RWKV_ENSURE_OR_NULL(rwkv_measure_and_build_serial_context(*ctx->model, ctx->serial_graph));
 
@@ -89,8 +134,6 @@ struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32
 
     return clone.release();
 }
-
-#include "rwkv_gpu_offload.inc"
 
 #include "rwkv_eval.inc"
 
@@ -144,14 +187,19 @@ void rwkv_free(struct rwkv_context * ctx) {
     }
 
     if (--ctx->model->reference_count == 0) {
+        for (auto buffer : ctx->model->buffers_w) {
+            ggml_backend_buffer_free(buffer);
+        }
         ggml_free(ctx->model->ggml_ctx);
 
         delete ctx->model;
     }
 
+    ggml_backend_buffer_free(ctx->serial_graph.buffer_inputs);
     ggml_free(ctx->serial_graph.ggml_ctx);
 
     if (ctx->last_used_sequence_length > 0) {
+        ggml_backend_buffer_free(ctx->sequential_graph.buffer_inputs);
         ggml_free(ctx->sequential_graph.ggml_ctx);
     }
 
