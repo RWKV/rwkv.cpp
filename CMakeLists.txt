@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.21)
 
 project("rwkv.cpp" C CXX)
 
@@ -162,6 +162,16 @@ if (MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
+if (NOT RWKV_STANDALONE)
+    set(GGML_STANDALONE OFF)
+    enable_testing()
+    add_subdirectory(tests)
+    add_subdirectory(extras)
+elseif()
+    set(GGML_STANDALONE ON)
+endif()
+
+set(BUILD_SHARED_LIBS OFF)
 if (NOT TARGET ggml)
     add_subdirectory(ggml)
     # ... otherwise assume ggml is added by a parent CMakeLists.txt
@@ -173,20 +183,65 @@ else()
     add_library(rwkv rwkv.cpp rwkv.h)
 endif()
 
-target_include_directories(rwkv PUBLIC .)
-target_compile_features(rwkv PUBLIC cxx_std_11)
-target_link_libraries(rwkv PRIVATE ggml ${RWKV_EXTRA_LIBS})
-
-if (RWKV_BUILD_SHARED_LIBRARY)
-    set_target_properties(rwkv PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_compile_definitions(rwkv PRIVATE RWKV_SHARED RWKV_BUILD)
+if (GGML_OPENMP)
+    find_package(OpenMP)
+    if (OpenMP_FOUND)
+        set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} OpenMP::OpenMP_C OpenMP::OpenMP_CXX)
+    endif()
 endif()
 
-if (NOT RWKV_STANDALONE)
-    set_property(TARGET ggml PROPERTY GGML_STANDALONE OFF)
-    enable_testing()
-    add_subdirectory(tests)
-    add_subdirectory(extras)
-elseif()
-    set_property(TARGET ggml PROPERTY GGML_STANDALONE ON)
+if (GGML_CUDA)
+    find_package(CUDAToolkit)
+
+    if (CUDAToolkit_FOUND)
+        add_compile_definitions(GGML_USE_CUDA)
+        if (GGML_STATIC)
+            if (WIN32)
+                # As of 12.3.1 CUDA Toolkit for Windows does not offer a static cublas library
+                set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} CUDA::cudart_static CUDA::cublas CUDA::cublasLt)
+            else ()
+                set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} CUDA::cudart_static CUDA::cublas_static CUDA::cublasLt_static)
+            endif()
+        else()
+            set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} CUDA::cudart CUDA::cublas CUDA::cublasLt)
+        endif()
+
+        if (GGML_CUDA_NO_VMM)
+            # No VMM requested, no need to link directly with the cuda driver lib (libcuda.so)
+        else()
+            set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} CUDA::cuda_driver) # required by cuDeviceGetAttribute(), cuMemGetAllocationGranularity(...), ...
+        endif()
+    endif()
+endif()
+
+if (APPLE AND GGML_ACCELERATE)
+    find_library(ACCELERATE_FRAMEWORK Accelerate)
+    if (ACCELERATE_FRAMEWORK)
+        set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} ${ACCELERATE_FRAMEWORK})
+    endif()
+endif()
+
+if (GGML_METAL)
+    find_library(FOUNDATION_LIBRARY Foundation REQUIRED)
+    find_library(METAL_FRAMEWORK    Metal      REQUIRED)
+    find_library(METALKIT_FRAMEWORK MetalKit   REQUIRED)
+    add_compile_definitions(GGML_USE_METAL)
+
+    set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS}
+        ${FOUNDATION_LIBRARY}
+        ${METAL_FRAMEWORK}
+        ${METALKIT_FRAMEWORK}
+        )
+endif()
+
+target_include_directories(rwkv PUBLIC .)
+target_include_directories(rwkv PRIVATE ggml/include)
+target_compile_features(rwkv PUBLIC cxx_std_11)
+target_link_libraries(rwkv PRIVATE $<TARGET_OBJECTS:ggml> ${RWKV_EXTRA_LIBS})
+
+if (RWKV_BUILD_SHARED_LIBRARY)
+    set_target_properties(ggml PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    target_compile_definitions(ggml PRIVATE GGML_SHARED GGML_BUILD)
+    set_target_properties(rwkv PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    target_compile_definitions(rwkv PRIVATE RWKV_SHARED RWKV_BUILD)
 endif()

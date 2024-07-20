@@ -43,22 +43,6 @@ static void rwkv_1_minus_x_impl(struct ggml_tensor * dest, const struct ggml_ten
     SUPPRESS_UNUSED_WARNINGS_IN_CUSTOM_OP();
 }
 
-static void rwkv_sigmoid_impl(struct ggml_tensor * dest, const struct ggml_tensor * src, int ith, int nth, void * userdata) {
-    rwkv_validate_tensors_for_custom_unary_op(dest, src);
-
-    int64_t element_count = src->ne[0] * src->ne[1];
-    int64_t start = ith * element_count / nth;
-    int64_t end = (ith + 1) * element_count / nth;
-    float * src_data = (float *) src->data;
-    float * dest_data = (float *) dest->data;
-
-    for (int64_t i = start; i < end; i++) {
-        dest_data[i] = 1.0F / (1.0F + expf(-src_data[i]));
-    }
-
-    SUPPRESS_UNUSED_WARNINGS_IN_CUSTOM_OP();
-}
-
 static void rwkv_max_impl(
     struct ggml_tensor * dest,
     const struct ggml_tensor * src0,
@@ -174,17 +158,12 @@ static void rwkv_groupnorm_impl(
 
 // Element-wise exp(x)
 struct ggml_tensor * rwkv_exp(struct ggml_context * ctx, struct ggml_tensor * x) {
-    return ggml_map_custom1(ctx, x, rwkv_exp_impl, 1, NULL);
+    return ggml_map_custom1_inplace(ctx, x, rwkv_exp_impl, 1, NULL);
 }
 
 // Element-wise 1 - x
 struct ggml_tensor * rwkv_1_minus_x(struct ggml_context * ctx, struct ggml_tensor * x) {
     return ggml_map_custom1(ctx, x, rwkv_1_minus_x_impl, 1, NULL);
-}
-
-// Element-wise sigmoid(x)
-struct ggml_tensor * rwkv_sigmoid_inplace(struct ggml_context * ctx, struct ggml_tensor * x) {
-    return ggml_map_custom1_inplace(ctx, x, rwkv_sigmoid_impl, 1, NULL);
 }
 
 // Element-wise max(x, y)
@@ -193,14 +172,14 @@ struct ggml_tensor * rwkv_max(struct ggml_context * ctx, struct ggml_tensor * x,
 }
 
 // GroupNorm with custom eps value; Remove when ggml_norm supports eps as an argument.
-struct ggml_tensor * rwkv_group_norm_eps_1e_minus5_inplace(struct ggml_context * ctx, struct ggml_tensor * x, int n_groups) {
+struct ggml_tensor * rwkv_group_norm_eps_1e_minus5(struct ggml_context * ctx, struct ggml_tensor * x, int n_groups) {
     static float params[2];
     params[0] = 1e-5F;
     ((int*)params)[1] = n_groups;
     return ggml_map_custom1_inplace(ctx, x, rwkv_groupnorm_impl, 1, params);
 }
 
-struct ggml_tensor * rwkv_group_norm_eps_64e_minus5_inplace(struct ggml_context * ctx, struct ggml_tensor * x, int n_groups) {
+struct ggml_tensor * rwkv_group_norm_eps_64e_minus5(struct ggml_context * ctx, struct ggml_tensor * x, int n_groups) {
     static float params[2];
     params[0] = 64e-5F;
     ((int*)params)[1] = n_groups;
@@ -210,5 +189,5 @@ struct ggml_tensor * rwkv_group_norm_eps_64e_minus5_inplace(struct ggml_context 
 struct ggml_tensor * rwkv_layer_norm(struct ggml_context * ctx, struct ggml_tensor * x, struct ggml_tensor * weight, struct ggml_tensor * bias) {
     // LayerNorm in RWKV is `x = (x - mean(x)) / sqrt(variance(x) + 1e-5) * weight + bias`
     // Looks like ggml_norm does the first part, we only need to apply weight & bias.
-    return ggml_add_inplace(ctx, ggml_mul_inplace(ctx, ggml_norm(ctx, x, 1e-5F), weight), bias);
+    return ggml_add(ctx, ggml_mul(ctx, ggml_norm(ctx, x, 1e-5F), weight), bias);
 }

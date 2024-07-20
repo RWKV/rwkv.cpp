@@ -44,7 +44,7 @@ class RWKVSharedLibrary:
         else:
             self.library = ctypes.cdll.LoadLibrary(shared_library_path)
 
-        self.library.rwkv_init_from_file.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
+        self.library.rwkv_init_from_file.argtypes = [ctypes.c_char_p, ctypes.c_uint32, ctypes.c_uint32]
         self.library.rwkv_init_from_file.restype = ctypes.c_void_p
 
         self.library.rwkv_eval.argtypes = [

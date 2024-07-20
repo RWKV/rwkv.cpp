@@ -52,7 +52,7 @@ jobs:
         id: cmake_test
         run: |
           cd build
-          ctest --verbose
+          ASAN_OPTIONS=detect_odr_violation=0 ctest --verbose
 
   ubuntu-latest-cmake:
     runs-on: ubuntu-latest

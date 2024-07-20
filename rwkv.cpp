@@ -190,16 +190,21 @@ void rwkv_free(struct rwkv_context * ctx) {
         for (auto buffer : ctx->model->buffers_w) {
             ggml_backend_buffer_free(buffer);
         }
+
+        for (auto backend : ctx->model->backends) {
+            ggml_backend_free(backend);
+        }
+
         ggml_free(ctx->model->ggml_ctx);
 
         delete ctx->model;
     }
 
-    ggml_backend_buffer_free(ctx->serial_graph.buffer_inputs);
+    ggml_backend_sched_free(ctx->serial_graph.sched);
     ggml_free(ctx->serial_graph.ggml_ctx);
 
     if (ctx->last_used_sequence_length > 0) {
-        ggml_backend_buffer_free(ctx->sequential_graph.buffer_inputs);
+        ggml_backend_sched_free(ctx->sequential_graph.sched);
         ggml_free(ctx->sequential_graph.ggml_ctx);
     }
 

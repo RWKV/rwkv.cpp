@@ -61,7 +61,6 @@ struct rwkv_model {
     std::vector<ggml_backend_t> backends;
     std::vector<ggml_backend_buffer_t> buffers_w;
     std::vector<ggml_tallocr> tallocrs;
-    struct ggml_backend_sched * sched;
 
     struct rwkv_file_header header;
     uint32_t arch_version_major;
@@ -111,8 +110,8 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback, const uint32_
     bool offload_default = false;
 
     RWKV_ENSURE_OR_FALSE(callback("emb.weight", model.emb, offload_default));
-    RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.weight", model.ln0_weight, offload_default));
-    RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.bias", model.ln0_bias, offload_default));
+    RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.weight", model.ln0_weight, (n_gpu_layers > 0)));
+    RWKV_ENSURE_OR_FALSE(callback("blocks.0.ln0.bias", model.ln0_bias, (n_gpu_layers > 0)));
 
     uint32_t n_layer = model.header.n_layer;
     std::unique_ptr<struct rwkv_layer[]> layers(new(std::nothrow) struct rwkv_layer[n_layer]());
@@ -138,54 +137,62 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback, const uint32_
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_w1"), buffer), layer.att_time_maa_w1, offload_layer));
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_maa_w2"), buffer), layer.att_time_maa_w2, offload_layer));
 
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_faaaa"), buffer), layer.att_time_faaaa, offload_layer));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay"), buffer), layer.att_time_decay, offload_layer));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay_w1"), buffer), layer.att_time_decay_w1, offload_layer));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay_w2"), buffer), layer.att_time_decay_w2, offload_layer));
+            // No gpu offloading for wkv yet
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_faaaa"), buffer), layer.att_time_faaaa, offload_default));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay"), buffer), layer.att_time_decay, offload_default));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay_w1"), buffer), layer.att_time_decay_w1, offload_default));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay_w2"), buffer), layer.att_time_decay_w2, offload_default));
+
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.key.weight"), buffer), layer.att_key, offload_layer));
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.value.weight"), buffer), layer.att_value, offload_layer));
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.receptance.weight"), buffer), layer.att_receptance, offload_layer));
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.gate.weight"), buffer), layer.att_gate, offload_layer));
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.output.weight"), buffer), layer.att_output, offload_layer));
+
+            // GroupNorm uses a custom epsilon value, which only has CPU implementation for now.
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.weight"), buffer), layer.att_ln_x_weight, offload_default));
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.bias"), buffer), layer.att_ln_x_bias, offload_default));
         } else {
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_k"), buffer), layer.att_time_mix_k, offload_layer));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_v"), buffer), layer.att_time_mix_v, offload_layer));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_r"), buffer), layer.att_time_mix_r, offload_layer));
+            // Custom rwkv_1_minus_x: cpu only
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_k"), buffer), layer.att_time_mix_k, offload_default));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_v"), buffer), layer.att_time_mix_v, offload_default));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_r"), buffer), layer.att_time_mix_r, offload_default));
 
             if (model.arch_version_major >= 5 && model.arch_version_minor >= 2) {
-                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_faaaa"), buffer), layer.att_time_faaaa, offload_layer));
+                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_faaaa"), buffer), layer.att_time_faaaa, offload_default));
             } else {
-                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_first"), buffer), layer.att_time_first, offload_layer));
+                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_first"), buffer), layer.att_time_first, offload_default));
             }
 
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay"), buffer), layer.att_time_decay, offload_layer));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.key.weight"), buffer), layer.att_key, offload_layer));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.value.weight"), buffer), layer.att_value, offload_layer));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.receptance.weight"), buffer), layer.att_receptance, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_decay"), buffer), layer.att_time_decay, offload_default));
+
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.key.weight"), buffer), layer.att_key, offload_default));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.value.weight"), buffer), layer.att_value, offload_default));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.receptance.weight"), buffer), layer.att_receptance, offload_default));
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.output.weight"), buffer), layer.att_output, offload_layer));
 
             if (model.arch_version_major >= 5) {
-                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.weight"), buffer), layer.att_ln_x_weight, offload_layer));
-                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.bias"), buffer), layer.att_ln_x_bias, offload_layer));
+                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.weight"), buffer), layer.att_ln_x_weight, offload_default));
+                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.bias"), buffer), layer.att_ln_x_bias, offload_default));
 
                 if (model.arch_version_minor >= 2) {
-                    RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_g"), buffer), layer.att_time_mix_g, offload_layer));
+                    RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.time_mix_g"), buffer), layer.att_time_mix_g, offload_default));
                     RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.gate.weight"), buffer), layer.att_gate, offload_layer));
                 }
             }
         }
 
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.weight"), buffer), layer.ln2_weight, offload_layer));
-        RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.bias"), buffer), layer.ln2_bias, offload_layer));
 
         if (model.arch_version_major == 6) {
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.weight"), buffer), layer.ln2_weight, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.bias"), buffer), layer.ln2_bias, offload_layer));
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_maa_k"), buffer), layer.ffn_time_maa_k, offload_layer));
             RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_maa_r"), buffer), layer.ffn_time_maa_r, offload_layer));
         } else {
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_mix_k"), buffer), layer.ffn_time_mix_k, offload_layer));
-            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_mix_r"), buffer), layer.ffn_time_mix_r, offload_layer));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.weight"), buffer), layer.ln2_weight, offload_default));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln2.bias"), buffer), layer.ln2_bias, offload_default));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_mix_k"), buffer), layer.ffn_time_mix_k, offload_default));
+            RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.time_mix_r"), buffer), layer.ffn_time_mix_r, offload_default));
         }
 
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.key.weight"), buffer), layer.ffn_key, offload_layer));
@@ -193,8 +200,8 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback, const uint32_
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ffn.receptance.weight"), buffer), layer.ffn_receptance, offload_layer));
     }
 
-    RWKV_ENSURE_OR_FALSE(callback("ln_out.weight", model.ln_out_weight, offload_default));
-    RWKV_ENSURE_OR_FALSE(callback("ln_out.bias", model.ln_out_bias, offload_default));
+    RWKV_ENSURE_OR_FALSE(callback("ln_out.weight", model.ln_out_weight, offload_head));
+    RWKV_ENSURE_OR_FALSE(callback("ln_out.bias", model.ln_out_bias, offload_head));
     RWKV_ENSURE_OR_FALSE(callback("head.weight", model.head, offload_head));
 
     return true;
@@ -269,9 +276,9 @@ static bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model 
         n_gpu_layers
     ));
 
-    cpu_buffer_size += 1024;
+    cpu_buffer_size += ggml_tensor_overhead() * RWKV_MAX_NODES;
     if (n_gpu_layers) {
-        gpu_buffer_size += 1024;
+        gpu_buffer_size += ggml_tensor_overhead() * RWKV_MAX_NODES;
     }
 
     // Allocate buffers for each backend.

@@ -31,12 +31,7 @@ static void rwkv_eval_graph(rwkv_context * ctx, struct rwkv_computation_graph & 
         graph.cgraph->n_leafs = graph.post_logits_leafs;
     }
 
-    if (!ctx->model->sched) {
-        ctx->model->sched = ggml_backend_sched_new(ctx->model->backends.data(), NULL, ctx->model->backends.size(), RWKV_MAX_NODES, n_threads > 1);
-    }
-
-    ggml_backend_sched_alloc_graph(ctx->model->sched, graph.cgraph.get());
-    ggml_backend_sched_graph_compute(ctx->model->sched, graph.cgraph.get());
+    ggml_backend_sched_graph_compute(graph.sched, graph.cgraph.get());
 }
 
 // API function.
@@ -46,6 +41,29 @@ bool rwkv_eval(struct rwkv_context * ctx, const uint32_t token, const float * st
     const struct rwkv_file_header & header = ctx->model->header;
     const size_t n_vocab = header.n_vocab;
     RWKV_CTX_ASSERT_FALSE_MSG(ctx, RWKV_ERROR_ARGS, token < n_vocab, "Token (%" PRId32 ") is out of range (0 .. %zu)", token, n_vocab - 1);
+
+    if (!ctx->serial_graph.sched) {
+        ctx->serial_graph.sched = ggml_backend_sched_new(ctx->model->backends.data(), NULL, ctx->model->backends.size(), RWKV_MAX_NODES, false);
+
+        auto graph = ctx->serial_graph.cgraph.get();
+        for (int i = 0; i < graph->n_nodes; i++) {
+            auto node = graph->nodes[i];
+            if (std::string(node->name).find(".in.") != std::string::npos ||
+                std::string(node->name).find(".out.") != std::string::npos) {
+                ggml_backend_sched_set_tensor_backend(ctx->serial_graph.sched, node, ctx->model->backends.back());
+            }
+        }
+        for (int i = 0; i < graph->n_leafs; i++) {
+            auto leaf = graph->leafs[i];
+            if (std::string(leaf->name).find("state.in") != std::string::npos ||
+                std::string(leaf->name).find("state.out") != std::string::npos) {
+                ggml_backend_sched_set_tensor_backend(ctx->serial_graph.sched, leaf, ctx->model->backends.back());
+            }
+        }
+        ggml_backend_sched_set_tensor_backend(ctx->serial_graph.sched, ctx->serial_graph.tokens, ctx->model->backends.back());
+
+        ggml_backend_sched_alloc_graph(ctx->serial_graph.sched, ctx->serial_graph.cgraph.get());
+    }
 
     rwkv_set_inputs(ctx, ctx->serial_graph, state_in);
     ggml_backend_tensor_set(ctx->serial_graph.tokens, &token, 0, rwkv_tensor_nbytes(ctx->serial_graph.tokens));
@@ -92,12 +110,39 @@ bool rwkv_eval_sequence(
     }
 
     if (ctx->last_used_sequence_length != sequence_len) {
+        if (ctx->sequential_graph.sched) {
+            ggml_backend_sched_free(ctx->sequential_graph.sched);
+            ctx->sequential_graph.sched = NULL;
+        }
         RWKV_ENSURE_OR_FALSE(rwkv_measure_and_build_sequential_context(*ctx->model, ctx->sequential_graph, sequence_len));
 
         ctx->last_used_sequence_length = sequence_len;
     }
 
     if (sequence) {
+        if (!ctx->sequential_graph.sched) {
+            ctx->sequential_graph.sched = ggml_backend_sched_new(ctx->model->backends.data(), NULL, ctx->model->backends.size(), RWKV_MAX_NODES, false);
+            auto graph = ctx->sequential_graph.cgraph.get();
+
+            for (int i = 0; i < graph->n_nodes; i++) {
+                auto node = graph->nodes[i];
+                if (std::string(node->name).find(".in.") != std::string::npos ||
+                    std::string(node->name).find(".out.") != std::string::npos) {
+                    ggml_backend_sched_set_tensor_backend(ctx->sequential_graph.sched, node, ctx->model->backends.back());
+                }
+            }
+            for (int i = 0; i < graph->n_leafs; i++) {
+                auto leaf = graph->leafs[i];
+                if (std::string(leaf->name).find("state.in") != std::string::npos ||
+                    std::string(leaf->name).find("state.out") != std::string::npos) {
+                    ggml_backend_sched_set_tensor_backend(ctx->sequential_graph.sched, leaf, ctx->model->backends.back());
+                }
+            }
+            ggml_backend_sched_set_tensor_backend(ctx->sequential_graph.sched, ctx->sequential_graph.tokens, ctx->model->backends.back());
+
+            ggml_backend_sched_alloc_graph(ctx->sequential_graph.sched, ctx->sequential_graph.cgraph.get());
+        }
+
         rwkv_set_inputs(ctx, ctx->sequential_graph, state_in);
         ggml_backend_tensor_set(ctx->sequential_graph.tokens, sequence, 0, sequence_len * sizeof(uint32_t));
 
