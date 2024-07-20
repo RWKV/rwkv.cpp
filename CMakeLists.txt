@@ -141,6 +141,7 @@ endif()
 message(STATUS "CMAKE_SYSTEM_PROCESSOR: ${CMAKE_SYSTEM_PROCESSOR}")
 if (NOT MSVC)
     if (RWKV_STATIC)
+        set(GGML_STATIC ON)
         add_link_options(-static)
         if (MINGW)
             add_link_options(-static-libgcc -static-libstdc++)
@@ -232,6 +233,33 @@ if (GGML_METAL)
         ${METAL_FRAMEWORK}
         ${METALKIT_FRAMEWORK}
         )
+endif()
+
+if (GGML_HIPBLAS)
+    # CMake on Windows doesn't support the HIP language yet
+    if (WIN32)
+        set(CXX_IS_HIPCC TRUE)
+    else()
+        string(REGEX MATCH "hipcc(\.bat)?$" CXX_IS_HIPCC "${CMAKE_CXX_COMPILER}")
+    endif()
+
+    find_package(hip     REQUIRED)
+    find_package(hipblas REQUIRED)
+    find_package(rocblas REQUIRED)
+
+    list(APPEND GGML_CDEF_PUBLIC GGML_USE_CUDA)
+
+    add_compile_definitions(GGML_USE_HIPBLAS)
+
+    if (CXX_IS_HIPCC)
+        set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} hip::device)
+    endif()
+
+    if (GGML_STATIC)
+        message(FATAL_ERROR "Static linking not supported for HIP/ROCm")
+    endif()
+
+    set(RWKV_EXTRA_LIBS ${RWKV_EXTRA_LIBS} PUBLIC hip::host roc::rocblas roc::hipblas)
 endif()
 
 target_include_directories(rwkv PUBLIC .)
