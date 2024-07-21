@@ -127,9 +127,6 @@ static struct ggml_tensor * rwkv_wkv_v6(
     GGML_ASSERT(w->ne[0] == 1 && w->ne[1] == S && w->ne[2] == H && w->ne[3] == T);
     GGML_ASSERT(ggml_nelements(state) == S * S * H);
 
-    // k = ggml_cont_4d(ctx, ggml_transpose(ctx, k), S, 1, H, T);
-    // v = ggml_cont_4d(ctx, ggml_transpose(ctx, v), 1, S, H, T);
-    // r = ggml_cont_4d(ctx, ggml_transpose(ctx, r), 1, S, H, T);
     k = ggml_transpose(ctx, k);
     v = ggml_transpose(ctx, v);
     r = ggml_transpose(ctx, r);

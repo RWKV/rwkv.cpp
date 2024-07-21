@@ -69,6 +69,7 @@ static void rwkv_wkv_v5_impl(struct ggml_tensor * result, const struct ggml_tens
 
     // Suppress "unused parameter" warnings.
     (void) src;
+    (void) nth;
     (void) userdata;
 }
 

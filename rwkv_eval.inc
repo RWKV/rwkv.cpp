@@ -22,7 +22,7 @@ static void rwkv_get_outputs(const struct rwkv_computation_graph & graph, float 
 }
 
 // Evaluates a computation graph, optionally skipping logit computation.
-static void rwkv_eval_graph(rwkv_context * ctx, struct rwkv_computation_graph & graph, const uint32_t n_threads, const bool compute_logits) {
+static void rwkv_eval_graph(struct rwkv_computation_graph & graph, const uint32_t n_threads, const bool compute_logits) {
     if (!compute_logits) {
         graph.cgraph->n_nodes = graph.pre_logits_nodes;
         graph.cgraph->n_leafs = graph.pre_logits_leafs;
@@ -68,7 +68,7 @@ bool rwkv_eval(struct rwkv_context * ctx, const uint32_t token, const float * st
     rwkv_set_inputs(ctx, ctx->serial_graph, state_in);
     ggml_backend_tensor_set(ctx->serial_graph.tokens, &token, 0, rwkv_tensor_nbytes(ctx->serial_graph.tokens));
 
-    rwkv_eval_graph(ctx, ctx->serial_graph, ctx->n_threads, logits_out != NULL);
+    rwkv_eval_graph(ctx->serial_graph, ctx->n_threads, logits_out != NULL);
 
     rwkv_get_outputs(ctx->serial_graph, state_out, logits_out);
 
@@ -146,7 +146,7 @@ bool rwkv_eval_sequence(
         rwkv_set_inputs(ctx, ctx->sequential_graph, state_in);
         ggml_backend_tensor_set(ctx->sequential_graph.tokens, sequence, 0, sequence_len * sizeof(uint32_t));
 
-        rwkv_eval_graph(ctx, ctx->sequential_graph, ctx->n_threads, logits_out != NULL);
+        rwkv_eval_graph(ctx->sequential_graph, ctx->n_threads, logits_out != NULL);
 
         rwkv_get_outputs(ctx->sequential_graph, state_out, logits_out);
     }
