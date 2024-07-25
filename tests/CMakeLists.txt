@@ -39,6 +39,12 @@ file(COPY tiny-rwkv-5v2-730K-Q5_0.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY tiny-rwkv-5v2-730K-Q5_1.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY expected-logits-5v2-730K.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
+file(COPY tiny-rwkv-6v0-3m-FP32.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY tiny-rwkv-6v0-3m-FP16.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY tiny-rwkv-6v0-3m-Q5_0.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY tiny-rwkv-6v0-3m-Q5_1.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY expected-logits-6v0-3m.bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
 rwkv_add_test(test_ggml_basics.c)
 rwkv_add_test(test_quantized_matmul_on_gpu.c)
 rwkv_add_test(test_tiny_rwkv.c)

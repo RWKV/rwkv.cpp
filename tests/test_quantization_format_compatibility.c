@@ -6,7 +6,7 @@
 
 #include "logit_difference_validator.inc"
 
-#define VERSION_COUNT 3
+#define VERSION_COUNT 4
 
 int main(void) {
     fprintf(stderr, "System info: %s\n", rwkv_get_system_info_string());
@@ -14,7 +14,8 @@ int main(void) {
     const char * versions[VERSION_COUNT] = {
         "4v0-660K",
         "5v1-730K",
-        "5v2-730K"
+        "5v2-730K",
+        "6v0-3m"
     };
 
     // See the explanation of huge expected differences for v5 models in test_tiny_rwkv.c
@@ -27,7 +28,10 @@ int main(void) {
         -018.017435F,
         // 5v2
         +025.273308F,
-        +048.068733F
+        +048.068733F,
+        // 6v0
+        -019.400530F,
+        +003.576909F
     };
 
     for (int i = 0; i < VERSION_COUNT; i++) {
