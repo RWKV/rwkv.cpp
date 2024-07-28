@@ -136,17 +136,11 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
                 ggml_fp16_to_fp32_row((const ggml_fp16_t *) out_buf, (float *) in_buf, nelements);
             }
 
-            int64_t hist_cur[16] {};
-            new_size = ggml_quantize_chunk(out_type, (const float *) in_buf, out_buf, 0, nelements, hist_cur);
+            new_size = ggml_quantize_chunk(out_type, (const float *) in_buf, out_buf, 0, header.size1, header.size0, NULL);
             header.data_type = rwkv_type_from_ggml[out_type];
             data = out_buf;
 
             RWKV_MSG("size = %8.2f MB -> %8.2f MB | hist: ", orig_size / 1024.0 / 1024.0, new_size / 1024.0 / 1024.0);
-
-            for (int i = 0; i < 16; i++) {
-                RWKV_MSG("%5.3f ", hist_cur[i] / (float) nelements);
-                hist_all[i] += hist_cur[i];
-            }
 
             RWKV_MSG("\n");
         } else {
@@ -162,19 +156,6 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
     RWKV_MSG("quantized size    = %8.2f MB\n", new_total_size / 1024.0 / 1024.0);
     RWKV_MSG("compression ratio = %8.2f\n", orig_total_size / float(new_total_size));
 
-    int64_t sum_all = 0;
-
-    for (int i = 0; i < 16; i++) {
-        sum_all += hist_all[i];
-    }
-
-    RWKV_MSG("hist: ");
-
-    for (int i = 0; i < 16; ++i) {
-        printf("%5.3f ", hist_all[i] / float(sum_all));
-    }
-
-    RWKV_MSG("\n");
 
     return true;
 }

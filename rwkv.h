@@ -87,7 +87,8 @@ extern "C" {
     // Returns NULL on any error.
     // - model_file_path: path to model file in ggml format.
     // - n_threads: count of threads to use, must be positive.
-    RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, const uint32_t n_threads);
+    // - n_gpu_layer: count of layers need to load to gpu
+    RWKV_API struct rwkv_context * rwkv_init_from_file(const char * model_file_path, const uint32_t n_threads, const uint32_t n_gpu_layers);
 
     // Creates a new context from an existing one.
     // This can allow you to run multiple rwkv_eval's in parallel, without having to load a single model multiple times.
@@ -96,14 +97,6 @@ extern "C" {
     // - ctx: context to be cloned.
     // - n_threads: count of threads to use, must be positive.
     RWKV_API struct rwkv_context * rwkv_clone_context(struct rwkv_context * ctx, const uint32_t n_threads);
-
-    // Offloads specified count of model layers onto the GPU. Offloaded layers are evaluated using cuBLAS or CLBlast.
-    // For the purposes of this function, model head (unembedding matrix) is treated as an additional layer:
-    // - pass `rwkv_get_n_layer(ctx)` to offload all layers except model head
-    // - pass `rwkv_get_n_layer(ctx) + 1` to offload all layers, including model head
-    // Returns true if at least one layer was offloaded.
-    // If rwkv.cpp was compiled without cuBLAS and CLBlast support, this function is a no-op and always returns false.
-    RWKV_API bool rwkv_gpu_offload_layers(struct rwkv_context * ctx, const uint32_t n_layers);
 
     // Evaluates the model for a single token.
     // You can pass NULL to logits_out whenever logits are not needed. This can improve speed by ~10 ms per iteration, because logits are not calculated.

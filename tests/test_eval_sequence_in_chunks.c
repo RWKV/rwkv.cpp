@@ -10,7 +10,7 @@
 void test_on_prompt(const char * prompt, const size_t prompt_length) {
     fprintf(stderr, "Calculating expected state and logits for prompt of size %zd\n", prompt_length);
 
-    struct rwkv_context * ctx = rwkv_init_from_file("tiny-rwkv-5v2-730K-FP32.bin", 2);
+    struct rwkv_context * ctx = rwkv_init_from_file("tiny-rwkv-5v2-730K-FP32.bin", 2, 0);
 
     ASSERT(ctx != NULL, "Unexpected error 0x%.8X", rwkv_get_last_error(NULL));
 

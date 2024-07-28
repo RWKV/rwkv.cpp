@@ -1,11 +1,8 @@
 function(rwkv_add_extra source)
     get_filename_component(EXTRA_TARGET ${source} NAME_WE)
     add_executable(rwkv_${EXTRA_TARGET} ${source})
-    if(RWKV_HIPBLAS)
-        target_link_libraries(rwkv_${EXTRA_TARGET} PRIVATE ggml-rocm ggml rwkv)
-    else()
-        target_link_libraries(rwkv_${EXTRA_TARGET} PRIVATE ggml rwkv)
-    endif()
+
+    target_link_libraries(rwkv_${EXTRA_TARGET} PRIVATE ggml rwkv)
     
      if (RWKV_STATIC)
         if(RWKV_HIPBLAS)

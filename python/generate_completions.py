@@ -39,7 +39,7 @@ library = rwkv_cpp_shared_library.load_rwkv_shared_library()
 print(f'System info: {library.rwkv_get_system_info_string()}')
 
 print('Loading RWKV model')
-model = rwkv_cpp_model.RWKVModel(library, args.model_path)
+model = rwkv_cpp_model.RWKVModel(library, args.model_path, gpu_layers_count=0)
 
 tokenizer_decode, tokenizer_encode = get_tokenizer(args.tokenizer, model.n_vocab)
 

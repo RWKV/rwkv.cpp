@@ -8,7 +8,7 @@
 #include "assertions.inc"
 
 int main(void) {
-    struct rwkv_context * ctx = rwkv_init_from_file("tiny-rwkv-5v2-730K-FP32.bin", 2);
+    struct rwkv_context * ctx = rwkv_init_from_file("tiny-rwkv-5v2-730K-FP32.bin", 2, 0);
 
     ASSERT(ctx != NULL, "Unexpected error 0x%.8X", rwkv_get_last_error(NULL));
 
