@@ -158,7 +158,7 @@ static void rwkv_groupnorm_impl(
 
 // Element-wise exp(x)
 struct ggml_tensor * rwkv_exp(struct ggml_context * ctx, struct ggml_tensor * x) {
-    return ggml_map_custom1_inplace(ctx, x, rwkv_exp_impl, 1, NULL);
+    return ggml_map_custom1(ctx, x, rwkv_exp_impl, 1, NULL);
 }
 
 // Element-wise 1 - x
