@@ -548,7 +548,7 @@ static struct ggml_tensor * rwkv_att_v6(
         ggml_reshape_1d(ctx, layer.att_time_decay, n_embed)
     );
 
-    w = rwkv_exp(ctx, ggml_neg_inplace(ctx, rwkv_exp(ctx, w)));
+    w = rwkv_exp(ctx, ggml_neg(ctx, rwkv_exp(ctx, w)));
     w = ggml_reshape_4d(ctx, w, 1, head_size, head_count, sequence_length);
 
     // dup is not strictly required; doing it just in case.
@@ -576,9 +576,9 @@ static struct ggml_tensor * rwkv_att_v6(
     x = rwkv_group_norm_eps_64e_minus5(ctx, x, head_count);
     // Convert back to a regular vector.
     x = ggml_reshape_2d(ctx, x, n_embed, sequence_length);
-    x = ggml_add_inplace(
+    x = ggml_add(
         ctx,
-        ggml_mul_inplace(
+        ggml_mul(
             ctx,
             x,
             layer.att_ln_x_weight

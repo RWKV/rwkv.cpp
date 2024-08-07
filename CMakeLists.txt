@@ -172,7 +172,6 @@ elseif()
     set(GGML_STANDALONE ON)
 endif()
 
-set(BUILD_SHARED_LIBS OFF)
 if (NOT TARGET ggml)
     add_subdirectory(ggml)
     # ... otherwise assume ggml is added by a parent CMakeLists.txt
