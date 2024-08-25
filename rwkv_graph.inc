@@ -354,9 +354,9 @@ static struct ggml_tensor * rwkv_att_v5(
 
     state.att_heads = state_out;
 
-    // ggml_group_norm considers groups in the third dimension.
-    x = ggml_reshape_4d(ctx, x, 1, 1, n_embed, sequence_length);
-    x = rwkv_group_norm_eps_1e_minus5(ctx, x, head_count);
+    // group norm with head_count groups
+    x = ggml_reshape_3d(ctx, x, n_embed / head_count, head_count, sequence_length);
+    x = ggml_norm(ctx, x, 1e-5f);
     // Convert back to a regular vector.
     x = ggml_reshape_2d(ctx, x, n_embed, sequence_length);
     x = ggml_add_inplace(
@@ -571,9 +571,9 @@ static struct ggml_tensor * rwkv_att_v6(
 
     state.att_heads = state_out;
 
-    // ggml_group_norm considers groups in the third dimension.
-    x = ggml_reshape_4d(ctx, x, 1, 1, n_embed, sequence_length);
-    x = rwkv_group_norm_eps_64e_minus5(ctx, x, head_count);
+    // group norm with head_count groups
+    x = ggml_reshape_3d(ctx, x, n_embed / head_count, head_count, sequence_length);
+    x = ggml_norm(ctx, x, 64e-5f);
     // Convert back to a regular vector.
     x = ggml_reshape_2d(ctx, x, n_embed, sequence_length);
     x = ggml_add(
