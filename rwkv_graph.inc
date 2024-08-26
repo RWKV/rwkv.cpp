@@ -804,6 +804,10 @@ static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_compu
             ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_bb, output_state.att_bb));
             ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_pp, output_state.att_pp));
         }
+
+        if ((i + 1) % model.rescale_every_n_layers == 0) {
+            x = ggml_scale(ctx, x, 0.5f);
+        }
     }
 
     graph.pre_logits_nodes = graph.cgraph->n_nodes;
@@ -956,6 +960,10 @@ static bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_c
             ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_aa, output_state.att_aa));
             ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_bb, output_state.att_bb));
             ggml_build_forward_expand(graph.cgraph.get(), ggml_cpy(ctx, state.att_pp, output_state.att_pp));
+        }
+
+        if ((i + 1) % model.rescale_every_n_layers == 0) {
+            x = ggml_scale(ctx, x, 0.5f);
         }
     }
 
