@@ -48,7 +48,7 @@ script_dir: pathlib.Path = pathlib.Path(os.path.abspath(__file__)).parent
 with open(script_dir / 'prompt' / f'{LANGUAGE}-{PROMPT_TYPE}.json', 'r', encoding='utf8') as json_file:
     prompt_data = json.load(json_file)
 
-    user, bot, separator, init_prompt = prompt_data['user'], prompt_data['bot'], prompt_data['separator'], prompt_data['prompt']
+    user, assistant, separator, init_prompt = prompt_data['user'], prompt_data['assistant'], prompt_data['separator'], prompt_data['prompt']
 
 if init_prompt == '':
     raise ValueError('Prompt must not be empty')
@@ -154,7 +154,7 @@ while True:
     if msg == '+reset':
         load_thread_state('chat_init')
         save_thread_state('chat')
-        print(f'{bot}{separator} Chat reset.\n')
+        print(f'{assistant}{separator} Chat reset.\n')
         continue
     elif msg[:5].lower() == '+gen ' or msg[:3].lower() == '+i ' or msg[:4].lower() == '+qa ' or msg[:4].lower() == '+qq ' or msg.lower() == '+++' or msg.lower() == '++':
 
@@ -194,7 +194,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             load_thread_state('chat_init')
 
             real_msg = msg[4:].strip()
-            new = f'{user}{separator} {real_msg}\n\n{bot}{separator}'
+            new = f'{user}{separator} {real_msg}\n\n{assistant}{separator}'
 
             process_tokens(tokenizer_encode(new))
             save_thread_state('gen_0')
@@ -225,17 +225,17 @@ Below is an instruction that describes a task. Write a response that appropriate
             except Exception as e:
                 print(e)
                 continue
-        # chat with bot
+        # chat with assistant
         else:
             load_thread_state('chat')
-            new = f'{user}{separator} {msg}\n\n{bot}{separator}'
+            new = f'{user}{separator} {msg}\n\n{assistant}{separator}'
             process_tokens(tokenizer_encode(new), new_line_logit_bias=-999999999)
             save_thread_state('chat_pre')
 
         thread = 'chat'
 
-        # Print bot response
-        print(f'> {bot}{separator}', end='')
+        # Print assistant response
+        print(f'> {assistant}{separator}', end='')
 
     start_index: int = len(processed_tokens)
     accumulated_tokens: List[int] = []
