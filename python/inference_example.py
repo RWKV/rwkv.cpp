@@ -10,12 +10,13 @@ from typing import List
 # Parse received arguments.
 parser = argparse.ArgumentParser(description='Generate some text with an RWKV model')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
+parser.add_argument('-ngl', '--num_gpu_layers', type=int, default=99, help='Number of layers to run on GPU')
 add_tokenizer_argument(parser)
 args = parser.parse_args()
 
 # Load the model.
 library = rwkv_cpp_shared_library.load_rwkv_shared_library()
-model = rwkv_cpp_model.RWKVModel(library, args.model_path)
+model = rwkv_cpp_model.RWKVModel(library, args.model_path, gpu_layer_count=args.num_gpu_layers)
 
 # Set up the tokenizer.
 tokenizer_decode, tokenizer_encode = get_tokenizer(args.tokenizer, model.n_vocab)
