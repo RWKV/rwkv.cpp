@@ -59,35 +59,33 @@ static void rwkv_carry_x(
     struct ggml_tensor * bias,
     struct ggml_tensor *& x,
     struct ggml_tensor *& x_prev,
-    struct ggml_tensor *& carry
+    struct ggml_tensor *& carry,
+    bool last_x = false
 ) {
     const size_t n_embed = x->ne[0];
     const size_t sequence_len = x->ne[1];
 
+    // self.layer_norm(x, self.w.blocks[i].ln2)
+    x = rwkv_layer_norm(ctx, x, weight, bias);
+
     if (sequence_len == 1) {
-        // self.layer_norm(x, self.w.blocks[i].ln2)
-        x = rwkv_layer_norm(ctx, x, weight, bias);
-
-        // xx = state[5*i+0]
         x_prev = carry;
-
-        // state[5*i+0] = x
-        carry = x;
     } else {
-        // self.layer_norm(x, self.w.blocks[i].ln2)
-        x = rwkv_layer_norm(ctx, x, weight, bias);
+        x_prev = ggml_concat(
+            ctx,
+            ggml_view_2d(ctx, carry, n_embed, 1, carry->nb[1], 0),
+            ggml_view_2d(ctx, x, n_embed, sequence_len - 1, x->nb[1], 0),
+            1
+        );
+    }
 
-        // xx = torch.cat((state[5*i+0].to(dtype=self.FLOAT_MODE).unsqueeze(0), x[:-1,:]))
-        x_prev = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, n_embed, sequence_len);
-        x_prev = ggml_set_1d_inplace(ctx, x_prev, carry, 0);
-        x_prev = ggml_set_1d_inplace(ctx, x_prev, ggml_view_1d(ctx, x, n_embed * (sequence_len - 1), 0), n_embed * sizeof(float));
-
-        // state[5*i+0] = x[-1,:]
-        carry = ggml_view_1d(ctx, x, n_embed, n_embed * (sequence_len - 1) * sizeof(float));
+    carry = x;
+    if (last_x) {
+        carry = ggml_view_1d(ctx, carry, n_embed, n_embed * (sequence_len - 1) * sizeof(float));
     }
 }
 
-static void rwkv_att_rkv(
+static void rwkv_att_rkv_v4(
     struct ggml_context * ctx,
     struct rwkv_layer layer,
     struct ggml_tensor * x,
@@ -99,19 +97,19 @@ static void rwkv_att_rkv(
     // xk = x * time_mix_k + state[5 * i + 1] * (1 - time_mix_k)
     struct ggml_tensor * xk = ggml_add(ctx,
         ggml_mul(ctx, x, layer.att_time_mix_k),
-        ggml_mul(ctx, x_prev, rwkv_1_minus_x(ctx, layer.att_time_mix_k))
+        ggml_sub(ctx, x_prev, ggml_mul(ctx, x_prev, layer.att_time_mix_k))
     );
 
     // xv = x * time_mix_v + state[5 * i + 1] * (1 - time_mix_v)
     struct ggml_tensor * xv = ggml_add(ctx,
         ggml_mul(ctx, x, layer.att_time_mix_v),
-        ggml_mul(ctx, x_prev, rwkv_1_minus_x(ctx, layer.att_time_mix_v))
+        ggml_sub(ctx, x_prev, ggml_mul(ctx, x_prev, layer.att_time_mix_v))
     );
 
     // xr = x * time_mix_r + state[5 * i + 1] * (1 - time_mix_r)
     struct ggml_tensor * xr = ggml_add(ctx,
         ggml_mul(ctx, x, layer.att_time_mix_r),
-        ggml_mul(ctx, x_prev, rwkv_1_minus_x(ctx, layer.att_time_mix_r))
+        ggml_sub(ctx, x_prev, ggml_mul(ctx, x_prev, layer.att_time_mix_r))
     );
 
     // r = torch.sigmoid(rw @ xr)
@@ -122,7 +120,7 @@ static void rwkv_att_rkv(
     v = ggml_mul_mat(ctx, layer.att_value, xv);
 }
 
-static struct ggml_tensor * rwkv_att_wkv(
+static struct ggml_tensor * rwkv_att_wkv_v4(
     struct ggml_context * ctx,
     struct ggml_tensor * att_time_first,
     struct ggml_tensor * att_time_decay,
@@ -166,17 +164,40 @@ static struct ggml_tensor * rwkv_att_wkv(
     return ggml_div(ctx, a, b);
 }
 
-static struct ggml_tensor * rwkv_att(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
-    struct ggml_tensor * x_prev;
-    rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x, x_prev, state.att_xx);
+static struct ggml_tensor * rwkv_att_v4(
+    struct ggml_context * ctx,
+    struct ggml_tensor * x,
+    struct rwkv_layer layer,
+    struct rwkv_layer_state & state,
+    struct rwkv_computation_graph & graph
+) {
+    size_t n_embed = x->ne[0];
+    size_t sequence_length = x->ne[1];
+    struct ggml_tensor * x0 = x, * x_prev;
+    rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x0, x_prev, state.att_xx, true);
 
     struct ggml_tensor * r, * k, * v;
-    rwkv_att_rkv(ctx, layer, x, x_prev, r, k, v);
+    rwkv_att_rkv_v4(ctx, layer, x0, x_prev, r, k, v);
 
-    struct ggml_tensor * wkv = rwkv_att_wkv(ctx, layer.att_time_first, layer.att_time_decay, k, v, state.att_aa, state.att_bb, state.att_pp);
+    if (sequence_length == 1) {
+        struct ggml_tensor * wkv = rwkv_att_wkv_v4(ctx, layer.att_time_first, layer.att_time_decay, k, v, state.att_aa, state.att_bb, state.att_pp);
 
-    // ow @ (r * xx)
-    return ggml_mul_mat(ctx, layer.att_output, ggml_mul(ctx, r, wkv));
+        // ow @ (r * xx)
+        return ggml_mul_mat(ctx, layer.att_output, ggml_mul(ctx, r, wkv));
+    } else {
+        ggml_build_forward_expand(graph.cgraph, r);
+
+        for (size_t t = 0; t < sequence_length; t++) {
+            struct ggml_tensor * kt = ggml_view_1d(ctx, k, n_embed, n_embed * sizeof(float) * t);
+            struct ggml_tensor * vt = ggml_view_1d(ctx, v, n_embed, n_embed * sizeof(float) * t);
+            struct ggml_tensor * xt = ggml_view_1d(ctx, x_prev, n_embed, n_embed * sizeof(float) * t);
+            struct ggml_tensor * wkv = rwkv_att_wkv_v4(ctx, layer.att_time_first, layer.att_time_decay, kt, vt, state.att_aa, state.att_bb, state.att_pp);
+            xt = ggml_set_1d_inplace(ctx, xt, wkv, 0);
+            ggml_build_forward_expand(graph.cgraph, xt);
+        }
+
+        return ggml_mul_mat(ctx, layer.att_output, ggml_mul(ctx, r, x_prev));
+    }
 }
 
 static struct ggml_tensor * rwkv_att_v5(
@@ -191,49 +212,26 @@ static struct ggml_tensor * rwkv_att_v5(
     size_t n_embed = x->ne[0];
     size_t sequence_length = x->ne[1];
 
-    x = rwkv_layer_norm(ctx, x, layer.ln1_weight, layer.ln1_bias);
-
     struct ggml_tensor * x_prev;
-
-    if (sequence_length > 1) {
-        x_prev = ggml_concat(
-            ctx,
-            ggml_view_2d(ctx, state.att_xx, n_embed, 1, state.att_xx->nb[1], 0),
-            ggml_view_2d(ctx, x, n_embed, sequence_length - 1, x->nb[1], 0),
-            1
-        );
-    } else {
-        x_prev = state.att_xx;
-    }
+    rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x, x_prev, state.att_xx);
 
     struct ggml_tensor * xk = ggml_add(
         ctx,
         ggml_mul(ctx, x, layer.att_time_mix_k),
-        ggml_mul(
-            ctx,
-            x_prev,
-            rwkv_1_minus_x(ctx, layer.att_time_mix_k)
-        )
+        ggml_sub(ctx, x_prev, ggml_mul(ctx, x_prev, layer.att_time_mix_k))
     );
 
     struct ggml_tensor * xv = ggml_add(
         ctx,
         ggml_mul(ctx, x, layer.att_time_mix_v),
-        ggml_mul(
-            ctx,
-            x_prev,
-            rwkv_1_minus_x(ctx, layer.att_time_mix_v)
-        )
+        ggml_sub(ctx, x_prev, ggml_mul(ctx, x_prev, layer.att_time_mix_v))
+
     );
 
     struct ggml_tensor * xr = ggml_add(
         ctx,
         ggml_mul(ctx, x, layer.att_time_mix_r),
-        ggml_mul(
-            ctx,
-            x_prev,
-            rwkv_1_minus_x(ctx, layer.att_time_mix_r)
-        )
+        ggml_sub(ctx, x_prev, ggml_mul(ctx, x_prev, layer.att_time_mix_r))
     );
 
     struct ggml_tensor * xg = NULL;
@@ -242,20 +240,14 @@ static struct ggml_tensor * rwkv_att_v5(
         xg = ggml_add(
             ctx,
             ggml_mul(ctx, x, layer.att_time_mix_g),
-            ggml_mul(
-                ctx,
-                x_prev,
-                rwkv_1_minus_x(ctx, layer.att_time_mix_g)
-            )
+            ggml_sub(ctx, x_prev, ggml_mul(ctx, x_prev, layer.att_time_mix_g))
         );
     }
 
     state.att_xx = ggml_view_1d(ctx, x, n_embed, n_embed * (sequence_length - 1) * sizeof(float));
-
-    struct ggml_tensor * r = ggml_reshape_4d(ctx, ggml_mul_mat(ctx, layer.att_receptance, xr), head_size, 1,         head_count, sequence_length);
-    struct ggml_tensor * k = ggml_reshape_4d(ctx, ggml_mul_mat(ctx, layer.att_key,        xk), 1,         head_size, head_count, sequence_length);
-    struct ggml_tensor * v = ggml_reshape_4d(ctx, ggml_mul_mat(ctx, layer.att_value,      xv), head_size, 1,         head_count, sequence_length);
-
+    struct ggml_tensor * r = ggml_reshape_4d(ctx, ggml_mul_mat(ctx, layer.att_receptance, xr), 1,         head_size, head_count, sequence_length);
+    struct ggml_tensor * k = ggml_reshape_4d(ctx, ggml_mul_mat(ctx, layer.att_key,        xk), head_size, 1,         head_count, sequence_length);
+    struct ggml_tensor * v = ggml_reshape_4d(ctx, ggml_mul_mat(ctx, layer.att_value,      xv), 1,         head_size, head_count, sequence_length);
     struct ggml_tensor * g = NULL;
 
     if (arch_version_minor >= 2) {
@@ -264,9 +256,6 @@ static struct ggml_tensor * rwkv_att_v5(
             ggml_mul_mat(ctx, layer.att_gate, xg)
         );
     }
-
-    // dup is not strictly required; doing it just in case.
-    struct ggml_tensor * state_out = ggml_dup(ctx, state.att_heads);
 
     struct ggml_tensor * time_first;
     struct ggml_tensor * time_decay;
@@ -281,22 +270,16 @@ static struct ggml_tensor * rwkv_att_v5(
         time_decay = ggml_repeat(ctx, layer.att_time_decay, dummy);
     }
 
-    x = rwkv_wkv_v5(
-        ctx,
-        sequence_length,
-        n_embed,
-        head_count,
-        head_size,
-        x,
-        k,
-        v,
-        r,
-        time_first,
-        time_decay,
-        state_out
-    );
+    // To be able to use ggml's wkv6 gpu impls.
+    {
+        struct ggml_tensor * dummy = ggml_new_tensor_4d(ctx, GGML_TYPE_F32, 1, head_size, head_count, sequence_length);
+        time_decay = ggml_repeat(ctx, time_decay, dummy);
+    }
 
-    state.att_heads = state_out;
+    struct ggml_tensor * wkv_out = ggml_rwkv_wkv6(ctx, k, v, r, time_first, time_decay, state.att_heads);
+    x = ggml_view_1d(ctx, wkv_out, n_embed * sequence_length, 0);
+
+    state.att_heads = ggml_view_1d(ctx, wkv_out, n_embed * head_size, n_embed * sequence_length * sizeof(float));
 
     // group norm with head_count groups
     x = ggml_reshape_3d(ctx, x, n_embed / head_count, head_count, sequence_length);
@@ -318,29 +301,13 @@ static struct ggml_tensor * rwkv_att_v6(
     struct rwkv_layer layer,
     struct rwkv_layer_state & state,
     const int64_t head_count,
-    const int64_t head_size,
-    const uint32_t arch_version_minor
+    const int64_t head_size
 ) {
-    // Unused.
-    (void)arch_version_minor;
-
     size_t n_embed = x->ne[0];
     size_t sequence_length = x->ne[1];
 
-    x = rwkv_layer_norm(ctx, x, layer.ln1_weight, layer.ln1_bias);
-
     struct ggml_tensor * x_prev;
-
-    if (sequence_length > 1) {
-        x_prev = ggml_concat(
-            ctx,
-            ggml_view_2d(ctx, state.att_xx, n_embed, 1, state.att_xx->nb[1], 0),
-            ggml_view_2d(ctx, x, n_embed, sequence_length - 1, x->nb[1], 0),
-            1
-        );
-    } else {
-        x_prev = state.att_xx;
-    }
+    rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x, x_prev, state.att_xx);
 
     // sx = x - state.att_xx
     // xxx = x + sx * x_maa
@@ -421,23 +388,23 @@ static struct ggml_tensor * rwkv_att_v6(
     return ggml_mul_mat(ctx, layer.att_output, x);
 }
 
-static struct ggml_tensor * rwkv_ffn(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
+static struct ggml_tensor * rwkv_ffn_v4_v5(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
     struct ggml_tensor * x_prev;
-    rwkv_carry_x(ctx, layer.ln2_weight, layer.ln2_bias, x, x_prev, state.ffn_xx);
+    rwkv_carry_x(ctx, layer.ln2_weight, layer.ln2_bias, x, x_prev, state.ffn_xx, true);
 
     // xk = x * time_mix_k + state[5 * i + 1] * (1 - time_mix_k)
     // xk = x * time_mix_k + state[5 * i + 0] * (1 - time_mix_k)
     struct ggml_tensor * xk = ggml_add(
         ctx,
         ggml_mul(ctx, x, layer.ffn_time_mix_k),
-        ggml_mul(ctx, x_prev, rwkv_1_minus_x(ctx, layer.ffn_time_mix_k))
+        ggml_sub(ctx, x_prev, ggml_mul(ctx, x_prev, layer.ffn_time_mix_k))
     );
 
     // xr = x * time_mix_r + state[5 * i + 0] * (1 - time_mix_r)
     struct ggml_tensor * xr = ggml_add(
         ctx,
         ggml_mul(ctx, x, layer.ffn_time_mix_r),
-        ggml_mul(ctx, x_prev, rwkv_1_minus_x(ctx, layer.ffn_time_mix_r))
+        ggml_sub(ctx, x_prev, ggml_mul(ctx, x_prev, layer.ffn_time_mix_r))
     );
 
     // r = torch.sigmoid(rw @ xr)
@@ -452,22 +419,13 @@ static struct ggml_tensor * rwkv_ffn(struct ggml_context * ctx, struct ggml_tens
 
 static struct ggml_tensor * rwkv_ffn_v6(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
     struct ggml_tensor * x_prev;
-    rwkv_carry_x(ctx, layer.ln2_weight, layer.ln2_bias, x, x_prev, state.ffn_xx);
+    rwkv_carry_x(ctx, layer.ln2_weight, layer.ln2_bias, x, x_prev, state.ffn_xx, true);
     x_prev = ggml_sub(ctx, x_prev, x);
 
     // xk = x + sx * time_maa_k
     // xr = x + sx * time_maa_r
-    struct ggml_tensor * xk = ggml_add(
-        ctx,
-        ggml_mul(ctx, x_prev, layer.ffn_time_maa_k),
-        x
-    );
-
-    struct ggml_tensor * xr = ggml_add(
-        ctx,
-        ggml_mul(ctx, x_prev, layer.ffn_time_maa_r),
-        x
-    );
+    struct ggml_tensor * xk = ggml_add(ctx, ggml_mul(ctx, x_prev, layer.ffn_time_maa_k), x);
+    struct ggml_tensor * xr = ggml_add(ctx, ggml_mul(ctx, x_prev, layer.ffn_time_maa_r), x);
 
     // r = torch.sigmoid(rw @ xr)
     struct ggml_tensor * r = ggml_sigmoid(ctx, ggml_mul_mat(ctx, layer.ffn_receptance, xr));
@@ -596,32 +554,25 @@ static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_compu
 
         struct rwkv_layer_state state = inputs[i];
 
-        if (model.arch_version_major == 6) {
-            x = ggml_add(ctx, x, rwkv_att_v6(
-                ctx,
-                x,
-                layer,
-                state,
-                model.head_count,
-                model.head_size,
-                model.arch_version_minor
-            ));
+        switch (model.arch_version_major) {
+            case 7:
 
-            x = ggml_add(ctx, x, rwkv_ffn_v6(ctx, x, layer, state));
-        } else {
-            x = model.arch_version_major >= 5 ?
-                ggml_add(ctx, x, rwkv_att_v5(
-                    ctx,
-                    x,
-                    layer,
-                    state,
-                    model.head_count,
-                    model.head_size,
-                    model.arch_version_minor
-                )) :
-                ggml_add(ctx, x, rwkv_att(ctx, x, layer, state));
-
-            x = ggml_add(ctx, x, rwkv_ffn(ctx, x, layer, state));
+                break;
+            case 6:
+                x = ggml_add(ctx, x, rwkv_att_v6(ctx, x, layer, state, model.head_count, model.head_size));
+                x = ggml_add(ctx, x, rwkv_ffn_v6(ctx, x, layer, state));
+                break;
+            case 5:
+                x = ggml_add(ctx, x, rwkv_att_v5(ctx, x, layer, state, model.head_count, model.head_size, model.arch_version_minor));
+                x = ggml_add(ctx, x, rwkv_ffn_v4_v5(ctx, x, layer, state));
+                break;
+            case 4:
+                x = ggml_add(ctx, x, rwkv_att_v4(ctx, x, layer, state, graph));
+                x = ggml_add(ctx, x, rwkv_ffn_v4_v5(ctx, x, layer, state));
+                break;
+            default:
+                RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_UNSUPPORTED, false, "Unsupported model architecture version");
+                break;
         }
 
         struct rwkv_layer_state & output_state = outputs[i];
@@ -731,52 +682,39 @@ static bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_c
 
         struct rwkv_layer_state state = inputs[i];
 
-        if (model.arch_version_major == 6) {
-            x = ggml_add(ctx, x, rwkv_att_v6(
-                ctx,
-                x,
-                layer,
-                state,
-                model.head_count,
-                model.head_size,
-                model.arch_version_minor
-            ));
-        } else if (model.arch_version_major >= 5) {
-            x = ggml_add(ctx, x, rwkv_att_v5(
-                ctx,
-                x,
-                layer,
-                state,
-                model.head_count,
-                model.head_size,
-                model.arch_version_minor
-            ));
-        } else {
-            struct ggml_tensor * x0 = x, * x_prev;
-            rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x0, x_prev, state.att_xx);
+        switch (model.arch_version_major) {
+            case 7:
 
-            struct ggml_tensor * r, * k, * v;
-            rwkv_att_rkv(ctx, layer, x0, x_prev, r, k, v);
-
-            ggml_build_forward_expand(graph.cgraph, r);
-
-            for (size_t t = 0; t < sequence_length; t++) {
-                struct ggml_tensor * kt = ggml_view_1d(ctx, k, n_embed, n_embed * sizeof(float) * t);
-                struct ggml_tensor * vt = ggml_view_1d(ctx, v, n_embed, n_embed * sizeof(float) * t);
-                struct ggml_tensor * xt = ggml_view_1d(ctx, x_prev, n_embed, n_embed * sizeof(float) * t);
-                struct ggml_tensor * wkv = rwkv_att_wkv(ctx, layer.att_time_first, layer.att_time_decay, kt, vt, state.att_aa, state.att_bb, state.att_pp);
-                xt = ggml_set_1d_inplace(ctx, xt, wkv, 0);
-                ggml_build_forward_expand(graph.cgraph, xt);
-            }
-
-            x = ggml_add(ctx, x, ggml_mul_mat(ctx, layer.att_output, ggml_mul(ctx, r, x_prev)));
+                break;
+            case 6:
+                x = ggml_add(ctx, x, rwkv_att_v6(ctx, x, layer, state, model.head_count, model.head_size));
+                break;
+            case 5:
+                x = ggml_add(ctx, x, rwkv_att_v5(ctx, x, layer, state, model.head_count, model.head_size, model.arch_version_minor));
+                break;
+            case 4:
+                x = ggml_add(ctx, x, rwkv_att_v4(ctx, x, layer, state, graph));
+                break;
+            default:
+                RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_UNSUPPORTED, false, "Unsupported model architecture version");
+                break;
         }
 
         // TODO Can we skip ffn for all but the last token, the same way we skip unembedding?
-        if (model.arch_version_major == 6) {
-            x = ggml_add(ctx, x, rwkv_ffn_v6(ctx, x, layer, state));
-        } else {
-            x = ggml_add(ctx, x, rwkv_ffn(ctx, x, layer, state));
+        switch (model.arch_version_major) {
+            case 7:
+
+                break;
+            case 6:
+                x = ggml_add(ctx, x, rwkv_ffn_v6(ctx, x, layer, state));
+                break;
+            case 5:
+            case 4:
+                x = ggml_add(ctx, x, rwkv_ffn_v4_v5(ctx, x, layer, state));
+                break;
+            default:
+                RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_UNSUPPORTED, false, "Unsupported model architecture version");
+                break;
         }
 
         struct rwkv_layer_state & output_state = outputs[i];
