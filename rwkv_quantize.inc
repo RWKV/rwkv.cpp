@@ -86,9 +86,6 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
 
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(in_file.file, sizeof(struct rwkv_file_header), SEEK_SET) == 0, "Failed to seek in file");
 
-    // This is a histogram of quantized values. If it shows single 1.0, then all 0.0, something went very wrong!
-    int64_t hist_all[16] {};
-
     std::unique_ptr<uint8_t[]> scratch(new(std::nothrow) uint8_t[max_in_size + max_out_size]);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, scratch.get(), "Failed to allocate buffer");
 

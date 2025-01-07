@@ -91,10 +91,10 @@ static void rwkv_wkv_v5_impl(struct ggml_tensor * result, const struct ggml_tens
 // state will be written to.
 static struct ggml_tensor * rwkv_wkv_v5(
     struct ggml_context * ctx,
-    const size_t T,
-    const size_t C,
-    const size_t H,
-    const size_t S,
+    const int64_t T,
+    const int64_t C,
+    const int64_t H,
+    const int64_t S,
     struct ggml_tensor * x,
     struct ggml_tensor * k,
     struct ggml_tensor * v,

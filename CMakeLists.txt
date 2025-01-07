@@ -107,6 +107,7 @@ if (RWKV_ALL_WARNINGS)
             -Wcast-qual
             -Wno-unused-function
             -Wno-multichar
+            -Wno-nonnull
         )
     else()
         set(c_flags
@@ -262,12 +263,14 @@ if (GGML_HIPBLAS)
 endif()
 
 target_include_directories(rwkv PUBLIC .)
-target_include_directories(rwkv PRIVATE ggml/include)
+target_include_directories(rwkv PRIVATE ggml/include ggml/src)
 target_compile_features(rwkv PUBLIC cxx_std_11)
-target_link_libraries(rwkv PRIVATE $<TARGET_OBJECTS:ggml> ${RWKV_EXTRA_LIBS})
+target_link_libraries(rwkv PRIVATE $<TARGET_OBJECTS:ggml> $<TARGET_OBJECTS:ggml-base> $<TARGET_OBJECTS:ggml-cpu> ${RWKV_EXTRA_LIBS})
 
 if (RWKV_BUILD_SHARED_LIBRARY)
     set_target_properties(ggml PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    set_target_properties(ggml-base PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    set_target_properties(ggml-cpu PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(ggml PRIVATE GGML_SHARED GGML_BUILD)
     set_target_properties(rwkv PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(rwkv PRIVATE RWKV_SHARED RWKV_BUILD)

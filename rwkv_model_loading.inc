@@ -121,7 +121,7 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback, const uint32_
     for (uint32_t i = 0; i < n_layer; i++) {
         bool offload_layer = (i < n_gpu);
         char buffer[128];
-        size_t offset = sprintf(buffer, "blocks.%" PRId32 ".", i);
+        size_t offset = snprintf(buffer, sizeof(buffer), "blocks.%" PRId32 ".", i);
 
         rwkv_layer & layer = model.layers[i];
         RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "ln1.weight"), buffer), layer.ln1_weight, offload_layer));
@@ -314,7 +314,7 @@ static bool rwkv_load_model_from_file(const char * file_path, struct rwkv_model 
     fseek(file.file, tensors_file_start, SEEK_SET);
     while ((size_t) ftell(file.file) < (size_t) file_stat.st_size) {
         RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_MODEL_PARAMS, 
-            rwkv_fread_ggml_tensor_data(file.file, model.ggml_ctx, parameters_ref),
+            rwkv_fread_ggml_tensor_data(file.file, parameters_ref),
             "Failed to read a model parameter");
     }
 

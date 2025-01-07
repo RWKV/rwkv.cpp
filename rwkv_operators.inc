@@ -11,22 +11,6 @@ static void rwkv_validate_tensors_for_custom_unary_op(struct ggml_tensor * dest,
 
 #define SUPPRESS_UNUSED_WARNINGS_IN_CUSTOM_OP() { (void) ith; (void) nth; (void) userdata; }
 
-static void rwkv_exp_impl(struct ggml_tensor * dest, const struct ggml_tensor * src, int ith, int nth, void * userdata) {
-    rwkv_validate_tensors_for_custom_unary_op(dest, src);
-
-    int64_t element_count = src->ne[0] * src->ne[1];
-    int64_t start = ith * element_count / nth;
-    int64_t end = (ith + 1) * element_count / nth;
-    float * src_data = (float *) src->data;
-    float * dest_data = (float *) dest->data;
-
-    for (int64_t i = start; i < end; i++) {
-        dest_data[i] = expf(src_data[i]);
-    }
-
-    SUPPRESS_UNUSED_WARNINGS_IN_CUSTOM_OP();
-}
-
 static void rwkv_1_minus_x_impl(struct ggml_tensor * dest, const struct ggml_tensor * src, int ith, int nth, void * userdata) {
     rwkv_validate_tensors_for_custom_unary_op(dest, src);
 
@@ -75,11 +59,6 @@ static void rwkv_max_impl(
     }
 
     SUPPRESS_UNUSED_WARNINGS_IN_CUSTOM_OP();
-}
-
-// Element-wise exp(x)
-struct ggml_tensor * rwkv_exp(struct ggml_context * ctx, struct ggml_tensor * x) {
-    return ggml_map_custom1(ctx, x, rwkv_exp_impl, 1, NULL);
 }
 
 // Element-wise 1 - x

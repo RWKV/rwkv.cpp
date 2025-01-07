@@ -250,7 +250,7 @@ static bool rwkv_fread_ggml_tensor_info(FILE * file, struct ggml_context * ctx, 
     return true;
 }
 
-static bool rwkv_fread_ggml_tensor_data(FILE * file, struct ggml_context * ctx, std::unordered_map<std::string, struct ggml_tensor *> & parameters) {
+static bool rwkv_fread_ggml_tensor_data(FILE * file, std::unordered_map<std::string, struct ggml_tensor *> & parameters) {
     struct rwkv_tensor_header header;
     std::string name;
     RWKV_ENSURE_OR_FALSE_MSG(rwkv_fread_tensor_header(file, header), "Invalid tensor header");

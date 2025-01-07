@@ -129,14 +129,14 @@ int main(void) {
             }
 
             char source_file_name[128];
-            char dest_format[128];
+            char dest_format[32];
             char dest_file_name[128];
 
             // ---
 
-            sprintf(source_file_name, "tiny-rwkv-%s-FP32.bin", versions[i_version]);
-            sprintf(dest_format, "FP32-to-%s", formats[i_format]);
-            sprintf(dest_file_name, "tiny-rwkv-%s-%s.bin", versions[i_version], dest_format);
+            snprintf(source_file_name, sizeof(source_file_name), "tiny-rwkv-%s-FP32.bin", versions[i_version]);
+            snprintf(dest_format, sizeof(dest_format), "FP32-to-%s", formats[i_format]);
+            snprintf(dest_file_name, sizeof(dest_file_name), "tiny-rwkv-%s-%s.bin", versions[i_version], dest_format);
 
             rwkv_quantize_model_file(source_file_name, dest_file_name, formats[i_format]);
 
@@ -144,9 +144,9 @@ int main(void) {
 
             // ---
 
-            sprintf(source_file_name, "tiny-rwkv-%s-FP16.bin", versions[i_version]);
-            sprintf(dest_format, "FP16-to-%s", formats[i_format]);
-            sprintf(dest_file_name, "tiny-rwkv-%s-%s.bin", versions[i_version], dest_format);
+            snprintf(source_file_name, sizeof(source_file_name), "tiny-rwkv-%s-FP16.bin", versions[i_version]);
+            snprintf(dest_format, sizeof(dest_format), "FP16-to-%s", formats[i_format]);
+            snprintf(dest_file_name, sizeof(dest_file_name), "tiny-rwkv-%s-%s.bin", versions[i_version], dest_format);
 
             rwkv_quantize_model_file(source_file_name, dest_file_name, formats[i_format]);
 
