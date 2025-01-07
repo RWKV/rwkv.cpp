@@ -40,6 +40,7 @@ static bool rwkv_fread_string(FILE * file, const size_t length, std::string & de
     if (ret == 1) {
         dest.assign(buffer, length);
     }
+    delete[] buffer;
     return ret == 1;
 }
 

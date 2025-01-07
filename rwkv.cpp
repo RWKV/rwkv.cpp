@@ -207,6 +207,8 @@ void rwkv_free(struct rwkv_context * ctx) {
         ggml_backend_sched_free(ctx->sequential_graph.sched);
         ggml_free(ctx->sequential_graph.ggml_ctx);
     }
+
+    delete ctx;
 }
 
 // API function.
