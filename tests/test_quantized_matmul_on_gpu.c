@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include <ggml.h>
+#include <ggml-cpu.h>
 #include <ggml-alloc.h>
 #include <ggml-backend.h>
 
@@ -106,8 +107,8 @@ int main(void) {
     ggml_backend_tensor_get(mul0, &result0, 0, ggml_nbytes(mul0));
     ggml_backend_tensor_get(mul1, &result1, 0, ggml_nbytes(mul1));
 
-    fprintf(stderr, "FP32 CPU result = %f\n", result0);
-    fprintf(stderr, "Q5_0 GPU result = %f\n", result1);
+    fprintf(stderr, "FP32 CPU result = %f\n", (double)result0);
+    fprintf(stderr, "Q5_0 GPU result = %f\n", (double)result1);
 
     ASSERT(fabsf(result0 - result1) <= 100.0F, "Results differ too much");
 
