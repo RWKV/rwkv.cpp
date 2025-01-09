@@ -610,7 +610,7 @@ static void rwkv_create_input_and_output_views(
 // Creates and sets the input and output ggml tensors, builds the computation graph.
 static bool rwkv_build_serial_graph(struct rwkv_model & model, struct rwkv_computation_graph & graph) {
     if (!graph.cgraph) {
-        graph.cgraph = ggml_new_graph_custom(model.ggml_ctx, RWKV_MAX_NODES, false);
+        graph.cgraph = ggml_new_graph_custom(graph.ggml_ctx, RWKV_MAX_NODES, false);
     }
 
     struct rwkv_file_header & header = model.header;
@@ -743,7 +743,7 @@ static bool rwkv_measure_and_build_serial_context(struct rwkv_model & model, str
 // Creates and sets the input and output ggml tensors, builds the computation graph.
 static bool rwkv_build_sequential_graph(struct rwkv_model & model, struct rwkv_computation_graph & graph, const size_t sequence_length) {
     if (!graph.cgraph) {
-        graph.cgraph = ggml_new_graph_custom(model.ggml_ctx, RWKV_MAX_NODES, false);
+        graph.cgraph = ggml_new_graph_custom(graph.ggml_ctx, RWKV_MAX_NODES, false);
     }
 
     struct rwkv_file_header & header = model.header;
