@@ -8,8 +8,10 @@ from typing import Optional, List, Tuple, Callable
 QUANTIZED_FORMAT_NAMES: Tuple[str, str, str, str, str] = (
     'Q4_0',
     'Q4_1',
+    'Q4_K',
     'Q5_0',
     'Q5_1',
+    'Q5_K',
     'Q8_0'
 )
 

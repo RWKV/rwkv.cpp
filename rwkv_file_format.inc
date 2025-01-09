@@ -13,6 +13,13 @@ enum rwkv_type {
     TYPE_Q5_0,
     TYPE_Q5_1,
     TYPE_Q8_0,
+    TYPE_Q8_1,
+    TYPE_Q2_K,
+    TYPE_Q3_K,
+    TYPE_Q4_K,
+    TYPE_Q5_K,
+    TYPE_Q6_K,
+    TYPE_Q8_K,
     TYPE_COUNT
 };
 
@@ -29,6 +36,13 @@ static const enum ggml_type rwkv_type_to_ggml[TYPE_COUNT + 1] = {
     GGML_TYPE_Q5_0,    /* Q5_0   */
     GGML_TYPE_Q5_1,    /* Q5_1   */
     GGML_TYPE_Q8_0,    /* Q8_0   */
+    GGML_TYPE_Q8_1,    /* Q8_1   */
+    GGML_TYPE_Q2_K,    /* Q2_K   */
+    GGML_TYPE_Q3_K,    /* Q3_K   */
+    GGML_TYPE_Q4_K,    /* Q4_K   */
+    GGML_TYPE_Q5_K,    /* Q5_K   */
+    GGML_TYPE_Q6_K,    /* Q6_K   */
+    GGML_TYPE_Q8_K,    /* Q8_K   */
     GGML_TYPE_COUNT    /* COUNT  */
 };
 
@@ -42,10 +56,13 @@ static const enum rwkv_type rwkv_type_from_ggml[GGML_TYPE_COUNT + 1] = {
     TYPE_Q5_0,   /* Q5_0  */
     TYPE_Q5_1,   /* Q5_1  */
     TYPE_Q8_0,   /* Q8_0  */
-    TYPE_COUNT,  /* Q8_1  */
-    TYPE_COUNT,  /* I8    */
-    TYPE_COUNT,  /* I16   */
-    TYPE_COUNT,  /* I32   */
+    TYPE_Q8_1,   /* Q8_1  */
+    TYPE_Q2_K,   /* Q2_K  */
+    TYPE_Q3_K,   /* Q3_K  */
+    TYPE_Q4_K,   /* Q4_K  */
+    TYPE_Q5_K,   /* Q5_K  */
+    TYPE_Q6_K,   /* Q6_K  */
+    TYPE_Q8_K,   /* Q8_K  */
     TYPE_COUNT,  /* COUNT */
 };
 
@@ -60,6 +77,13 @@ static const char * rwkv_type_to_string[TYPE_COUNT + 1] = {
     "Q5_0",
     "Q5_1",
     "Q8_0",
+    "Q8_1",
+    "Q2_K",
+    "Q3_K",
+    "Q4_K",
+    "Q5_K",
+    "Q6_K",
+    "Q8_K",
     "unknown"
 };
 
