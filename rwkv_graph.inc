@@ -59,8 +59,7 @@ static void rwkv_carry_x(
     struct ggml_tensor * bias,
     struct ggml_tensor *& x,
     struct ggml_tensor *& x_prev,
-    struct ggml_tensor *& carry,
-    bool last_x = false
+    struct ggml_tensor *& carry
 ) {
     const size_t n_embed = x->ne[0];
     const size_t sequence_len = x->ne[1];
@@ -79,10 +78,7 @@ static void rwkv_carry_x(
         );
     }
 
-    carry = x;
-    if (last_x) {
-        carry = ggml_view_1d(ctx, carry, n_embed, n_embed * (sequence_len - 1) * sizeof(float));
-    }
+    carry = ggml_view_1d(ctx, x, n_embed, n_embed * (sequence_len - 1) * sizeof(float));
 }
 
 static void rwkv_att_rkv_v4(
@@ -174,7 +170,7 @@ static struct ggml_tensor * rwkv_att_v4(
     size_t n_embed = x->ne[0];
     size_t sequence_length = x->ne[1];
     struct ggml_tensor * x0 = x, * x_prev;
-    rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x0, x_prev, state.att_xx, true);
+    rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x0, x_prev, state.att_xx);
 
     struct ggml_tensor * r, * k, * v;
     rwkv_att_rkv_v4(ctx, layer, x0, x_prev, r, k, v);
@@ -402,7 +398,6 @@ static struct ggml_tensor * rwkv_att_v7(
 
     struct ggml_tensor * x_prev;
     rwkv_carry_x(ctx, layer.ln1_weight, layer.ln1_bias, x, x_prev, state.att_xx);
-    state.att_xx = ggml_view_1d(ctx, x, n_embed, n_embed * (sequence_length - 1) * sizeof(float));
 
     // sx = x - x_prev
     struct ggml_tensor * sx = ggml_sub(ctx, x_prev, x);
@@ -432,11 +427,12 @@ static struct ggml_tensor * rwkv_att_v7(
         ggml_mul_mat(ctx, layer.att_w2, ggml_tanh(ctx, ggml_mul_mat(ctx, layer.att_w1, xw))),
         layer.att_w0
     );
-    w = ggml_exp(ctx, ggml_scale(ctx, ggml_cast(ctx, ggml_sigmoid(ctx, w), GGML_TYPE_F32), -0.606531));
+    w = ggml_exp(ctx, ggml_scale(ctx, ggml_sigmoid(ctx, w), -0.606531));
 
     struct ggml_tensor * k = ggml_mul_mat(ctx, layer.att_key, xk);
     struct ggml_tensor * kk = ggml_reshape_3d(ctx, ggml_mul(ctx, k, layer.att_k_k), head_size, head_count, sequence_length);
     kk = rwkv_l2norm(ctx, kk);
+
     struct ggml_tensor * ka = ggml_mul(ctx, k, layer.att_k_a);
     k = ggml_add(ctx, k, ggml_sub(ctx, ggml_mul(ctx, a, ka), ka));
     
@@ -487,7 +483,7 @@ static struct ggml_tensor * rwkv_att_v7(
 
 static struct ggml_tensor * rwkv_ffn_v4_v5(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
     struct ggml_tensor * x_prev;
-    rwkv_carry_x(ctx, layer.ln2_weight, layer.ln2_bias, x, x_prev, state.ffn_xx, true);
+    rwkv_carry_x(ctx, layer.ln2_weight, layer.ln2_bias, x, x_prev, state.ffn_xx);
 
     // xk = x * time_mix_k + state[5 * i + 1] * (1 - time_mix_k)
     // xk = x * time_mix_k + state[5 * i + 0] * (1 - time_mix_k)
@@ -516,7 +512,7 @@ static struct ggml_tensor * rwkv_ffn_v4_v5(struct ggml_context * ctx, struct ggm
 
 static struct ggml_tensor * rwkv_ffn_v6(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
     struct ggml_tensor * x_prev;
-    rwkv_carry_x(ctx, layer.ln2_weight, layer.ln2_bias, x, x_prev, state.ffn_xx, true);
+    rwkv_carry_x(ctx, layer.ln2_weight, layer.ln2_bias, x, x_prev, state.ffn_xx);
     x_prev = ggml_sub(ctx, x_prev, x);
 
     // xk = x + sx * time_maa_k
@@ -536,7 +532,7 @@ static struct ggml_tensor * rwkv_ffn_v6(struct ggml_context * ctx, struct ggml_t
 
 static struct ggml_tensor * rwkv_ffn_v7(struct ggml_context * ctx, struct ggml_tensor * x, struct rwkv_layer layer, struct rwkv_layer_state & state) {
     struct ggml_tensor * x_prev;
-    rwkv_carry_x(ctx, layer.ln2_weight, layer.ln2_bias, x, x_prev, state.ffn_xx, true);
+    rwkv_carry_x(ctx, layer.ln2_weight, layer.ln2_bias, x, x_prev, state.ffn_xx);
     x_prev = ggml_sub(ctx, x_prev, x);
 
     struct ggml_tensor * xk = ggml_add(ctx, ggml_mul(ctx, x_prev, layer.ffn_x_k), x);

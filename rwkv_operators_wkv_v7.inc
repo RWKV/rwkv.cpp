@@ -42,18 +42,8 @@ static void rwkv_wkv_v7_impl(struct ggml_tensor * result, const struct ggml_tens
     const size_t T = result->src[1]->ne[2];
     GGML_ASSERT(C == S * H);
 
-    if ((size_t)ith >= H) {
-        return;
-    }
-
-    const size_t h_start = (H * ith) / nth;
-    const size_t h_end = ((H * (ith + 1)) / nth < H) ?
-                (H * (ith + 1)) / nth : H;
-
     float * result_data = (float *) result->data;
     float * state_out = (float *) result->data + C * T;
-
-    memset(result_data, 0, T * C * sizeof(float));
 
     float * state = (float *) src->data;
     float * r =     (float *) result->src[1]->data;
@@ -73,7 +63,7 @@ static void rwkv_wkv_v7_impl(struct ggml_tensor * result, const struct ggml_tens
 
         float * state_in = (t == 0) ? state : state_out;
 
-        for (size_t h = h_start; h < h_end; h++) {
+        for (size_t h = ith; h < H; h += nth) {
             size_t h_offset = h * h_stride;
             size_t t_h_offset = t_offset + h_offset;
             size_t h_2d_offset = h * h_stride_2d;
@@ -82,25 +72,29 @@ static void rwkv_wkv_v7_impl(struct ggml_tensor * result, const struct ggml_tens
                 size_t t_h_i_offset = t_h_offset + i;
                 size_t h_2d_i_offset = h_2d_offset + i * h_stride;
 
-                auto r_val = SET1(r[t_h_i_offset]);
-                auto w_val = SET1(w[t_h_i_offset]);
-                auto k_val = SET1(k[t_h_i_offset]);
-                auto a_val = SET1(a[t_h_i_offset]);
+                auto v_val = v[t_h_i_offset];
 
-                float sb = 0;
+                float sa = 0;
                 for (size_t j = 0; j < C / H; j++) {
-                    sb += b[t_h_offset + j] * state_in[h_2d_i_offset + j];
+                    sa += a[t_h_offset + j] * state_in[h_2d_i_offset + j];
+                }
+
+                if (i == 0) {
+                    memset(&result_data[t_h_offset], 0, h_stride * sizeof(float));
                 }
 
                 for (size_t j = 0; j < C / H; j += SIMD_WIDTH) {
                     size_t t_h_j_offset = t_h_offset + j;
                     size_t h_2d_i_j_offset = h_2d_i_offset + j;
 
-                    auto v_val = v[t_h_j_offset];
+                    auto r_val = r[t_h_j_offset];
+                    auto w_val = w[t_h_j_offset];
+                    auto k_val = k[t_h_j_offset];
+                    auto b_val = b[t_h_j_offset];
                     auto kv_val = v_val * k_val;
                     auto prev_state_val = state_in[h_2d_i_j_offset];
-                    state_out[h_2d_i_j_offset] = prev_state_val * w_val + kv_val + a_val * sb;
-                    result_data[t_h_j_offset] += state_out[h_2d_i_j_offset] * r_val;
+                    state_out[h_2d_i_j_offset] = prev_state_val * w_val + kv_val + sa * b_val;
+                    result_data[t_h_i_offset] += state_out[h_2d_i_j_offset] * r_val;
                 }
             }
         }
