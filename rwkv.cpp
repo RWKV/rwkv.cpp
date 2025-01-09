@@ -107,7 +107,12 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     ggml_backend_cpu_set_n_threads(cpu_backend, n_threads);
     ctx->model->backends.push_back(cpu_backend);
 
-    RWKV_ENSURE_OR_NULL(rwkv_load_model_from_file(file_path, *ctx->model, n_gpu_layers));
+    int ngl = n_gpu_layers;
+    if (ctx->model->backends.size() == 1) {
+        ngl = 0;
+    }
+
+    RWKV_ENSURE_OR_NULL(rwkv_load_model_from_file(file_path, *ctx->model, ngl));
 
     RWKV_ENSURE_OR_NULL(rwkv_measure_and_build_serial_context(*ctx->model, ctx->serial_graph));
 

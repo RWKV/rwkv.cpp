@@ -170,7 +170,8 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback, const uint32_
                 }
 
                 RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.r_k"), buffer), layer.att_r_k, offload_layer));
-                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.k_k"), buffer), layer.att_k_k, offload_layer));
+                // Somehow offloading this layer makes the model output NaN after several iterations.
+                RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.k_k"), buffer), layer.att_k_k, false));
                 RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.k_a"), buffer), layer.att_k_a, offload_layer));            
 
                 RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.key.weight"), buffer), layer.att_key, offload_layer));
@@ -178,6 +179,7 @@ static bool rwkv_set_params(struct rwkv_model & model, F callback, const uint32_
                 RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.receptance.weight"), buffer), layer.att_receptance, offload_layer));
                 RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.output.weight"), buffer), layer.att_output, offload_layer));
 
+                // These too.
                 RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.weight"), buffer), layer.att_ln_x_weight, false));
                 RWKV_ENSURE_OR_FALSE(callback((strcpy(&buffer[offset], "att.ln_x.bias"), buffer), layer.att_ln_x_bias, false));
                 break;

@@ -129,6 +129,7 @@ def write_state_dict(state_dict: Dict[str, torch.Tensor], dest_path: str, data_t
                     '.time_',
                     '.k_k', '.k_a', '.r_k',
                     '.x_rwkvag', '.x_k',
+                    '.w0', '.a0', '.v0',
                 ]
             ):
                 tensor = tensor.half()
