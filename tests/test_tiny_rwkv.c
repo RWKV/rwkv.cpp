@@ -6,7 +6,7 @@
 
 #include "logit_difference_validator.inc"
 
-#define VERSION_COUNT 4
+#define VERSION_COUNT 5
 #define FORMAT_COUNT 7
 
 int main(void) {
@@ -21,7 +21,8 @@ int main(void) {
         "4v0-660K",
         "5v1-730K",
         "5v2-730K",
-        "6v0-3m"
+        "6v0-3m",
+        "7v0-834K"
     };
 
     const char * formats[FORMAT_COUNT] = {
@@ -46,7 +47,10 @@ int main(void) {
         +0.455912F, // FP16
         // 6v0
         +0.001000F, // FP32
-        -0.416620F  // FP16
+        -0.416620F, // FP16
+        // 7v0
+        +0.001000F, // FP32
+        +0.005766F  // FP16
     };
 
     // *** Why the hell the expected logit difference sum for v4 models is < 1, and for v5 models it can be as high as 160? ***
@@ -87,7 +91,13 @@ int main(void) {
         +021.939022F, // Q4_1
         -027.332073F, // Q5_0
         +003.576909F, // Q5_1
-        -009.539596F  // Q8_0
+        -009.539596F, // Q8_0
+        // 7v0
+        +000.136785F, // Q4_0
+        +000.002614F, // Q4_1
+        -000.063645F, // Q5_0
+        -000.064663F, // Q5_1
+        +000.011924F  // Q8_0
     };
 
     const float expected_difference_sum_quantized_FP16[VERSION_COUNT * (FORMAT_COUNT - 2)] = {
@@ -114,7 +124,13 @@ int main(void) {
         +021.797060F, // Q4_1
         -027.269241F, // Q5_0
         +003.405264F, // Q5_1
-        -009.734720F  // Q8_0
+        -009.734720F, // Q8_0
+        // 7v0
+        +000.136678F, // Q4_0
+        -000.005140F, // Q4_1
+        -000.064447F, // Q5_0
+        -000.063531F, // Q5_1
+        +000.010921F  // Q8_0
     };
 
     for (int i_version = 0; i_version < VERSION_COUNT; i_version++) {
