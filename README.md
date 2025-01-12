@@ -6,19 +6,17 @@ Besides the usual **FP32**, it supports **FP16**, **quantized INT4, INT5 and INT
 
 This project provides [a C library rwkv.h](rwkv.h) and [a convinient Python wrapper](python%2Frwkv_cpp%2Frwkv_cpp_model.py) for it.
 
-[RWKV](https://arxiv.org/abs/2305.13048) is a large language model architecture, [with the largest model in the family having 14B parameters](https://huggingface.co/BlinkDL/rwkv-4-pile-14b). In contrast to Transformer with `O(n^2)` attention, RWKV requires only state from previous step to calculate logits. This makes RWKV very CPU-friendly on large context lenghts.
+[RWKV](https://arxiv.org/abs/2305.13048) is a large language model architecture. In contrast to Transformer with `O(n^2)` attention, RWKV requires only state from previous step to calculate logits. This makes RWKV very CPU-friendly on large context lenghts.
 
-[RWKV v5](https://huggingface.co/BlinkDL/rwkv-5-world) is a major upgrade to RWKV architecture, making it competitive with Transformers in quality. RWKV v5 models are supported.
-
-[RWKV v6](https://huggingface.co/BlinkDL/rwkv-6-world) is a further improvement to RWKV architecture, with better quality. RWKV v6 models are supported.
+This project supports RWKV [v4](https://huggingface.co/BlinkDL/rwkv-4-pile-14b), [v5](https://huggingface.co/BlinkDL/rwkv-5-world), [v6](https://huggingface.co/BlinkDL/rwkv-6-world) and the latest [v7](https://huggingface.co/BlinkDL/rwkv-7-world) architectures.
 
 Loading LoRA checkpoints in [Blealtan's format](https://github.com/Blealtan/RWKV-LM-LoRA) is supported through [merge_lora_into_ggml.py script](rwkv%2Fmerge_lora_into_ggml.py).
+
+<!-- TODO: Update data below -->
 
 ## Quality and performance
 
 If you use `rwkv.cpp` for anything serious, please [test all available formats for perplexity and latency](rwkv%2Fmeasure_pexplexity.py) on a representative dataset, and decide which trade-off is best for you.
-
-In general, **`RWKV v5` models are as fast as `RWKV v4` models**, with minor differencies in latency and memory consumption, and with having way higher quality than `v4`. Therefore, it is recommended to use `RWKV v5`.
 
 Below table is for reference only. Measurements were made on 4C/8T x86 CPU with AVX2, 4 threads. The models are `RWKV v4 Pile 169M`, `RWKV v4 Pile 1.5B`.
 
