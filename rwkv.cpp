@@ -2,6 +2,9 @@
 #include "ggml.h"
 #include "ggml-alloc.h"
 #include "ggml-backend.h"
+#include "ggml-impl.h"
+
+#include "ggml-cpu.h"
 
 #ifdef GGML_USE_CUDA
 #include "ggml-cuda.h"
@@ -62,10 +65,6 @@ static_assert(sizeof(decltype(ftell(NULL))) >= 8, "File offsets should be 64-bit
 
 #include "rwkv_operators.inc"
 
-#include "rwkv_operators_wkv_v5.inc"
-
-#include "rwkv_operators_wkv_v6.inc"
-
 #include "rwkv_graph.inc"
 
 // API function.
@@ -91,7 +90,6 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
 #ifdef GGML_USE_METAL
         backend = ggml_backend_metal_init();
         RWKV_ENSURE_OR_NULL(backend);
-        ggml_backend_metal_set_n_cb(backend, ctx->n_threads);
 #endif
 
 #ifdef GGML_USE_BLAS
@@ -109,7 +107,12 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     ggml_backend_cpu_set_n_threads(cpu_backend, n_threads);
     ctx->model->backends.push_back(cpu_backend);
 
-    RWKV_ENSURE_OR_NULL(rwkv_load_model_from_file(file_path, *ctx->model, n_gpu_layers));
+    int ngl = n_gpu_layers;
+    if (ctx->model->backends.size() == 1) {
+        ngl = 0;
+    }
+
+    RWKV_ENSURE_OR_NULL(rwkv_load_model_from_file(file_path, *ctx->model, ngl));
 
     RWKV_ENSURE_OR_NULL(rwkv_measure_and_build_serial_context(*ctx->model, ctx->serial_graph));
 
@@ -208,7 +211,7 @@ void rwkv_free(struct rwkv_context * ctx) {
         ggml_free(ctx->sequential_graph.ggml_ctx);
     }
 
-    std::unique_ptr<struct rwkv_context> rwkv_ctx(ctx);
+    delete ctx;
 }
 
 // API function.
@@ -247,7 +250,6 @@ const char * rwkv_get_system_info_string(void) {
         s += "F16C="      + std::to_string(ggml_cpu_has_f16c())      + " ";
         s += "FP16_VA="   + std::to_string(ggml_cpu_has_fp16_va())   + " ";
         s += "WASM_SIMD=" + std::to_string(ggml_cpu_has_wasm_simd()) + " ";
-        s += "BLAS="      + std::to_string(ggml_cpu_has_blas())      + " ";
         s += "SSE3="      + std::to_string(ggml_cpu_has_sse3())      + " ";
         s += "VSX="       + std::to_string(ggml_cpu_has_vsx());
     }

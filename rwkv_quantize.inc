@@ -1,3 +1,17 @@
+static bool rwkv_tensor_needs_quant(std::string name) {
+    return name != "emb.weight" &&
+            name != "head.weight" &&
+            name.find("att.v1") == std::string::npos &&
+            name.find("att.v2") == std::string::npos &&
+            name.find("att.g1") == std::string::npos &&
+            name.find("att.g2") == std::string::npos &&
+            name.find("att.a1") == std::string::npos &&
+            name.find("att.a2") == std::string::npos &&
+            name.find("att.w1") == std::string::npos &&
+            name.find("att.w2") == std::string::npos &&
+            name.find("att.r_k") == std::string::npos;
+}
+
 // API function.
 bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const char * type_name) {
     global_last_error = RWKV_ERROR_NONE;
@@ -86,9 +100,6 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
 
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_FILE | RWKV_ERROR_FILE_READ, fseek(in_file.file, sizeof(struct rwkv_file_header), SEEK_SET) == 0, "Failed to seek in file");
 
-    // This is a histogram of quantized values. If it shows single 1.0, then all 0.0, something went very wrong!
-    int64_t hist_all[16] {};
-
     std::unique_ptr<uint8_t[]> scratch(new(std::nothrow) uint8_t[max_in_size + max_out_size]);
     RWKV_ASSERT_FALSE_MSG(RWKV_ERROR_ALLOC, scratch.get(), "Failed to allocate buffer");
 
@@ -125,10 +136,9 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
         // In RWKV v5, time_decay and time_first/time_faaaa are 3D tensors, so they are not quantized.
         if ((header.data_type == TYPE_FP32 || header.data_type == TYPE_FP16) &&
             header.dim_count == 2 &&
-            name != "emb.weight" &&
-            name != "head.weight"
+            rwkv_tensor_needs_quant(name)
         ) {
-            RWKV_MSG("quantizing... ");
+            RWKV_MSG("-> %6s ", rwkv_type_to_string[rwkv_type_from_ggml[out_type]]);
 
             size_t nelements = (size_t) header.size0 * (size_t) header.size1 * (size_t) header.size2;
 
@@ -140,7 +150,7 @@ bool rwkv_quantize_model_file(const char * in_path, const char * out_path, const
             header.data_type = rwkv_type_from_ggml[out_type];
             data = out_buf;
 
-            RWKV_MSG("size = %8.2f MB -> %8.2f MB | hist: ", orig_size / 1024.0 / 1024.0, new_size / 1024.0 / 1024.0);
+            RWKV_MSG("size = %8.2f MB -> %8.2f MB", orig_size / 1024.0 / 1024.0, new_size / 1024.0 / 1024.0);
 
             RWKV_MSG("\n");
         } else {

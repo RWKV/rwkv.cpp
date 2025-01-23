@@ -29,6 +29,7 @@ top_p: float = 0.5
 
 parser = argparse.ArgumentParser(description='Generate completions from RWKV model based on a prompt')
 parser.add_argument('model_path', help='Path to RWKV model in ggml format')
+parser.add_argument('-ngl', '--num_gpu_layers', type=int, default=99, help='Number of layers to run on GPU')
 add_tokenizer_argument(parser)
 args = parser.parse_args()
 
@@ -39,7 +40,7 @@ library = rwkv_cpp_shared_library.load_rwkv_shared_library()
 print(f'System info: {library.rwkv_get_system_info_string()}')
 
 print('Loading RWKV model')
-model = rwkv_cpp_model.RWKVModel(library, args.model_path, gpu_layers_count=0)
+model = rwkv_cpp_model.RWKVModel(library, args.model_path, gpu_layers_count=args.num_gpu_layers)
 
 tokenizer_decode, tokenizer_encode = get_tokenizer(args.tokenizer, model.n_vocab)
 

@@ -186,9 +186,8 @@ jobs:
            defines: '-DRWKV_AVX512=ON'
          - build: 'cuda12'
            defines: '-DRWKV_CUBLAS=ON'
-         - build: 'rocm5.5'
-           defines: '-G "Unix Makefiles" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DRWKV_HIPBLAS=ON -DCMAKE_BUILD_TYPE=Release -DAMDGPU_TARGETS="gfx1100;gfx1102;gfx1030"'
-
+         - build: 'hip'
+           defines: ''
     steps:
       - name: Clone
         id: checkout
@@ -206,25 +205,52 @@ jobs:
 
       - name: Install rocm-toolkit
         id: rocm-toolkit
-        if: ${{ matrix.build == 'rocm5.5' }}
-        uses: Cyberhan123/rocm-toolkit@v0.1.0
-        with:
-          rocm: '5.5.0'
+        if: ${{ matrix.build == 'hip' }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          write-host "Downloading AMD HIP SDK Installer"
+          Invoke-WebRequest -Uri "https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-WinSvr2022-For-HIP.exe" -OutFile "${env:RUNNER_TEMP}\rocm-install.exe"
+          write-host "Installing AMD HIP SDK"
+          Start-Process "${env:RUNNER_TEMP}\rocm-install.exe" -ArgumentList '-install' -NoNewWindow -Wait
+          write-host "Completed AMD HIP SDK installation"
+
+      - name: Verify ROCm
+        id: rocm-verify
+        if: ${{ matrix.build == 'hip' }}
+        run: |
+          & 'C:\Program Files\AMD\ROCm\*\bin\clang.exe' --version
 
       - name: Install Ninja
         id: install-ninja
-        if: ${{ matrix.build == 'rocm5.5' }}
+        if: ${{ matrix.build == 'hip' }}
         uses: urkle/action-get-ninja@v1
         with:
           version: 1.11.1
 
+      - name: Install ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}
+
       - name: Build
         id: cmake_build
+        if: ${{ matrix.build != 'hip' }}
         run: |
           mkdir build
           cd build
           cmake .. ${{ matrix.defines }}
-          cmake --build . --config Release
+          cmake --build . --config Release -j ${env:NUMBER_OF_PROCESSORS}
+
+      - name: Build-hip
+        id: cmake_build_hip
+        if: ${{ matrix.build == 'hip' }}
+        run: |
+          mkdir build
+          cd build
+          $env:HIP_PATH=$(Resolve-Path 'C:\Program Files\AMD\ROCm\*\bin\clang.exe' | split-path | split-path)
+          $env:CMAKE_PREFIX_PATH="${env:HIP_PATH}"
+          cmake .. -G "Unix Makefiles" -DCMAKE_C_COMPILER="${env:HIP_PATH}\bin\clang.exe" -DCMAKE_CXX_COMPILER="${env:HIP_PATH}\bin\clang++.exe" -DRWKV_HIPBLAS=ON -DGGML_HIP=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release -j ${env:NUMBER_OF_PROCESSORS}
 
       - name: Check AVX512F support
         id: check_avx512f
@@ -242,7 +268,7 @@ jobs:
       - name: Test
         id: cmake_test
         # Test AVX-512 only when possible
-        if: ${{ (matrix.build != 'avx512' || env.HAS_AVX512F == '1') && matrix.build != 'cuda12' && matrix.build != 'rocm5.5'}}
+        if: ${{ (matrix.build != 'avx512' || env.HAS_AVX512F == '1') && matrix.build != 'cuda12' && matrix.build != 'hip'}}
         run: |
           cd build
           ctest -C Release --verbose

@@ -17,7 +17,7 @@
 
 void load_expected_logits(float * expected_logits, const char * version) {
     char file_name[128];
-    sprintf(file_name, "expected-logits-%s.bin", version);
+    snprintf(file_name, sizeof(file_name), "expected-logits-%s.bin", version);
     FILE * file = fopen(file_name, "rb");
     ASSERT(file != NULL, "Failed to open %s", file_name);
     size_t elements_read = fread(expected_logits, sizeof(float), N_VOCAB, file);
@@ -27,7 +27,7 @@ void load_expected_logits(float * expected_logits, const char * version) {
 
 void test_model(const char * version, const char * format, const float * expected_logits, const float max_diff) {
     char file_name[128];
-    sprintf(file_name, "tiny-rwkv-%s-%s.bin", version, format);
+    snprintf(file_name, sizeof(file_name), "tiny-rwkv-%s-%s.bin", version, format);
 
     fprintf(stderr, "Testing %s\n", file_name);
 
@@ -63,7 +63,7 @@ void test_model(const char * version, const char * format, const float * expecte
         diff_sum += logits[i] - expected_logits[i];
     }
 
-    fprintf(stderr, "Serial difference sum: %f, expected %f\n", diff_sum, max_diff);
+    fprintf(stderr, "Serial difference sum: %f, expected %f\n", (double)diff_sum, (double)max_diff);
 
     ASSERT(fabsf(diff_sum) <= fabsf(max_diff) * 1.05F, "Too big serial difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
 
@@ -78,7 +78,7 @@ void test_model(const char * version, const char * format, const float * expecte
         diff_sum += logits[i] - expected_logits[i];
     }
 
-    fprintf(stderr, "Sequence difference sum: %f, expected %f\n", diff_sum, max_diff);
+    fprintf(stderr, "Sequence difference sum: %f, expected %f\n", (double)diff_sum, (double)max_diff);
 
     ASSERT(fabsf(diff_sum) <= fabsf(max_diff) * 1.05F, "Too big sequence difference %f, expected no more than %f", (double) diff_sum, (double) max_diff);
 

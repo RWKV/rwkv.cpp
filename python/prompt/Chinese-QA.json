@@ -1,6 +1,6 @@
 {
-    "user": "Q",
-    "bot": "A",
+    "user": "User",
+    "assistant": "Assistant",
     "separator": ":",
-    "prompt": "\nExpert Questions & Helpful Answers\n\nAsk Research Experts\n\n"
+    "prompt": "User: 你好\n\nAssistant: 你好，有什么我可以帮助你的吗？\n\n"
 }

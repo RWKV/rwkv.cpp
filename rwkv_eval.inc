@@ -22,7 +22,7 @@ static void rwkv_get_outputs(const struct rwkv_computation_graph & graph, float 
 }
 
 // Evaluates a computation graph, optionally skipping logit computation.
-static void rwkv_eval_graph(struct rwkv_computation_graph & graph, const uint32_t n_threads, const bool compute_logits) {
+static void rwkv_eval_graph(struct rwkv_computation_graph & graph, const bool compute_logits) {
     if (!compute_logits) {
         graph.cgraph->n_nodes = graph.pre_logits_nodes;
         graph.cgraph->n_leafs = graph.pre_logits_leafs;
@@ -31,7 +31,7 @@ static void rwkv_eval_graph(struct rwkv_computation_graph & graph, const uint32_
         graph.cgraph->n_leafs = graph.post_logits_leafs;
     }
 
-    ggml_backend_sched_graph_compute(graph.sched, graph.cgraph.get());
+    ggml_backend_sched_graph_compute(graph.sched, graph.cgraph);
 }
 
 // API function.
@@ -45,7 +45,7 @@ bool rwkv_eval(struct rwkv_context * ctx, const uint32_t token, const float * st
     if (!ctx->serial_graph.sched) {
         ctx->serial_graph.sched = ggml_backend_sched_new(ctx->model->backends.data(), NULL, ctx->model->backends.size(), RWKV_MAX_NODES, false);
 
-        auto graph = ctx->serial_graph.cgraph.get();
+        auto graph = ctx->serial_graph.cgraph;
         for (int i = 0; i < graph->n_nodes; i++) {
             auto node = graph->nodes[i];
             if (std::string(node->name).find(".in.") != std::string::npos ||
@@ -62,13 +62,13 @@ bool rwkv_eval(struct rwkv_context * ctx, const uint32_t token, const float * st
         }
         ggml_backend_sched_set_tensor_backend(ctx->serial_graph.sched, ctx->serial_graph.tokens, ctx->model->backends.back());
 
-        ggml_backend_sched_alloc_graph(ctx->serial_graph.sched, ctx->serial_graph.cgraph.get());
+        ggml_backend_sched_alloc_graph(ctx->serial_graph.sched, ctx->serial_graph.cgraph);
     }
 
     rwkv_set_inputs(ctx, ctx->serial_graph, state_in);
     ggml_backend_tensor_set(ctx->serial_graph.tokens, &token, 0, rwkv_tensor_nbytes(ctx->serial_graph.tokens));
 
-    rwkv_eval_graph(ctx->serial_graph, ctx->n_threads, logits_out != NULL);
+    rwkv_eval_graph(ctx->serial_graph, logits_out != NULL);
 
     rwkv_get_outputs(ctx->serial_graph, state_out, logits_out);
 
@@ -122,7 +122,7 @@ bool rwkv_eval_sequence(
     if (sequence) {
         if (!ctx->sequential_graph.sched) {
             ctx->sequential_graph.sched = ggml_backend_sched_new(ctx->model->backends.data(), NULL, ctx->model->backends.size(), RWKV_MAX_NODES, false);
-            auto graph = ctx->sequential_graph.cgraph.get();
+            auto graph = ctx->sequential_graph.cgraph;
 
             for (int i = 0; i < graph->n_nodes; i++) {
                 auto node = graph->nodes[i];
@@ -140,13 +140,13 @@ bool rwkv_eval_sequence(
             }
             ggml_backend_sched_set_tensor_backend(ctx->sequential_graph.sched, ctx->sequential_graph.tokens, ctx->model->backends.back());
 
-            ggml_backend_sched_alloc_graph(ctx->sequential_graph.sched, ctx->sequential_graph.cgraph.get());
+            ggml_backend_sched_alloc_graph(ctx->sequential_graph.sched, ctx->sequential_graph.cgraph);
         }
 
         rwkv_set_inputs(ctx, ctx->sequential_graph, state_in);
         ggml_backend_tensor_set(ctx->sequential_graph.tokens, sequence, 0, sequence_len * sizeof(uint32_t));
 
-        rwkv_eval_graph(ctx->sequential_graph, ctx->n_threads, logits_out != NULL);
+        rwkv_eval_graph(ctx->sequential_graph, logits_out != NULL);
 
         rwkv_get_outputs(ctx->sequential_graph, state_out, logits_out);
     }
@@ -178,7 +178,7 @@ bool rwkv_eval_sequence_in_chunks(
 
     size_t chunk_count = sequence_len / chunk_size;
     size_t remainder = sequence_len % chunk_size;
-    uint32_t * tokens_offset = (uint32_t *) tokens;
+    const uint32_t * tokens_offset = tokens;
 
     for (size_t c = 0; c < chunk_count; c++) {
         bool is_last_eval = c == chunk_count - 1 && remainder == 0;

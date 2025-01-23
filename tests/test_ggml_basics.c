@@ -4,14 +4,23 @@
 #include <math.h>
 
 #include <ggml.h>
+#include <ggml-cpu.h>
+#include <ggml-impl.h>
 
 #include "assertions.inc"
 
 #define SET_ELEMENT_F32(tensor, i, value) ((float *) tensor->data)[i] = value
 
 void test_simple_computation(void) {
+    size_t ctx_size = 0;
+    {
+        ctx_size += 3 * 4 * ggml_type_size(GGML_TYPE_F32);
+        ctx_size += 3 * ggml_tensor_overhead();
+        ctx_size += ggml_graph_overhead();
+        ctx_size += 1024;
+    }
     struct ggml_init_params params = {
-        .mem_size   = 16 * 1024,
+        .mem_size   = ctx_size,
         .mem_buffer = NULL,
         .no_alloc   = false,
     };
@@ -32,26 +41,11 @@ void test_simple_computation(void) {
 
     struct ggml_tensor * sum = ggml_add(ctx, x, y);
 
-    // Allocation on heap instead of stack avoids SegFault when GGML_MAX_NODES is set to a large value.
-    struct ggml_cgraph * graph = (struct ggml_cgraph *) calloc(1, sizeof(struct ggml_cgraph));
-    graph->size = GGML_DEFAULT_GRAPH_SIZE;
-    graph->n_nodes = 0;
-    graph->n_leafs = 0;
-    graph->nodes = (struct ggml_tensor **) calloc(1, GGML_DEFAULT_GRAPH_SIZE * sizeof(struct ggml_tensor *));
-    graph->leafs = (struct ggml_tensor **) calloc(1, GGML_DEFAULT_GRAPH_SIZE * sizeof(struct ggml_tensor *));
-    size_t hash_size = GGML_DEFAULT_GRAPH_SIZE * 2 + 1;
-    graph->visited_hash_table.size = hash_size;
-    graph->visited_hash_table.keys = (struct ggml_tensor **) calloc(1, hash_size * sizeof(struct ggml_tensor *));
-    graph->order = GGML_CGRAPH_EVAL_ORDER_LEFT_TO_RIGHT;
+    struct ggml_cgraph * graph = ggml_new_graph(ctx);
 
     ggml_build_forward_expand(graph, sum);
-    struct ggml_cplan plan = ggml_graph_plan(graph, 2);
+    struct ggml_cplan plan = ggml_graph_plan(graph, 2, NULL);
     ggml_graph_compute(graph, &plan);
-
-    free(graph->nodes);
-    free(graph->leafs);
-    free(graph->visited_hash_table.keys);
-    free(graph);
 
     ASSERT_ELEMENT_F32(sum, 0, -9.0F);
     ASSERT_ELEMENT_F32(sum, 1, 2.0F);
@@ -65,8 +59,15 @@ void test_simple_computation(void) {
 
 // RWKV model loading code depends on this behavior.
 void test_computation_on_tensors_from_different_contexts(void) {
+    size_t ctx_size = 0;
+    {
+        ctx_size += 4 * ggml_type_size(GGML_TYPE_F32);
+        ctx_size += ggml_tensor_overhead();
+        ctx_size += ggml_graph_overhead();
+        ctx_size += 1024;
+    }
     struct ggml_init_params params = {
-        .mem_size   = 16 * 1024,
+        .mem_size   = ctx_size,
         .mem_buffer = NULL,
         .no_alloc   = false,
     };
@@ -85,25 +86,10 @@ void test_computation_on_tensors_from_different_contexts(void) {
 
     struct ggml_tensor * sum = ggml_add(ctx2, x, y);
 
-    // Allocation on heap instead of stack avoids SegFault when GGML_MAX_NODES is set to a large value.
-    struct ggml_cgraph * graph = (struct ggml_cgraph *) calloc(1, sizeof(struct ggml_cgraph));
-    graph->size = GGML_DEFAULT_GRAPH_SIZE;
-    graph->n_nodes = 0;
-    graph->n_leafs = 0;
-    graph->nodes = (struct ggml_tensor **) calloc(1, GGML_DEFAULT_GRAPH_SIZE * sizeof(struct ggml_tensor *));
-    graph->leafs = (struct ggml_tensor **) calloc(1, GGML_DEFAULT_GRAPH_SIZE * sizeof(struct ggml_tensor *));
-    size_t hash_size = GGML_DEFAULT_GRAPH_SIZE * 2 + 1;
-    graph->visited_hash_table.size = hash_size;
-    graph->visited_hash_table.keys = (struct ggml_tensor **) calloc(1, hash_size * sizeof(struct ggml_tensor *));
-    graph->order = GGML_CGRAPH_EVAL_ORDER_LEFT_TO_RIGHT;
+    struct ggml_cgraph * graph = ggml_new_graph(ctx2);
     ggml_build_forward_expand(graph, sum);
-    struct ggml_cplan plan = ggml_graph_plan(graph, 2);
+    struct ggml_cplan plan = ggml_graph_plan(graph, 2, NULL);
     ggml_graph_compute(graph, &plan);
-
-    free(graph->nodes);
-    free(graph->leafs);
-    free(graph->visited_hash_table.keys);
-    free(graph);
 
     ASSERT_ELEMENT_F32(sum, 0, -9.0F);
     ASSERT_ELEMENT_F32(sum, 1, 2.0F);

@@ -30,7 +30,7 @@ void test_on_prompt(const char * prompt, const size_t prompt_length) {
 
     uint32_t * prompt_tokens = calloc(prompt_length, sizeof(uint32_t));
 
-    for (int i = 0; i < prompt_length; i++) {
+    for (size_t i = 0; i < prompt_length; i++) {
         prompt_tokens[i] = prompt[i];
     }
 

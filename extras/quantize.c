@@ -25,8 +25,10 @@ bool QueryPerformanceCounter(uint64_t* lpPerformanceCount);
 static enum ggml_type type_from_string(const char * string) {
     if (strcmp(string, "Q4_0") == 0) return GGML_TYPE_Q4_0;
     if (strcmp(string, "Q4_1") == 0) return GGML_TYPE_Q4_1;
+    if (strcmp(string, "Q4_K") == 0) return GGML_TYPE_Q4_K;
     if (strcmp(string, "Q5_0") == 0) return GGML_TYPE_Q5_0;
     if (strcmp(string, "Q5_1") == 0) return GGML_TYPE_Q5_1;
+    if (strcmp(string, "Q5_K") == 0) return GGML_TYPE_Q5_K;
     if (strcmp(string, "Q8_0") == 0) return GGML_TYPE_Q8_0;
     return GGML_TYPE_COUNT;
 }
