@@ -99,6 +99,7 @@ if (RWKV_ALL_WARNINGS)
             -Wstrict-prototypes
             -Wpointer-arith
             -Wno-unused-function
+            -Wno-ignored-attributes
         )
         set(cxx_flags
             -Wall
@@ -108,6 +109,7 @@ if (RWKV_ALL_WARNINGS)
             -Wno-unused-function
             -Wno-multichar
             -Wno-nonnull
+            -Wno-ignored-attributes
         )
     else()
         set(c_flags
