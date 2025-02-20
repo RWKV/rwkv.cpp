@@ -80,7 +80,7 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
     ctx->n_threads = n_threads;
 
     if (n_gpu_layers) {
-        ggml_backend_t backend;
+        ggml_backend_t backend = nullptr;
 
 #ifdef GGML_USE_CUDA
         backend = ggml_backend_cuda_init(0);
@@ -97,9 +97,9 @@ struct rwkv_context * rwkv_init_from_file(const char * file_path, const uint32_t
         RWKV_ENSURE_OR_NULL(backend);
         ggml_backend_blas_set_n_threads(backend, ctx->n_threads);
 #endif
-        RWKV_ENSURE_OR_NULL(backend);
-
-        ctx->model->backends.push_back(backend);
+        if (backend != nullptr) {
+            ctx->model->backends.push_back(backend);
+        }
     }
 
     ggml_backend_t cpu_backend = ggml_backend_cpu_init();
