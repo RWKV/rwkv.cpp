@@ -153,6 +153,16 @@ extern "C" RWKV_API uint32_t rwkv_get_logits_buffer_element_count(const struct r
 }
 
 // API function.
+size_t rwkv_get_arch_version_major(const struct rwkv_context * ctx) {
+    return (size_t) ctx->model->arch_version_major;
+}
+
+// API function.
+size_t rwkv_get_arch_version_minor(const struct rwkv_context * ctx) {
+    return (size_t) ctx->model->arch_version_minor;
+}
+
+// API function.
 size_t rwkv_get_n_vocab(const struct rwkv_context * ctx) {
     return (size_t) ctx->model->header.n_vocab;
 }

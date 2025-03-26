@@ -79,6 +79,12 @@ class RWKVSharedLibrary:
         ]
         self.library.rwkv_eval_sequence_in_chunks.restype = ctypes.c_bool
 
+        self.library.rwkv_get_arch_version_major.argtypes = [ctypes.c_void_p]
+        self.library.rwkv_get_arch_version_major.restype = ctypes.c_uint32
+
+        self.library.rwkv_get_arch_version_minor.argtypes = [ctypes.c_void_p]
+        self.library.rwkv_get_arch_version_minor.restype = ctypes.c_uint32
+
         self.library.rwkv_get_n_vocab.argtypes = [ctypes.c_void_p]
         self.library.rwkv_get_n_vocab.restype = ctypes.c_size_t
 
@@ -260,6 +266,30 @@ class RWKVSharedLibrary:
             ctypes.cast(logits_out_address, P_FLOAT)
         ):
             raise ValueError('rwkv_eval_sequence_in_chunks failed, check stderr')
+
+    def rwkv_get_arch_version_major(self, ctx: RWKVContext) -> int:
+        """
+        Returns the major version used by the given model.
+
+        Parameters
+        ----------
+        ctx : RWKVContext
+            RWKV context obtained from rwkv_init_from_file.
+        """
+
+        return self.library.rwkv_get_arch_version_major(ctx.ptr)
+
+    def rwkv_get_arch_version_minor(self, ctx: RWKVContext) -> int:
+        """
+        Returns the minor version used by the given model.
+
+        Parameters
+        ----------
+        ctx : RWKVContext
+            RWKV context obtained from rwkv_init_from_file.
+        """
+
+        return self.library.rwkv_get_arch_version_minor(ctx.ptr)
 
     def rwkv_get_n_vocab(self, ctx: RWKVContext) -> int:
         """

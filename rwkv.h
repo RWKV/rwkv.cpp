@@ -172,6 +172,12 @@ extern "C" {
         float * logits_out
     );
 
+    // Returns the major version used by the given model.
+    RWKV_API size_t rwkv_get_arch_version_major(const struct rwkv_context * ctx);
+
+    // Returns the minor version used by the given model.
+    RWKV_API size_t rwkv_get_arch_version_minor(const struct rwkv_context * ctx);
+
     // Returns the number of tokens in the given model's vocabulary.
     // Useful for telling 20B_tokenizer models (n_vocab = 50277) apart from World models (n_vocab = 65536).
     RWKV_API size_t rwkv_get_n_vocab(const struct rwkv_context * ctx);

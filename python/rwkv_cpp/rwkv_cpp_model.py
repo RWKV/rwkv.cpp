@@ -71,6 +71,14 @@ class RWKVModel:
         self._valid: bool = True
 
     @property
+    def arch_version_major(self) -> int:
+        return self._library.rwkv_get_arch_version_major(self._ctx)
+
+    @property
+    def arch_version_minor(self) -> int:
+        return self._library.rwkv_get_arch_version_minor(self._ctx)
+
+    @property
     def n_vocab(self) -> int:
         return self._library.rwkv_get_n_vocab(self._ctx)
 
