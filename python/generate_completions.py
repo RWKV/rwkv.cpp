@@ -17,7 +17,7 @@ This is a port of [BlinkDL/RWKV-LM](https://github.com/BlinkDL/RWKV-LM) to [gger
 Besides the usual **FP32**, it supports **FP16**, **quantized INT4, INT5 and INT8** inference. This project is **focused on CPU**, but cuBLAS is also supported."""
 
 # How many completions to generate.
-generation_count: int = 3
+generation_count: int = 1
 # Token count per single completion.
 tokens_per_generation: int = 100
 
