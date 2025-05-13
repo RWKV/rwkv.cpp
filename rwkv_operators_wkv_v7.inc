@@ -9,6 +9,8 @@
     #define SET1(x)          _mm512_set1_ps(x)
     #define MULTIPLY(x, y)   _mm512_mul_ps(x, y)
     #define MULTADD(x, y, z) _mm512_fmadd_ps(x, y, z)
+    #define ADD(x, y)        _mm512_add_ps(x, y)
+    #define ZEROS()           _mm512_setzero_ps()
 #elif defined(__AVX2__)
     #include <immintrin.h>
     #define SIMD_WIDTH       8
@@ -18,6 +20,7 @@
     #define MULTIPLY(x, y)   _mm256_mul_ps(x, y)
     #define MULTADD(x, y, z) _mm256_fmadd_ps(x, y, z)
     #define ADD(x, y)        _mm256_add_ps(x, y)
+    #define ZEROS()           _mm256_setzero_ps()
 #elif defined(__ARM_NEON) || defined(__ARM_NEON__)
     #include <arm_neon.h>
     #define SIMD_WIDTH       4
@@ -36,18 +39,11 @@
 #endif
 
 
-inline float horizontal_sum_avx(__m256 vec) {
-    // 水平相加：将8个float两两相加，得到4个结果
+inline float horizontal_sum(__m256 vec) {
     __m256 sum1 = _mm256_hadd_ps(vec, vec);
-    
-    // 再次水平相加：将4个结果两两相加，得到2个结果
     __m256 sum2 = _mm256_hadd_ps(sum1, sum1);
-    
-    // 提取低128位和高128位
     __m128 sum128 = _mm_add_ps(_mm256_extractf128_ps(sum2, 0), 
                               _mm256_extractf128_ps(sum2, 1));
-    
-    // 从SSE寄存器中提取最终结果
     float result;
     _mm_store_ss(&result, sum128);
     return result;
@@ -81,7 +77,6 @@ static void rwkv_wkv_v7_impl(struct ggml_tensor * result, const struct ggml_tens
         size_t t_offset = t * t_stride;
 
         float * state_in = (t == 0) ? state : state_out;
-        // transpose_square_inplace(state_in, C/H);
         for (size_t h = ith; h < H; h += nth) {
             size_t h_offset = h * h_stride;
             size_t t_h_offset = t_offset + h_offset;
@@ -94,14 +89,24 @@ static void rwkv_wkv_v7_impl(struct ggml_tensor * result, const struct ggml_tens
                         memset(&result_data[t_h_offset], 0, h_stride * sizeof(float));
                     }
 
+                    // auto sa_vec = ZEROS();
+                    // for (size_t j = 0; j < C / H; j += SIMD_WIDTH) {
+                    //     sa_vec = ADD(sa_vec, MULTIPLY(
+                    //                             LOAD(&a[t_h_offset + j]), 
+                    //                             LOAD(&state_in[h_2d_i_offset + j])
+                    //                         )
+                    //                 );
+                    // }
+                    // float sa = horizontal_sum(sa_vec);
                     float sa = .0;
                     for (size_t j = 0; j < C / H; j++) {
                         sa += a[t_h_offset + j] * state_in[h_2d_i_offset + j];
                     }
-                    auto v_vec = SET1(v[t_h_i_offset]);
-                    auto sa_vec = SET1(sa);
 
-                    auto sum = _mm256_setzero_ps();
+                    auto v_vec = SET1(v[t_h_i_offset]);
+                    sa_vec = SET1(sa);
+
+                    auto sum = ZEROS();
                     for (size_t j = 0; j < C / H; j += SIMD_WIDTH) {
                         size_t t_h_j_offset = t_h_offset + j;
                         size_t h_2d_i_j_offset = h_2d_i_offset + j;
@@ -110,19 +115,23 @@ static void rwkv_wkv_v7_impl(struct ggml_tensor * result, const struct ggml_tens
                         auto k_val = LOAD(&k[t_h_j_offset]);
                         auto b_val = LOAD(&b[t_h_j_offset]);
                         auto prev_state_val = LOAD(&state_in[h_2d_i_j_offset]);
+
                         // auto kv_val = v_val * k_val;
                         auto kv_val = MULTIPLY(v_vec, k_val);
+
                         // state_out[h_2d_i_j_offset] = prev_state_val * w_val + kv_val + sa * b_val;
                         auto sab_val = MULTIPLY(sa_vec, b_val);
                         auto state_out_val = MULTADD(prev_state_val, w_val, kv_val);
                         state_out_val = ADD(state_out_val, sab_val);
                         STORE(&state_out[h_2d_i_j_offset], state_out_val);
+
                         // result_data[t_h_i_offset] += state_out[h_2d_i_j_offset] * r_val;
                         auto result = MULTIPLY(state_out_val, r_val);
+
                         // auto sum = LOAD(&result_data[t_h_i_offset]);
                         sum = ADD(sum, result);
                     }
-                    result_data[t_h_i_offset] = horizontal_sum_avx(sum);
+                    result_data[t_h_i_offset] = horizontal_sum(sum);
             }
             
         }
