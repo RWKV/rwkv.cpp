@@ -89,19 +89,15 @@ static void rwkv_wkv_v7_impl(struct ggml_tensor * result, const struct ggml_tens
                         memset(&result_data[t_h_offset], 0, h_stride * sizeof(float));
                     }
 
-                    // auto sa_vec = ZEROS();
-                    // for (size_t j = 0; j < C / H; j += SIMD_WIDTH) {
-                    //     sa_vec = ADD(sa_vec, MULTIPLY(
-                    //                             LOAD(&a[t_h_offset + j]), 
-                    //                             LOAD(&state_in[h_2d_i_offset + j])
-                    //                         )
-                    //                 );
-                    // }
-                    // float sa = horizontal_sum(sa_vec);
-                    float sa = .0;
-                    for (size_t j = 0; j < C / H; j++) {
-                        sa += a[t_h_offset + j] * state_in[h_2d_i_offset + j];
+                    auto sa_vec = ZEROS();
+                    for (size_t j = 0; j < C / H; j += SIMD_WIDTH) {
+                        sa_vec = ADD(sa_vec, MULTIPLY(
+                                                LOAD(&a[t_h_offset + j]), 
+                                                LOAD(&state_in[h_2d_i_offset + j])
+                                            )
+                                    );
                     }
+                    float sa = horizontal_sum(sa_vec);
 
                     auto v_vec = SET1(v[t_h_i_offset]);
                     sa_vec = SET1(sa);
