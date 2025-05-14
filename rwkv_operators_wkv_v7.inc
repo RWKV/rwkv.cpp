@@ -38,7 +38,7 @@
     #define MULTADD(x, y, z) x * y + z
 #endif
 
-
+// TODO: This is ONLY for avx256, thus should be put in the macro in a decent way.
 inline float horizontal_sum(__m256 vec) {
     __m256 sum1 = _mm256_hadd_ps(vec, vec);
     __m256 sum2 = _mm256_hadd_ps(sum1, sum1);
@@ -102,7 +102,7 @@ static void rwkv_wkv_v7_impl(struct ggml_tensor * result, const struct ggml_tens
                     auto v_vec = SET1(v[t_h_i_offset]);
                     sa_vec = SET1(sa);
 
-                    auto sum = ZEROS();
+                    auto sum = ZEROS(); // Initialize the sum vector
                     for (size_t j = 0; j < C / H; j += SIMD_WIDTH) {
                         size_t t_h_j_offset = t_h_offset + j;
                         size_t h_2d_i_j_offset = h_2d_i_offset + j;
@@ -127,6 +127,7 @@ static void rwkv_wkv_v7_impl(struct ggml_tensor * result, const struct ggml_tens
                         // auto sum = LOAD(&result_data[t_h_i_offset]);
                         sum = ADD(sum, result);
                     }
+                    // Reduce all elements in the vector in one.
                     result_data[t_h_i_offset] = horizontal_sum(sum);
             }
             
