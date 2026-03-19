@@ -198,7 +198,7 @@ To use `rwkv.cpp` in any other language, see [Bindings](#Bindings) section below
 These projects wrap `rwkv.cpp` for easier use in other languages/frameworks.
 
 * Golang: [seasonjs/rwkv](https://github.com/seasonjs/rwkv)
-* Node.js: [Atome-FE/llama-node](https://github.com/Atome-FE/llama-node)
+* Node.js: [withcatai/node-llama-cpp](https://github.com/withcatai/node-llama-cpp)
 
 ## Compatibility
 
